@@ -1,0 +1,23 @@
+services:
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      - HTTP_ADDR=:8081
+      - MAPBOX_PUBLIC_TOKEN=${MAPBOX_PUBLIC_TOKEN}
+      - TRIP_SERVICE_URL=http://trip-service:8083
+    depends_on:
+      - trip-service
+
+  trip-service:
+    build:
+      context: .
+      dockerfile: services/trip-service/Dockerfile
+    ports:
+      - "8083:8083"
+    environment:
+      - HTTP_ADDR=:8083
+      - MAPBOX_TOKEN=${MAPBOX_TOKEN}
