@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
-	"net/url"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"drova/services/trip-service/internal/domain"
+	tripTypes "drova/services/trip-service/pkg/types"
 	"drova/shared/env"
 	"drova/shared/types"
 )
@@ -30,25 +31,16 @@ func (s *service) CreateTrip(ctx context.Context, fare *domain.RideFareModel) (*
 		UserID: fare.UserID,
 		Status: "pending",
 		Fare:   fare,
+		Driver: nil,
 	}
 	return s.repo.CreateTrip(ctx, trip)
 }
 
-func (s *service) GetRoute(ctx context.Context, pickup, destination string) (*types.MapboxRouteResponse, error) {
-	pickupCoord, err := geocode(pickup)
-	if err != nil {
-		return nil, fmt.Errorf("geocode pickup: %w", err)
-	}
-
-	destCoord, err := geocode(destination)
-	if err != nil {
-		return nil, fmt.Errorf("geocode destination: %w", err)
-	}
-
+func (s *service) GetRoute(ctx context.Context, pickup, destination *types.Coordinate) (*tripTypes.MapboxRouteResponse, error) {
 	routeURL := fmt.Sprintf(
 		"https://api.mapbox.com/directions/v5/mapbox/driving/%f,%f;%f,%f?overview=full&geometries=geojson&access_token=%s",
-		pickupCoord[0], pickupCoord[1],
-		destCoord[0], destCoord[1],
+		pickup.Longitude, pickup.Latitude,
+		destination.Longitude, destination.Latitude,
 		mapboxToken,
 	)
 
@@ -62,47 +54,75 @@ func (s *service) GetRoute(ctx context.Context, pickup, destination string) (*ty
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("read directions response: %w", err)
+		return nil, fmt.Errorf("read response: %w", err)
 	}
 
-	var route types.MapboxRouteResponse
+	var route tripTypes.MapboxRouteResponse
 	if err := json.Unmarshal(body, &route); err != nil {
-		return nil, fmt.Errorf("parse directions response: %w", err)
+		return nil, fmt.Errorf("parse response: %w", err)
+	}
+
+	if len(route.Routes) == 0 {
+		log.Printf("Mapbox returned no routes. Body: %s", string(body))
+		return nil, fmt.Errorf("no routes found for given coordinates")
 	}
 
 	return &route, nil
 }
 
-func geocode(address string) ([]float64, error) {
-	ctx := context.Background()
-	encoded := url.PathEscape(address)
-	geocodeURL := fmt.Sprintf(
-		"https://api.mapbox.com/geocoding/v5/mapbox.places/%s.json?country=de&limit=1&access_token=%s",
-		encoded,
-		mapboxToken,
-	)
+func (s *service) EstimatePackagesPriceWithRoute(route *tripTypes.MapboxRouteResponse) []*domain.RideFareModel {
+	baseFares := getBaseFares()
+	estimatedFares := make([]*domain.RideFareModel, len(baseFares))
+	for i, f := range baseFares {
+		estimatedFares[i] = estimateFareRoute(f, route)
+	}
+	return estimatedFares
+}
 
-	req, _ := http.NewRequestWithContext(ctx, "GET", geocodeURL, nil)
-	req.Header.Set("Referer", "http://localhost:8083")
-	resp, err := http.DefaultClient.Do(req)
+func (s *service) GenerateTripFares(ctx context.Context, rideFares []*domain.RideFareModel, userID string) ([]*domain.RideFareModel, error) {
+	fares := make([]*domain.RideFareModel, len(rideFares))
+	for i, f := range rideFares {
+		fare := &domain.RideFareModel{
+			ID:                primitive.NewObjectID(),
+			UserID:            userID,
+			PackageSlug:       f.PackageSlug,
+			TotalPriceInCents: f.TotalPriceInCents,
+		}
+		if err := s.repo.SaveRideFare(ctx, fare); err != nil {
+			return nil, fmt.Errorf("failed to save trip fare: %w", err)
+		}
+		fares[i] = fare
+	}
+	return fares, nil
+}
+
+func (s *service) GetAndValidateFare(ctx context.Context, fareID, userID string) (*domain.RideFareModel, error) {
+	fare, err := s.repo.GetRideFareByID(ctx, fareID)
 	if err != nil {
-		return nil, fmt.Errorf("geocoding api: %w", err)
+		return nil, fmt.Errorf("fare not found: %w", err)
 	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read geocoding response: %w", err)
+	if fare.UserID != userID {
+		return nil, fmt.Errorf("fare does not belong to user")
 	}
+	return fare, nil
+}
 
-	var result types.MapboxGeocodeResponse
-	if err := json.Unmarshal(body, &result); err != nil {
-		return nil, fmt.Errorf("parse geocoding response: %w", err)
+func estimateFareRoute(f *domain.RideFareModel, route *tripTypes.MapboxRouteResponse) *domain.RideFareModel {
+	cfg := tripTypes.DefaultPricingConfig()
+	distanceKm := route.Routes[0].Distance / 1000 // meters → km
+	durationMin := route.Routes[0].Duration / 60  // seconds → minutes
+	total := f.TotalPriceInCents + distanceKm*cfg.PricePerUnitOfDistance + durationMin*cfg.PricingPerMinute
+	return &domain.RideFareModel{
+		PackageSlug:       f.PackageSlug,
+		TotalPriceInCents: total,
 	}
+}
 
-	if len(result.Features) == 0 {
-		return nil, fmt.Errorf("no results for address: %s", address)
+func getBaseFares() []*domain.RideFareModel {
+	return []*domain.RideFareModel{
+		{PackageSlug: "sedan", TotalPriceInCents: 500},
+		{PackageSlug: "suv", TotalPriceInCents: 800},
+		{PackageSlug: "van", TotalPriceInCents: 1000},
+		{PackageSlug: "luxury", TotalPriceInCents: 1500},
 	}
-
-	return result.Features[0].Center, nil // [lng, lat]
 }

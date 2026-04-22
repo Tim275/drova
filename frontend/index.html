@@ -81,6 +81,36 @@
     .style-opt { padding: 10px 16px; font-size: 13px; color: #111827; cursor: pointer; }
     .style-opt:hover { background: #f3f4f6; }
     #routeinfo { font-size: 15px; font-weight: 600; color: #111827; margin-bottom: 4px; }
+
+    /* Driver panel */
+    #driverpanel {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.4); z-index: 100;
+      align-items: flex-end; justify-content: center;
+    }
+    #driverpanel.active { display: flex; }
+    .driver-card {
+      background: white; border-radius: 20px 20px 0 0;
+      width: 100%; max-width: 480px; padding: 28px 24px 32px;
+    }
+    .driver-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+    .driver-avatar { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; }
+    .driver-name { font-size: 17px; font-weight: 700; color: #111827; }
+    .driver-meta { font-size: 13px; color: #6b7280; margin-top: 2px; }
+    .chat-messages {
+      height: 200px; overflow-y: auto;
+      border: 1.5px solid #e5e7eb; border-radius: 10px;
+      padding: 12px; margin-bottom: 12px;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .msg { padding: 8px 12px; border-radius: 10px; font-size: 13px; max-width: 80%; }
+    .msg.sent { background: #111827; color: white; align-self: flex-end; }
+    .msg.received { background: #f3f4f6; color: #111827; align-self: flex-start; }
+    .chat-input { display: flex; gap: 8px; }
+    .chat-input input { flex: 1; padding: 10px 12px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 13px; outline: none; }
+    .chat-input input:focus { border-color: #111827; }
+    .chat-input button { padding: 10px 18px; background: #111827; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    #closedriverpanel { margin-top: 12px; width: 100%; padding: 11px; background: white; color: #111827; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -104,11 +134,11 @@
       <h3>Plan your trip</h3>
       <div>
         <span class="field-label">Pickup</span>
-        <input class="field-input" id="pickup" value="Düsseldorf Hauptbahnhof">
+        <input class="field-input" id="pickup" placeholder="e.g. Düsseldorf Hauptbahnhof">
       </div>
       <div>
         <span class="field-label">Destination</span>
-        <input class="field-input" id="destination" value="Köln Hauptbahnhof">
+        <input class="field-input" id="destination" placeholder="e.g. Köln Hauptbahnhof">
       </div>
       <button id="calcBtn" onclick="getRoute()">Calculate Route</button>
       <div id="errbox"></div>
@@ -147,8 +177,29 @@
   </div>
 </div>
 
+<!-- Driver panel (WebSocket) -->
+<div id="driverpanel">
+  <div class="driver-card">
+    <div class="driver-header">
+      <img id="driverAvatar" class="driver-avatar" src="" alt="Driver">
+      <div>
+        <div id="driverName" class="driver-name"></div>
+        <div id="driverMeta" class="driver-meta"></div>
+      </div>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input">
+      <input id="chatInput" type="text" placeholder="Type a message..." onkeydown="if(event.key==='Enter') sendMessage()">
+      <button onclick="sendMessage()">Send</button>
+    </div>
+    <button id="closedriverpanel" onclick="closeDriverPanel()">Close</button>
+  </div>
+</div>
+
 <script>
-  let map, selectedRide = null;
+  let map, selectedRide = null, selectedFareID = null;
+  let pickupCoords = null, destinationCoords = null;
+  let pickupMarker = null, destinationMarker = null;
   const markers = [];
 
   // SVG icons matching Thiago's outline style
@@ -166,6 +217,22 @@
     { id: 'luxury', name: 'Luxury', desc: 'Premium experience',         rateBase: 15, rateKm: 2.5 },
   ];
 
+  async function reverseGeocode(lng, lat) {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}&limit=1&language=de`;
+    const res  = await fetch(url);
+    const data = await res.json();
+    return data.features?.[0]?.place_name ?? `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+  }
+
+  async function geocode(address) {
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxgl.accessToken}&limit=1&country=de`;
+    const res  = await fetch(url);
+    const data = await res.json();
+    if (!data.features?.length) throw new Error(`Adresse nicht gefunden: ${address}`);
+    const [lng, lat] = data.features[0].center;
+    return { latitude: lat, longitude: lng };
+  }
+
   async function startRider() {
     document.getElementById('welcome').style.display = 'none';
     document.getElementById('mapscreen').style.display = 'block';
@@ -176,38 +243,45 @@
     map = new mapboxgl.Map({
       container: 'map',
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: [6.79, 51.22],
-      zoom: 8
+      center: [10.5, 51.2],
+      zoom: 6,
     });
     map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
-    map.on('load', getRoute);
   }
 
   async function getRoute() {
-    if (!map || !map.isStyleLoaded()) return;
-
     const pickup      = document.getElementById('pickup').value.trim();
     const destination = document.getElementById('destination').value.trim();
-    const btn         = document.getElementById('calcBtn');
-    const errbox      = document.getElementById('errbox');
+    if (!pickup || !destination) {
+      document.getElementById('errbox').style.display = 'block';
+      document.getElementById('errbox').textContent = 'Bitte beide Adressen eingeben';
+      return;
+    }
 
+    const btn    = document.getElementById('calcBtn');
+    const errbox = document.getElementById('errbox');
     errbox.style.display = 'none';
     btn.disabled = true;
     btn.textContent = 'Calculating...';
 
     try {
+      pickupCoords      = await geocode(pickup);
+      destinationCoords = await geocode(destination);
+
       const resp = await fetch('http://localhost:8081/trip/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userID: 'user-1', pickup, destination })
+        body: JSON.stringify({ userID: 'user-1', pickup: pickupCoords, destination: destinationCoords })
       });
       if (!resp.ok) throw new Error('API error ' + resp.status);
-      const data = await resp.json();
-      const route = data.routes?.[0];
+      const json  = await resp.json();
+      const route = json.data?.route;
+      const fares = json.data?.rideFares;
       if (!route) throw new Error('No route found');
 
+      placeMarkers(pickupCoords, destinationCoords);
       drawRoute(route);
-      showRidePanel(route);
+      showRidePanel(route, fares);
 
     } catch (e) {
       errbox.style.display = 'block';
@@ -218,32 +292,78 @@
     }
   }
 
-  function drawRoute(route) {
-    const coords = route.geometry.coordinates;
-    if (map.getSource('route')) { map.removeLayer('route-line'); map.removeSource('route'); }
-    markers.forEach(m => m.remove()); markers.length = 0;
+  function placeMarkers(pickup, destination) {
+    if (pickupMarker) pickupMarker.remove();
+    if (destinationMarker) destinationMarker.remove();
 
-    map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } } });
-    map.addLayer({ id: 'route-line', type: 'line', source: 'route', paint: { 'line-color': '#1d4ed8', 'line-width': 4 } });
-    markers.push(new mapboxgl.Marker({ color: '#ef4444' }).setLngLat(coords[0]).addTo(map));
-    markers.push(new mapboxgl.Marker({ color: '#ef4444' }).setLngLat(coords[coords.length - 1]).addTo(map));
+    pickupMarker = new mapboxgl.Marker({ color: '#22c55e', draggable: true })
+      .setLngLat([pickup.longitude, pickup.latitude])
+      .addTo(map);
 
-    const bounds = coords.reduce((b, c) => b.extend(c), new mapboxgl.LngLatBounds(coords[0], coords[0]));
-    map.fitBounds(bounds, { padding: 60 });
+    destinationMarker = new mapboxgl.Marker({ color: '#ef4444', draggable: true })
+      .setLngLat([destination.longitude, destination.latitude])
+      .addTo(map);
+
+    pickupMarker.on('dragend', async () => {
+      const { lng, lat } = pickupMarker.getLngLat();
+      pickupCoords = { latitude: lat, longitude: lng };
+      document.getElementById('pickup').value = await reverseGeocode(lng, lat);
+      fetchAndDrawRoute();
+    });
+
+    destinationMarker.on('dragend', async () => {
+      const { lng, lat } = destinationMarker.getLngLat();
+      destinationCoords = { latitude: lat, longitude: lng };
+      document.getElementById('destination').value = await reverseGeocode(lng, lat);
+      fetchAndDrawRoute();
+    });
   }
 
-  function showRidePanel(route) {
+  async function fetchAndDrawRoute() {
+    try {
+      const resp = await fetch('http://localhost:8081/trip/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userID: 'user-1', pickup: pickupCoords, destination: destinationCoords })
+      });
+      if (!resp.ok) return;
+      const json  = await resp.json();
+      const route = json.data?.route;
+      const fares = json.data?.rideFares;
+      if (!route) return;
+      drawRoute(route, false); // no fitBounds when dragging
+      showRidePanel(route, fares);
+    } catch (_) {}
+  }
+
+  function drawRoute(route, fitBounds = true) {
+    const coords = route.geometry[0].coordinates.map(c => [c.longitude, c.latitude]);
+    if (map.getSource('route')) {
+      map.getSource('route').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } });
+    } else {
+      map.addSource('route', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } } });
+      map.addLayer({ id: 'route-line', type: 'line', source: 'route', paint: { 'line-color': '#1d4ed8', 'line-width': 4 } });
+    }
+
+    if (fitBounds) {
+      const bounds = coords.reduce((b, c) => b.extend(c), new mapboxgl.LngLatBounds(coords[0], coords[0]));
+      map.fitBounds(bounds, { padding: 60 });
+    }
+  }
+
+  function showRidePanel(route, fares) {
     const km  = route.distance / 1000;
     const min = Math.round(route.duration / 60);
 
     document.getElementById('routeinfo').textContent  = `Routing for ${km.toFixed(2)} km`;
     document.getElementById('arrivalinfo').innerHTML  = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> You'll arrive in: ${min} minutes`;
 
-    document.getElementById('rideoptions').innerHTML = vehicles.map(v => {
-      const price = (v.rateBase + km * v.rateKm).toFixed(2);
+    document.getElementById('rideoptions').innerHTML = fares.map(fare => {
+      const v     = vehicles.find(x => x.id === fare.packageSlug) ?? { name: fare.packageSlug, desc: '' };
+      const price = (fare.totalPriceInCents / 100).toFixed(2);
       return `
-        <div class="ride-option" id="opt-${v.id}" onclick="selectRide('${v.id}')">
-          <div class="ride-icon">${icons[v.id]}</div>
+        <div class="ride-option" id="opt-${fare.packageSlug}" onclick="selectRide('${fare.packageSlug}', '${fare.id}')">
+          <div class="ride-icon">${icons[fare.packageSlug] ?? ''}</div>
           <div class="ride-info">
             <div class="ride-name">${v.name}</div>
             <div class="ride-desc">${v.desc}</div>
@@ -256,8 +376,9 @@
     setTimeout(() => map.resize(), 50);
   }
 
-  function selectRide(id) {
-    selectedRide = id;
+  function selectRide(id, fareID) {
+    selectedRide   = id;
+    selectedFareID = fareID;
     document.querySelectorAll('.ride-option').forEach(el => el.classList.remove('selected'));
     document.getElementById('opt-' + id)?.classList.add('selected');
   }
@@ -285,9 +406,64 @@
     setTimeout(() => map.resize(), 50);
   }
 
-  function confirmRide() {
-    if (!selectedRide) { alert('Please select a ride type'); return; }
-    alert(`Ride confirmed! Looking for a ${selectedRide} driver...`);
+  let ws = null;
+
+  async function confirmRide() {
+    if (!selectedRide || !selectedFareID) { alert('Please select a ride type'); return; }
+
+    await fetch('http://localhost:8081/trip/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rideFareID: selectedFareID, userID: 'user-1' })
+    });
+
+    ws = new WebSocket(`ws://localhost:8081/ws/drivers?userID=driver-1&packageSlug=${selectedRide}`);
+
+    ws.onopen = () => {
+      document.getElementById('driverName').textContent = 'Finding your driver...';
+      document.getElementById('driverMeta').textContent = '';
+      document.getElementById('driverAvatar').src = '';
+      document.getElementById('chatMessages').innerHTML = '';
+      document.getElementById('driverpanel').classList.add('active');
+    };
+
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'driver.cmd.register') {
+        const d = msg.data;
+        document.getElementById('driverName').textContent = d.name;
+        document.getElementById('driverMeta').textContent = `${d.carPlate} · ${d.packageSlug}`;
+        document.getElementById('driverAvatar').src = d.profilePicture;
+        addChatMessage(`Hi! I'm ${d.name}, your ${d.packageSlug} driver. I'm on my way!`, 'received');
+      } else {
+        addChatMessage(msg.data, 'received');
+      }
+    };
+
+    ws.onclose = () => addChatMessage('Driver disconnected.', 'received');
+  }
+
+  function addChatMessage(text, type) {
+    const el = document.createElement('div');
+    el.className = `msg ${type}`;
+    el.textContent = text;
+    const box = document.getElementById('chatMessages');
+    box.appendChild(el);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text || !ws) return;
+    ws.send(text);
+    addChatMessage(text, 'sent');
+    input.value = '';
+  }
+
+  function closeDriverPanel() {
+    if (ws) { ws.close(); ws = null; }
+    document.getElementById('driverpanel').classList.remove('active');
   }
 </script>
 </body>

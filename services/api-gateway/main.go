@@ -16,31 +16,23 @@ var (
 	httpAddr = env.GetString("HTTP_ADDR", ":8081")
 )
 
-func corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3000")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
 func main() {
 	log.Println("Starting API Gateway")
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /health", handleHealth)
-	mux.HandleFunc("GET /config", handleConfig)
-	mux.HandleFunc("POST /trip/preview", handleTripPreview)
+	mux.HandleFunc("GET /health", enableCORS(handleHealth))
+	mux.HandleFunc("GET /config", enableCORS(handleConfig))
+	mux.HandleFunc("POST /trip/preview", enableCORS(handleTripPreview))
+	mux.HandleFunc("OPTIONS /trip/preview", enableCORS(handleTripPreview))
+	mux.HandleFunc("POST /trip/start", enableCORS(handleTripStart))
+	mux.HandleFunc("OPTIONS /trip/start", enableCORS(handleTripStart))
+	mux.HandleFunc("/ws/drivers", handleDriversWebSocket)
+	mux.HandleFunc("/ws/riders", handleRidersWebSocket)
 
 	server := &http.Server{
 		Addr:    httpAddr,
-		Handler: corsMiddleware(mux),
+		Handler: mux,
 	}
 
 	serverErrors := make(chan error, 1)

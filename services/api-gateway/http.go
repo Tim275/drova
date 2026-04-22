@@ -1,17 +1,16 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"io"
+	"log"
 	"net/http"
 
+	"drova/services/api-gateway/grpc_clients"
 	"drova/shared/contracts"
 	"drova/shared/env"
 )
 
 var (
-	tripServiceAddr   = env.GetString("TRIP_SERVICE_ADDR", "http://localhost:8083")
 	mapboxPublicToken = env.GetString("MAPBOX_PUBLIC_TOKEN", "")
 )
 
@@ -25,6 +24,32 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func handleTripStart(w http.ResponseWriter, r *http.Request) {
+	var reqBody startTripRequest
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		http.Error(w, "failed to parse JSON data", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	tripService, err := grpc_clients.NewTripServiceClient()
+	if err != nil {
+		log.Printf("failed to connect to trip service: %v", err)
+		http.Error(w, "failed to reach trip service", http.StatusInternalServerError)
+		return
+	}
+	defer tripService.Close()
+
+	trip, err := tripService.Client.CreateTrip(r.Context(), reqBody.toProto())
+	if err != nil {
+		log.Printf("failed to start trip: %v", err)
+		http.Error(w, "failed to start trip", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, contracts.APIResponse{Data: map[string]string{"tripID": trip.GetTripID()}})
+}
+
 func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 	var reqBody previewTripRequest
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
@@ -33,25 +58,21 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	if reqBody.UserID == "" {
-		http.Error(w, "user ID is required", http.StatusBadRequest)
-		return
-	}
-	if reqBody.Pickup == "" || reqBody.Destination == "" {
-		http.Error(w, "pickup and destination are required", http.StatusBadRequest)
-		return
-	}
-
-	jsonBody, _ := json.Marshal(reqBody)
-	resp, err := http.Post(tripServiceAddr+"/preview", "application/json", bytes.NewReader(jsonBody))
+	// New client per request: if trip-service is down it won't block the whole gateway
+	tripService, err := grpc_clients.NewTripServiceClient()
 	if err != nil {
+		log.Printf("failed to connect to trip service: %v", err)
 		http.Error(w, "failed to reach trip service", http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	defer tripService.Close()
 
-	body, _ := io.ReadAll(resp.Body)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(resp.StatusCode)
-	w.Write(body)
+	tripPreview, err := tripService.Client.PreviewTrip(r.Context(), reqBody.toProto())
+	if err != nil {
+		log.Printf("failed to preview trip: %v", err)
+		http.Error(w, "failed to preview trip", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, contracts.APIResponse{Data: tripPreview})
 }

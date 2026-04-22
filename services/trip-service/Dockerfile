@@ -8,5 +8,5 @@ RUN go build -o trip-service ./services/trip-service/cmd
 FROM alpine:3.21
 WORKDIR /app
 COPY --from=builder /app/trip-service .
-EXPOSE 8083
+EXPOSE 9093
 CMD ["./trip-service"]

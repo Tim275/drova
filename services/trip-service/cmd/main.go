@@ -3,21 +3,20 @@ package main
 import (
 	"context"
 	"log"
-	"net/http"
+	"net"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	h "drova/services/trip-service/internal/infrastructure/http"
+	grpcHandler "drova/services/trip-service/internal/infrastructure/grpc"
 	"drova/services/trip-service/internal/infrastructure/repository"
 	"drova/services/trip-service/internal/service"
 	"drova/shared/env"
+
+	grpcserver "google.golang.org/grpc"
 )
 
-var (
-	httpAddr = env.GetString("HTTP_ADDR", ":8083")
-)
+var grpcAddr = env.GetString("GRPC_ADDR", ":9093")
 
 func main() {
 	log.Println("Starting Trip Service")
@@ -25,35 +24,33 @@ func main() {
 	inmemRepo := repository.NewInmemRepository()
 	svc := service.NewService(inmemRepo)
 
-	mux := http.NewServeMux()
-
-	httpHandler := &h.HttpHandler{Service: svc}
-	mux.HandleFunc("POST /preview", httpHandler.HandleTripPreview)
-
-	server := &http.Server{
-		Addr:    httpAddr,
-		Handler: mux,
+	lis, err := net.Listen("tcp", grpcAddr)
+	if err != nil {
+		log.Fatalf("failed to listen on %s: %v", grpcAddr, err)
 	}
 
-	serverErrors := make(chan error, 1)
+	grpcSrv := grpcserver.NewServer()
+	grpcHandler.NewGRPCHandler(grpcSrv, svc)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	go func() {
-		log.Printf("Server listening on %s", server.Addr)
-		serverErrors <- server.ListenAndServe()
+		log.Printf("gRPC server listening on %s", grpcAddr)
+		if err := grpcSrv.Serve(lis); err != nil {
+			log.Printf("gRPC server error: %v", err)
+			cancel()
+		}
 	}()
 
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
 
 	select {
-	case err := <-serverErrors:
-		log.Printf("Error starting server: %v", err)
-	case sig := <-shutdown:
-		log.Printf("Server is shutting down due to %v signal", sig)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := server.Shutdown(ctx); err != nil {
-			log.Printf("Could not stop server gracefully: %v", err)
-			server.Close()
-		}
+	case <-shutdown:
+		log.Println("Shutting down trip service")
+	case <-ctx.Done():
 	}
+
+	grpcSrv.GracefulStop()
 }

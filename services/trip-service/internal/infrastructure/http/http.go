@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"drova/services/trip-service/internal/domain"
+	"drova/shared/types"
 )
 
 type HttpHandler struct {
@@ -13,9 +14,9 @@ type HttpHandler struct {
 }
 
 type previewTripRequest struct {
-	UserID      string `json:"userID"`
-	Pickup      string `json:"pickup"`
-	Destination string `json:"destination"`
+	UserID      string           `json:"userID"`
+	Pickup      types.Coordinate `json:"pickup"`
+	Destination types.Coordinate `json:"destination"`
 }
 
 func (h *HttpHandler) HandleTripPreview(w http.ResponseWriter, r *http.Request) {
@@ -26,7 +27,7 @@ func (h *HttpHandler) HandleTripPreview(w http.ResponseWriter, r *http.Request) 
 	}
 	defer r.Body.Close()
 
-	route, err := h.Service.GetRoute(r.Context(), reqBody.Pickup, reqBody.Destination)
+	route, err := h.Service.GetRoute(r.Context(), &reqBody.Pickup, &reqBody.Destination)
 	if err != nil {
 		log.Println(err)
 		http.Error(w, "failed to get route", http.StatusInternalServerError)
