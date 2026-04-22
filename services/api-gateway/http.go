@@ -58,7 +58,6 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	// New client per request: if trip-service is down it won't block the whole gateway
 	tripService, err := grpc_clients.NewTripServiceClient()
 	if err != nil {
 		log.Printf("failed to connect to trip service: %v", err)

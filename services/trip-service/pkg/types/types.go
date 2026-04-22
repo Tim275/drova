@@ -36,7 +36,7 @@ type PricingConfig struct {
 
 func DefaultPricingConfig() *PricingConfig {
 	return &PricingConfig{
-		PricePerUnitOfDistance: 150, // cents per km (= 1.50€/km)
-		PricingPerMinute:       30,  // cents per min (= 0.30€/min)
+		PricePerUnitOfDistance: 150,
+		PricingPerMinute:       30,
 	}
 }

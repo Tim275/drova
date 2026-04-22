@@ -35,7 +35,6 @@ func (h *gRPCHandler) CreateTrip(ctx context.Context, req *pb.CreateTripRequest)
 		return nil, status.Errorf(codes.Internal, "failed to create trip: %v", err)
 	}
 
-	// TODO: publish async event for driver assignment
 	return &pb.CreateTripResponse{
 		TripID: trip.ID.Hex(),
 	}, nil

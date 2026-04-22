@@ -2,91 +2,66 @@ syntax = "proto3";
 
 package trip;
 
-// go_package gibt an wo der generierte Go-Code abgelegt wird
-// protoc legt ihn in shared/proto/trip/ ab, Package-Name ist "trip"
 option go_package = "shared/proto/trip;trip";
 
-// TripService definiert alle RPC-Methoden die der api-gateway
-// auf dem trip-service aufrufen darf — das ist der Vertrag zwischen beiden Services
 service TripService {
-  // Gibt Route + 4 Preisoptionen zurück, ohne einen Trip zu erstellen
   rpc PreviewTrip(PreviewTripRequest) returns (PreviewTripResponse);
-  // Erstellt den Trip erst wenn der User ein Fare gewählt hat
   rpc CreateTrip(CreateTripRequest) returns (CreateTripResponse);
 }
 
-// PreviewTrip: api-gateway schickt Pickup + Destination vom User
 message PreviewTripRequest {
   string userID = 1;
   Coordinate startLocation = 2;
   Coordinate endLocation = 3;
 }
 
-// PreviewTrip: trip-service antwortet mit der berechneten Route + Preisen
-// repeated = Array — wir schicken 4 Fares (sedan, suv, van, luxury)
 message PreviewTripResponse {
   string tripID = 1;
   Route route = 2;
   repeated RideFare rideFares = 3;
 }
 
-// CreateTrip: User hat ein Fare gewählt — wir schicken dessen ID zurück
-// userID für Ownership-Validierung: gehört das Fare diesem User?
 message CreateTripRequest {
   string rideFareID = 1;
   string userID = 2;
 }
 
-// CreateTrip: wir geben nur die tripID zurück
-// die vollen Trip-Details kommen später per Async Event (Driver Assignment)
 message CreateTripResponse {
   string tripID = 1;
   Trip trip = 2;
 }
 
-// Koordinate — longitude zuerst weil Mapbox [lng, lat] zurückgibt
-// wir konvertieren in ToProto() von Mapbox-Format zu diesem Struct
 message Coordinate {
   double latitude = 1;
   double longitude = 2;
 }
 
-// Geometry hält die einzelnen Wegpunkte der Route als Array
 message Geometry {
   repeated Coordinate coordinates = 1;
 }
 
-// Route kommt direkt von Mapbox Directions API
-// distance in Metern, duration in Sekunden — wir konvertieren in der Pricing-Logik
 message Route {
   repeated Geometry geometry = 1;
   double distance = 2;
   double duration = 3;
 }
 
-// RideFare = ein Preisangebot für eine Fahrzeugkategorie
-// wird in der InMemory-Repo gespeichert bis der User wählt
-// userID damit niemand fremde Fares benutzen kann
 message RideFare {
   string id = 1;
   string userID = 2;
-  string packageSlug = 3; // "sedan" | "suv" | "van" | "luxury"
+  string packageSlug = 3;
   double totalPriceInCents = 4;
 }
 
-// Trip wird erstellt sobald CreateTrip aufgerufen wird
-// status "pending" — wird auf "active" gesetzt wenn Fahrer zugewiesen
 message Trip {
   string id = 1;
   RideFare selectedFare = 2;
   Route route = 3;
   string status = 4;
   string userID = 5;
-  TripDriver driver = 6; // leer bis Fahrer zugewiesen wird
+  TripDriver driver = 6;
 }
 
-// TripDriver — statisches Objekt mit Fahrerinformationen
-// wird über Async Event befüllt (nächstes Modul)
 message TripDriver {
   string id = 1;
   string name = 2;

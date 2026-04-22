@@ -109,8 +109,8 @@ func (s *service) GetAndValidateFare(ctx context.Context, fareID, userID string)
 
 func estimateFareRoute(f *domain.RideFareModel, route *tripTypes.MapboxRouteResponse) *domain.RideFareModel {
 	cfg := tripTypes.DefaultPricingConfig()
-	distanceKm := route.Routes[0].Distance / 1000 // meters → km
-	durationMin := route.Routes[0].Duration / 60  // seconds → minutes
+	distanceKm := route.Routes[0].Distance / 1000
+	durationMin := route.Routes[0].Duration / 60
 	total := f.TotalPriceInCents + distanceKm*cfg.PricePerUnitOfDistance + durationMin*cfg.PricingPerMinute
 	return &domain.RideFareModel{
 		PackageSlug:       f.PackageSlug,
