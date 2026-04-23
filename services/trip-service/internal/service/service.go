@@ -120,9 +120,9 @@ func estimateFareRoute(f *domain.RideFareModel, route *tripTypes.MapboxRouteResp
 
 func getBaseFares() []*domain.RideFareModel {
 	return []*domain.RideFareModel{
-		{PackageSlug: "sedan", TotalPriceInCents: 500},
-		{PackageSlug: "suv", TotalPriceInCents: 800},
+		{PackageSlug: "economy", TotalPriceInCents: 500},
+		{PackageSlug: "comfort", TotalPriceInCents: 800},
 		{PackageSlug: "van", TotalPriceInCents: 1000},
-		{PackageSlug: "luxury", TotalPriceInCents: 1500},
+		{PackageSlug: "business", TotalPriceInCents: 1500},
 	}
 }

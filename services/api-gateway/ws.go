@@ -4,8 +4,9 @@ import (
 	"log"
 	"net/http"
 
+	"drova/services/api-gateway/grpc_clients"
 	"drova/shared/contracts"
-	"drova/shared/util"
+	pb "drova/shared/proto/driver"
 
 	"github.com/gorilla/websocket"
 )
@@ -60,23 +61,35 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	type Driver struct {
-		Id             string `json:"id"`
-		Name           string `json:"name"`
-		ProfilePicture string `json:"profilePicture"`
-		CarPlate       string `json:"carPlate"`
-		PackageSlug    string `json:"packageSlug"`
+	ctx := r.Context()
+
+	driverService, err := grpc_clients.NewDriverServiceClient()
+	if err != nil {
+		log.Printf("Failed to connect to driver service: %v", err)
+		return
+	}
+
+	defer func() {
+		driverService.Client.UnregisterDriver(ctx, &pb.RegisterDriverRequest{
+			DriverID:    userID,
+			PackageSlug: packageSlug,
+		})
+		driverService.Close()
+		log.Println("Driver unregistered:", userID)
+	}()
+
+	driverData, err := driverService.Client.RegisterDriver(ctx, &pb.RegisterDriverRequest{
+		DriverID:    userID,
+		PackageSlug: packageSlug,
+	})
+	if err != nil {
+		log.Printf("Error registering driver: %v", err)
+		return
 	}
 
 	msg := contracts.WSMessage{
 		Type: "driver.cmd.register",
-		Data: Driver{
-			Id:             userID,
-			Name:           "Tim",
-			ProfilePicture: util.GetRandomAvatar(1),
-			CarPlate:       "ABC123",
-			PackageSlug:    packageSlug,
-		},
+		Data: driverData.Driver,
 	}
 
 	if err := conn.WriteJSON(msg); err != nil {

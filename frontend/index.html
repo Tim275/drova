@@ -204,17 +204,17 @@
 
   // SVG icons matching Thiago's outline style
   const icons = {
-    suv:    `<svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l3-3h8l3 3h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M5 9h14"/></svg>`,
-    sedan:  `<svg viewBox="0 0 24 24"><path d="M7 17H3a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h1l4-4h6l4 4h1a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-4"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>`,
-    van:    `<svg viewBox="0 0 24 24"><rect x="1" y="7" width="22" height="12" rx="2"/><path d="M1 11h22M7 7V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/><circle cx="7" cy="19" r="2"/><circle cx="17" cy="19" r="2"/></svg>`,
-    luxury: `<svg viewBox="0 0 24 24"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z"/><path d="M5 20h14"/></svg>`,
+    economy:  `<svg viewBox="0 0 24 24"><path d="M7 17H3a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h1l4-4h6l4 4h1a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-4"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>`,
+    comfort:  `<svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l3-3h8l3 3h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M5 9h14"/></svg>`,
+    van:      `<svg viewBox="0 0 24 24"><rect x="1" y="7" width="22" height="12" rx="2"/><path d="M1 11h22M7 7V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"/><circle cx="7" cy="19" r="2"/><circle cx="17" cy="19" r="2"/></svg>`,
+    business: `<svg viewBox="0 0 24 24"><path d="M2 17H1a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h1l3-4h10l3 4h1a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-2"/><path d="M5 9h14"/><path d="M8 9V7"/><circle cx="6" cy="17" r="2"/><circle cx="18" cy="17" r="2"/><path d="M8 17h8"/></svg>`,
   };
 
   const vehicles = [
-    { id: 'suv',    name: 'SUV',    desc: 'Spacious ride for groups',   rateBase: 8,  rateKm: 1.8 },
-    { id: 'sedan',  name: 'Sedan',  desc: 'Economic and comfortable',   rateBase: 5,  rateKm: 1.2 },
-    { id: 'van',    name: 'Van',    desc: 'Perfect for larger groups',  rateBase: 10, rateKm: 2.0 },
-    { id: 'luxury', name: 'Luxury', desc: 'Premium experience',         rateBase: 15, rateKm: 2.5 },
+    { id: 'economy',  name: 'Economy',  desc: 'VW Golf, Skoda Octavia',        rateBase: 5,  rateKm: 1.2 },
+    { id: 'comfort',  name: 'Comfort',  desc: 'BMW 3er, Mercedes C-Klasse',    rateBase: 8,  rateKm: 1.8 },
+    { id: 'van',      name: 'Van',      desc: 'VW Touran, Ford Galaxy',         rateBase: 10, rateKm: 2.0 },
+    { id: 'business', name: 'Business', desc: 'Mercedes E-Klasse, Audi A6',    rateBase: 15, rateKm: 2.5 },
   ];
 
   async function reverseGeocode(lng, lat) {
@@ -228,6 +228,7 @@
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxgl.accessToken}&limit=1&country=de`;
     const res  = await fetch(url);
     const data = await res.json();
+    console.log('geocode response:', JSON.stringify(data));
     if (!data.features?.length) throw new Error(`Adresse nicht gefunden: ${address}`);
     const [lng, lat] = data.features[0].center;
     return { latitude: lat, longitude: lng };
@@ -300,7 +301,7 @@
       .setLngLat([pickup.longitude, pickup.latitude])
       .addTo(map);
 
-    destinationMarker = new mapboxgl.Marker({ color: '#ef4444', draggable: true })
+    destinationMarker = new mapboxgl.Marker({ color: '#22c55e', draggable: true })
       .setLngLat([destination.longitude, destination.latitude])
       .addTo(map);
 
