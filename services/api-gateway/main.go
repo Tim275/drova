@@ -29,6 +29,7 @@ func main() {
 	mux.HandleFunc("OPTIONS /trip/start", enableCORS(handleTripStart))
 	mux.HandleFunc("/ws/drivers", handleDriversWebSocket)
 	mux.HandleFunc("/ws/riders", handleRidersWebSocket)
+	mux.Handle("/", http.FileServer(http.Dir("./frontend")))
 
 	server := &http.Server{
 		Addr:    httpAddr,

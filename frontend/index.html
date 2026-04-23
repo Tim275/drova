@@ -238,7 +238,7 @@
     document.getElementById('welcome').style.display = 'none';
     document.getElementById('mapscreen').style.display = 'block';
 
-    const cfg = await fetch('http://localhost:8081/config').then(r => r.json());
+    const cfg = await fetch('/config').then(r => r.json());
     mapboxgl.accessToken = cfg.mapboxToken;
 
     map = new mapboxgl.Map({
@@ -269,7 +269,7 @@
       pickupCoords      = await geocode(pickup);
       destinationCoords = await geocode(destination);
 
-      const resp = await fetch('http://localhost:8081/trip/preview', {
+      const resp = await fetch('/trip/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userID: 'user-1', pickup: pickupCoords, destination: destinationCoords })
@@ -322,7 +322,7 @@
 
   async function fetchAndDrawRoute() {
     try {
-      const resp = await fetch('http://localhost:8081/trip/preview', {
+      const resp = await fetch('/trip/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userID: 'user-1', pickup: pickupCoords, destination: destinationCoords })
@@ -412,13 +412,13 @@
   async function confirmRide() {
     if (!selectedRide || !selectedFareID) { alert('Please select a ride type'); return; }
 
-    await fetch('http://localhost:8081/trip/start', {
+    await fetch('/trip/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rideFareID: selectedFareID, userID: 'user-1' })
     });
 
-    ws = new WebSocket(`ws://localhost:8081/ws/drivers?userID=driver-1&packageSlug=${selectedRide}`);
+    ws = new WebSocket(`ws://${location.host}/ws/drivers?userID=driver-1&packageSlug=${selectedRide}`);
 
     ws.onopen = () => {
       document.getElementById('driverName').textContent = 'Finding your driver...';
