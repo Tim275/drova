@@ -79,7 +79,7 @@ func (s *service) EstimatePackagesPriceWithRoute(route *tripTypes.MapboxRouteRes
 	return estimatedFares
 }
 
-func (s *service) GenerateTripFares(ctx context.Context, rideFares []*domain.RideFareModel, userID string) ([]*domain.RideFareModel, error) {
+func (s *service) GenerateTripFares(ctx context.Context, rideFares []*domain.RideFareModel, userID string, route *tripTypes.MapboxRouteResponse) ([]*domain.RideFareModel, error) {
 	fares := make([]*domain.RideFareModel, len(rideFares))
 	for i, f := range rideFares {
 		fare := &domain.RideFareModel{
@@ -87,6 +87,7 @@ func (s *service) GenerateTripFares(ctx context.Context, rideFares []*domain.Rid
 			UserID:            userID,
 			PackageSlug:       f.PackageSlug,
 			TotalPriceInCents: f.TotalPriceInCents,
+			Route:             route,
 		}
 		if err := s.repo.SaveRideFare(ctx, fare); err != nil {
 			return nil, fmt.Errorf("failed to save trip fare: %w", err)

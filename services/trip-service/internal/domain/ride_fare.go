@@ -1,6 +1,7 @@
 package domain
 
 import (
+	tripTypes "drova/services/trip-service/pkg/types"
 	pb "drova/shared/proto/trip"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -11,6 +12,7 @@ type RideFareModel struct {
 	UserID            string
 	PackageSlug       string
 	TotalPriceInCents float64
+	Route             *tripTypes.MapboxRouteResponse
 }
 
 func (r *RideFareModel) ToProto() *pb.RideFare {
