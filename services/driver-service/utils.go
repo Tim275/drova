@@ -5,7 +5,6 @@ import (
 	"fmt"
 )
 
-// [lat, lng] pairs representing start positions around Berlin
 var PredefinedRoutes = [][][2]float64{
 	{{52.5200, 13.4050}, {52.5300, 13.4150}},
 	{{52.5170, 13.3880}, {52.5080, 13.3760}},
