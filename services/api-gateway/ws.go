@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -142,13 +141,21 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			if locData.RiderID != "" {
-				data, _ := json.Marshal(locData)
-				payload, _ := json.Marshal(messaging.KafkaMessage{
+				data, err := json.Marshal(locData)
+				if err != nil {
+					log.Printf("Error marshaling location: %v", err)
+					continue
+				}
+				payload, err := json.Marshal(messaging.KafkaMessage{
 					Type:    contracts.DriverCmdLocation,
 					OwnerID: locData.RiderID,
 					Data:    data,
 				})
-				if err := kafkaClient.PublishMessage(context.Background(), messaging.TopicDriverLocation, payload); err != nil {
+				if err != nil {
+					log.Printf("Error marshaling location payload: %v", err)
+					continue
+				}
+				if err := kafkaClient.PublishMessage(r.Context(), messaging.TopicDriverLocation, payload); err != nil {
 					log.Printf("Error publishing location: %v", err)
 				}
 			}
@@ -170,14 +177,21 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 				RiderID: acceptData.RiderID,
 			}
 
-			data, _ := json.Marshal(responseData)
-			payload, _ := json.Marshal(messaging.KafkaMessage{
+			data, err := json.Marshal(responseData)
+			if err != nil {
+				log.Printf("Error marshaling trip response: %v", err)
+				continue
+			}
+			payload, err := json.Marshal(messaging.KafkaMessage{
 				Type:    driverMsg.Type,
 				OwnerID: userID,
 				Data:    data,
 			})
-
-			if err := kafkaClient.PublishMessage(context.Background(), messaging.TopicDriverTripResponse, payload); err != nil {
+			if err != nil {
+				log.Printf("Error marshaling trip response payload: %v", err)
+				continue
+			}
+			if err := kafkaClient.PublishMessage(r.Context(), messaging.TopicDriverTripResponse, payload); err != nil {
 				log.Printf("Error publishing driver response: %v", err)
 			}
 		default:

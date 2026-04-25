@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -45,8 +44,11 @@ func (s *service) GetRoute(ctx context.Context, pickup, destination *types.Coord
 		mapboxToken,
 	)
 
-	req, _ := http.NewRequestWithContext(ctx, "GET", routeURL, nil)
-	req.Header.Set("Referer", "http://localhost:8083")
+	req, err := http.NewRequestWithContext(ctx, "GET", routeURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create directions request: %w", err)
+	}
+	req.Header.Set("Referer", env.GetString("SERVICE_REFERER", "http://localhost:8083"))
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("directions api: %w", err)
@@ -64,7 +66,6 @@ func (s *service) GetRoute(ctx context.Context, pickup, destination *types.Coord
 	}
 
 	if len(route.Routes) == 0 {
-		log.Printf("Mapbox returned no routes. Body: %s", string(body))
 		return nil, fmt.Errorf("no routes found for given coordinates")
 	}
 

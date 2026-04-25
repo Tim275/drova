@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,12 +11,18 @@ import (
 	"drova/services/payment-service/internal/service"
 	"drova/services/payment-service/pkg/types"
 	"drova/shared/env"
+	"drova/shared/logger"
 	"drova/shared/messaging"
 	"drova/shared/tracing"
+
+	"go.uber.org/zap"
 )
 
 func main() {
-	log.Println("Starting Payment Service")
+	log := logger.New(env.GetString("ENVIRONMENT", "development"))
+	defer log.Sync()
+
+	log.Infow("payment-service starting")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -28,7 +33,7 @@ func main() {
 		JaegerEndpoint: env.GetString("JAEGER_ENDPOINT", "jaeger:4318"),
 	})
 	if err != nil {
-		log.Printf("warning: tracing init failed: %v", err)
+		log.Warnw("tracing init failed", zap.Error(err))
 	} else {
 		defer stopTracer(ctx)
 	}
@@ -40,7 +45,7 @@ func main() {
 		Currency:        env.GetString("STRIPE_CURRENCY", "eur"),
 	}
 	if cfg.StripeSecretKey == "" {
-		log.Fatal("STRIPE_SECRET_KEY is required")
+		log.Fatalw("STRIPE_SECRET_KEY is required")
 	}
 
 	kafkaBrokers := env.GetString("KAFKA_BROKERS", "localhost:9092")
@@ -53,10 +58,12 @@ func main() {
 	tripConsumer := events.NewTripConsumer(kafkaClient, svc)
 	tripConsumer.Start(ctx)
 
-	log.Println("Payment Service ready — listening for payment.cmd.create_session")
+	log.Infow("payment-service ready", "topic", "payment.cmd.create_session")
 
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	<-sigCh
-	log.Println("Shutting down payment service...")
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	log.Infow("payment-service shutting down")
+	cancel() // signals all consumers to stop
 }
