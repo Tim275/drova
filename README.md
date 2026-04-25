@@ -61,8 +61,18 @@ Browser
                     └── gRPC → driver-service :9092
 ```
 
-## Not done yet
+## Planned
 
-- Payment happens before the driver accepts. Should be pre-auth on booking, capture once accepted.
-- Kubernetes deployment — planned with Istio and Cilium NetworkPolicies.
-- Persistent storage — trips and drivers still in-memory.
+**Services**
+- User Service — Registration, Login, JWT Auth (currently hardcoded `user-1`)
+- Chat Service — Rider ↔ Driver in-trip messaging via WebSocket + Kafka
+- Rating & Review Service — mutual rating after trip completion, triggers on `trip.event.completed`
+
+**Infrastructure**
+- Redis — Driver Live-Location cache via `GEOSEARCH` (proximity matching), JWT session blacklist, rate limiting
+- Elasticsearch — Geo-Search for driver discovery + ELK log aggregation
+
+**Other**
+- Payment happens before the driver accepts — should be pre-auth on booking, capture once accepted
+- Persistent storage — trips and drivers currently in-memory
+- Kubernetes deployment with Istio mTLS and Cilium NetworkPolicies
