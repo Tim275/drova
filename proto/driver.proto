@@ -9,6 +9,7 @@ option go_package = "shared/proto/driver;driver";
 service DriverService {
   rpc RegisterDriver(RegisterDriverRequest) returns (RegisterDriverResponse);
   rpc UnregisterDriver(RegisterDriverRequest) returns (RegisterDriverResponse);
+  rpc StreamLocation(stream LocationUpdate) returns (StreamLocationResponse);
 }
 
 message RegisterDriverRequest {
@@ -34,3 +35,11 @@ message Location {
   double latitude = 1;
   double longitude = 2;
 }
+
+message LocationUpdate {
+  string driver_id = 1;
+  double latitude = 2;
+  double longitude = 3;
+}
+
+message StreamLocationResponse {}

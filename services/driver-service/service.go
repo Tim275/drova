@@ -40,7 +40,7 @@ func (s *Service) RegisterDriver(driverID string, packageSlug string) (*pb.Drive
 		Id:             driverID,
 		Geohash:        gh,
 		Location:       &pb.Location{Latitude: randomRoute[0][0], Longitude: randomRoute[0][1]},
-		Name:           "Lando Norris",
+		Name:           "Tim",
 		PackageSlug:    packageSlug,
 		ProfilePicture: randomAvatar,
 		CarPlate:       randomPlate,
@@ -49,6 +49,31 @@ func (s *Service) RegisterDriver(driverID string, packageSlug string) (*pb.Drive
 	s.drivers = append(s.drivers, &driverInMap{Driver: driver})
 
 	return driver, nil
+}
+
+func (s *Service) FindAvailableDrivers(packageSlug string) []*pb.Driver {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var available []*pb.Driver
+	for _, d := range s.drivers {
+		if d.Driver.PackageSlug == packageSlug {
+			available = append(available, d.Driver)
+		}
+	}
+	return available
+}
+
+func (s *Service) UpdateLocation(driverID string, lat, lng float64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, d := range s.drivers {
+		if d.Driver.Id == driverID {
+			d.Driver.Location = &pb.Location{Latitude: lat, Longitude: lng}
+			d.Driver.Geohash = geohash.Encode(lat, lng)
+			return
+		}
+	}
 }
 
 func (s *Service) UnregisterDriver(driverID string) {

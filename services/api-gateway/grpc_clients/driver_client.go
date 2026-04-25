@@ -4,6 +4,7 @@ import (
 	"os"
 
 	pb "drova/shared/proto/driver"
+	"drova/shared/tracing"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -20,7 +21,8 @@ func NewDriverServiceClient() (*driverServiceClient, error) {
 		driverServiceURL = "driver-service:9092"
 	}
 
-	conn, err := grpc.NewClient(driverServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	dialOpts := append(tracing.DialOptionsWithTracing(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(driverServiceURL, dialOpts...)
 	if err != nil {
 		return nil, err
 	}

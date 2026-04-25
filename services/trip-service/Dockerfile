@@ -1,12 +1,16 @@
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o trip-service ./services/trip-service/cmd
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-w -s" \
+    -o /out/trip-service ./services/trip-service/cmd
 
-FROM alpine:3.21
+FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
-COPY --from=builder /app/trip-service .
+COPY --from=builder --chown=nonroot:nonroot /out/trip-service /app/trip-service
+USER nonroot:nonroot
 EXPOSE 9093
-CMD ["./trip-service"]
+ENTRYPOINT ["/app/trip-service"]

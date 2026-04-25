@@ -1,0 +1,7 @@
+FROM gcr.io/distroless/static-debian12:nonroot
+WORKDIR /app
+COPY --chown=nonroot:nonroot build/api-gateway /app/api-gateway
+COPY --chown=nonroot:nonroot frontend /app/frontend
+USER nonroot:nonroot
+EXPOSE 8081
+ENTRYPOINT ["/app/api-gateway"]

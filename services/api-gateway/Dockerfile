@@ -1,13 +1,17 @@
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o api-gateway ./services/api-gateway
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-w -s" \
+    -o /out/api-gateway ./services/api-gateway
 
-FROM alpine:3.21
+FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
-COPY --from=builder /app/api-gateway .
-COPY --from=builder /app/frontend ./frontend
+COPY --from=builder --chown=nonroot:nonroot /out/api-gateway /app/api-gateway
+COPY --from=builder --chown=nonroot:nonroot /app/frontend /app/frontend
+USER nonroot:nonroot
 EXPOSE 8081
-CMD ["./api-gateway"]
+ENTRYPOINT ["/app/api-gateway"]

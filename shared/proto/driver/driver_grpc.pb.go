@@ -21,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 const (
 	DriverService_RegisterDriver_FullMethodName   = "/driver.DriverService/RegisterDriver"
 	DriverService_UnregisterDriver_FullMethodName = "/driver.DriverService/UnregisterDriver"
+	DriverService_StreamLocation_FullMethodName   = "/driver.DriverService/StreamLocation"
 )
 
 // DriverServiceClient is the client API for DriverService service.
@@ -29,6 +30,7 @@ const (
 type DriverServiceClient interface {
 	RegisterDriver(ctx context.Context, in *RegisterDriverRequest, opts ...grpc.CallOption) (*RegisterDriverResponse, error)
 	UnregisterDriver(ctx context.Context, in *RegisterDriverRequest, opts ...grpc.CallOption) (*RegisterDriverResponse, error)
+	StreamLocation(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[LocationUpdate, StreamLocationResponse], error)
 }
 
 type driverServiceClient struct {
@@ -59,12 +61,26 @@ func (c *driverServiceClient) UnregisterDriver(ctx context.Context, in *Register
 	return out, nil
 }
 
+func (c *driverServiceClient) StreamLocation(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[LocationUpdate, StreamLocationResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &DriverService_ServiceDesc.Streams[0], DriverService_StreamLocation_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[LocationUpdate, StreamLocationResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type DriverService_StreamLocationClient = grpc.ClientStreamingClient[LocationUpdate, StreamLocationResponse]
+
 // DriverServiceServer is the server API for DriverService service.
 // All implementations must embed UnimplementedDriverServiceServer
 // for forward compatibility.
 type DriverServiceServer interface {
 	RegisterDriver(context.Context, *RegisterDriverRequest) (*RegisterDriverResponse, error)
 	UnregisterDriver(context.Context, *RegisterDriverRequest) (*RegisterDriverResponse, error)
+	StreamLocation(grpc.ClientStreamingServer[LocationUpdate, StreamLocationResponse]) error
 	mustEmbedUnimplementedDriverServiceServer()
 }
 
@@ -80,6 +96,9 @@ func (UnimplementedDriverServiceServer) RegisterDriver(context.Context, *Registe
 }
 func (UnimplementedDriverServiceServer) UnregisterDriver(context.Context, *RegisterDriverRequest) (*RegisterDriverResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UnregisterDriver not implemented")
+}
+func (UnimplementedDriverServiceServer) StreamLocation(grpc.ClientStreamingServer[LocationUpdate, StreamLocationResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method StreamLocation not implemented")
 }
 func (UnimplementedDriverServiceServer) mustEmbedUnimplementedDriverServiceServer() {}
 func (UnimplementedDriverServiceServer) testEmbeddedByValue()                       {}
@@ -138,6 +157,13 @@ func _DriverService_UnregisterDriver_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DriverService_StreamLocation_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(DriverServiceServer).StreamLocation(&grpc.GenericServerStream[LocationUpdate, StreamLocationResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type DriverService_StreamLocationServer = grpc.ClientStreamingServer[LocationUpdate, StreamLocationResponse]
+
 // DriverService_ServiceDesc is the grpc.ServiceDesc for DriverService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -154,6 +180,12 @@ var DriverService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _DriverService_UnregisterDriver_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "StreamLocation",
+			Handler:       _DriverService_StreamLocation_Handler,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "proto/driver.proto",
 }

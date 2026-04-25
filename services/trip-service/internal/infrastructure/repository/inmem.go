@@ -6,7 +6,10 @@ import (
 	"sync"
 
 	"drova/services/trip-service/internal/domain"
+	pbd "drova/shared/proto/driver"
+	pbt "drova/shared/proto/trip"
 )
+
 
 type inmemRepository struct {
 	trips     map[string]*domain.TripModel
@@ -43,4 +46,33 @@ func (r *inmemRepository) GetRideFareByID(ctx context.Context, id string) (*doma
 		return nil, fmt.Errorf("fare %s not found", id)
 	}
 	return fare, nil
+}
+
+func (r *inmemRepository) GetTripByID(ctx context.Context, id string) (*domain.TripModel, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	trip, ok := r.trips[id]
+	if !ok {
+		return nil, nil
+	}
+	return trip, nil
+}
+
+func (r *inmemRepository) UpdateTrip(ctx context.Context, tripID string, status string, driver *pbd.Driver) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	trip, ok := r.trips[tripID]
+	if !ok {
+		return fmt.Errorf("trip not found: %s", tripID)
+	}
+	trip.Status = status
+	if driver != nil {
+		trip.Driver = &pbt.TripDriver{
+			Id:             driver.Id,
+			Name:           driver.Name,
+			ProfilePicture: driver.ProfilePicture,
+			CarPlate:       driver.CarPlate,
+		}
+	}
+	return nil
 }

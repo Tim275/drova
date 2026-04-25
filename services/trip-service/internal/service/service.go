@@ -12,6 +12,7 @@ import (
 	"drova/services/trip-service/internal/domain"
 	tripTypes "drova/services/trip-service/pkg/types"
 	"drova/shared/env"
+	pbd "drova/shared/proto/driver"
 	"drova/shared/types"
 )
 
@@ -95,6 +96,14 @@ func (s *service) GenerateTripFares(ctx context.Context, rideFares []*domain.Rid
 		fares[i] = fare
 	}
 	return fares, nil
+}
+
+func (s *service) GetTripByID(ctx context.Context, id string) (*domain.TripModel, error) {
+	return s.repo.GetTripByID(ctx, id)
+}
+
+func (s *service) UpdateTrip(ctx context.Context, tripID string, status string, driver *pbd.Driver) error {
+	return s.repo.UpdateTrip(ctx, tripID, status, driver)
 }
 
 func (s *service) GetAndValidateFare(ctx context.Context, fareID, userID string) (*domain.RideFareModel, error) {

@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+        - name: api-gateway
+          image: drova/api-gateway
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8081
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "125m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+          env:
+            - name: HTTP_ADDR
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: GATEWAY_HTTP_ADDR
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: KAFKA_BROKERS
+            - name: TRIP_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: TRIP_SERVICE_URL
+            - name: DRIVER_SERVICE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: DRIVER_SERVICE_URL
+            - name: MAPBOX_PUBLIC_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: mapbox-secrets
+                  key: mapbox-public-token
+            - name: STRIPE_WEBHOOK_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: stripe-secrets
+                  key: stripe-webhook-key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api-gateway
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 8081
+      targetPort: 8081
+  selector:
+    app: api-gateway

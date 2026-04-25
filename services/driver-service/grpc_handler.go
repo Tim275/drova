@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"io"
+	"log"
 
 	pb "drova/shared/proto/driver"
 
@@ -35,4 +37,23 @@ func (h *driverGrpcHandler) UnregisterDriver(ctx context.Context, req *pb.Regist
 	return &pb.RegisterDriverResponse{
 		Driver: &pb.Driver{Id: req.GetDriverID()},
 	}, nil
+}
+
+func (h *driverGrpcHandler) StreamLocation(stream grpc.ClientStreamingServer[pb.LocationUpdate, pb.StreamLocationResponse]) error {
+	var driverID string
+	for {
+		update, err := stream.Recv()
+		if err == io.EOF {
+			return stream.SendAndClose(&pb.StreamLocationResponse{})
+		}
+		if err != nil {
+			if driverID != "" {
+				log.Printf("stream broken for driver %s — unregistering", driverID)
+				h.service.UnregisterDriver(driverID)
+			}
+			return err
+		}
+		driverID = update.GetDriverId()
+		h.service.UpdateLocation(update.GetDriverId(), update.GetLatitude(), update.GetLongitude())
+	}
 }

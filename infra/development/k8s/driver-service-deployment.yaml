@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: driver-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: driver-service
+  template:
+    metadata:
+      labels:
+        app: driver-service
+    spec:
+      containers:
+        - name: driver-service
+          image: drova/driver-service
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 9092
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "100m"
+            limits:
+              memory: "128Mi"
+              cpu: "200m"
+          env:
+            - name: GRPC_ADDR
+              value: ":9092"
+            - name: KAFKA_BROKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: app-config
+                  key: KAFKA_BROKERS
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: driver-service
+spec:
+  selector:
+    app: driver-service
+  ports:
+    - port: 9092
+      name: grpc
+      targetPort: 9092
+  type: ClusterIP
