@@ -6,6 +6,10 @@ on:
       - "frontend/**"
       - ".github/workflows/frontend-tests.yaml"
 
+concurrency:
+  group: frontend-tests-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   pull-requests: write
@@ -14,6 +18,7 @@ jobs:
   test:
     name: Validate Frontend
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
       - name: Checkout code
@@ -24,14 +29,22 @@ jobs:
           test -f frontend/index.html
           echo "frontend/index.html: $(wc -l < frontend/index.html) lines"
 
-      - name: Validate HTML
+      - name: Validate HTML (errors only)
         run: |
           sudo apt-get install -y tidy
-          tidy -errors -quiet -utf8 frontend/index.html || true
+          tidy -errors -quiet -utf8 frontend/index.html; TIDY_EXIT=$?
+          if [ $TIDY_EXIT -gt 1 ]; then
+            echo "HTML has errors (tidy exit $TIDY_EXIT)" && exit 1
+          fi
+          echo "HTML OK"
 
-      - name: Check for debugger leaks
+      - name: Check for debug leaks
         run: |
           if grep -n "debugger" frontend/index.html; then
             echo "ERROR: debugger statement found" && exit 1
+          fi
+          if grep -n "console\.log" frontend/index.html; then
+            echo "WARNING: console.log statements found:"
+            grep -n "console\.log" frontend/index.html
           fi
           echo "No debugger statements found"
