@@ -81,7 +81,7 @@ func (m *Mailer) SendActivation(toEmail, token string) error {
 		m.from, toEmail, subject, html,
 	)
 
-	addr := fmt.Sprintf("%s:%s", m.host, m.port)
+	addr := net.JoinHostPort(m.host, m.port)
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "smtp_dial error: %v\n", err)
