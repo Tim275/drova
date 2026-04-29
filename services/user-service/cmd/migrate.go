@@ -9,7 +9,9 @@ import (
 )
 
 func runMigrations(dbURL, migrationsPath string) error {
-	migrateURL := "pgx5://" + strings.TrimPrefix(dbURL, "postgres://")
+	stripped := strings.TrimPrefix(dbURL, "postgresql://")
+	stripped = strings.TrimPrefix(stripped, "postgres://")
+	migrateURL := "pgx5://" + stripped
 	m, err := migrate.New("file://"+migrationsPath, migrateURL)
 	if err != nil {
 		return err
