@@ -5,6 +5,11 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/tim275/drova
@@ -67,10 +72,9 @@ jobs:
       tag: ${{ steps.tag.outputs.TAG }}
 
   trigger-gitops:
-    name: Deploy to Production
+    name: Update GitOps
     needs: build-and-push
-    if: success()
-    environment: production
+    if: always() && needs.build-and-push.result == 'success'
     uses: ./.github/workflows/update-gitops.yaml
     with:
       tag: ${{ needs.build-and-push.outputs.tag }}
