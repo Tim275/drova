@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"drova/services/user-service/internal/domain"
 	"drova/services/user-service/internal/middleware"
@@ -14,9 +16,11 @@ import (
 )
 
 type registerRequest struct {
-	Email    string      `json:"email"    validate:"required,email"`
-	Password string      `json:"password" validate:"required,min=8"`
-	Role     domain.Role `json:"role"     validate:"required,oneof=rider driver"`
+	DisplayName string      `json:"display_name" validate:"required,min=2,max=50"`
+	Email       string      `json:"email"        validate:"required,email"`
+	Phone       string      `json:"phone"        validate:"required,min=6,max=20"`
+	Password    string      `json:"password"     validate:"required,min=8"`
+	Role        domain.Role `json:"role"         validate:"required,oneof=rider driver"`
 }
 
 func (app *application) handleRegister(w http.ResponseWriter, r *http.Request) {
@@ -29,7 +33,7 @@ func (app *application) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := app.service.Register(r.Context(), req.Email, req.Password, req.Role)
+	user, err := app.service.Register(r.Context(), req.Email, req.Password, req.Role, req.DisplayName, req.Phone)
 	if err != nil {
 		if strings.Contains(err.Error(), "unique") {
 			middleware.WriteError(w, http.StatusConflict, "email already registered")
@@ -55,8 +59,7 @@ func (app *application) handleActivate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := app.service.Activate(r.Context(), token)
-	if err != nil {
+	if _, err := app.service.Activate(r.Context(), token); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			middleware.WriteError(w, http.StatusNotFound, "invalid or expired token")
 			return
@@ -66,14 +69,9 @@ func (app *application) handleActivate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	middleware.WriteJSON(w, http.StatusOK, map[string]any{
-		"id":           user.ID,
-		"email":        user.Email,
-		"is_activated": user.IsActivated,
-	})
+	http.Redirect(w, r, "/?activated=true", http.StatusSeeOther)
 }
 
-// POST /v1/auth/token  — Basic Auth → JWT
 func (app *application) handleCreateToken(w http.ResponseWriter, r *http.Request) {
 	email, password, ok := parseBasicAuth(r)
 	if !ok {
@@ -87,7 +85,7 @@ func (app *application) handleCreateToken(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if !user.IsActivated {
-		middleware.WriteError(w, http.StatusForbidden, "account not activated")
+		middleware.WriteError(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
 
@@ -120,7 +118,72 @@ func (app *application) handleGetMe(w http.ResponseWriter, r *http.Request) {
 		"role":         user.Role,
 		"is_activated": user.IsActivated,
 		"created_at":   user.CreatedAt,
+		"display_name": user.DisplayName,
+		"avatar_url":   user.AvatarURL,
+		"phone":        user.Phone,
+		"address":      user.Address,
 	})
+}
+
+type updateProfileRequest struct {
+	DisplayName string `json:"display_name"`
+	AvatarURL   string `json:"avatar_url"`
+	Phone       string `json:"phone"`
+	Address     string `json:"address"`
+}
+
+func (app *application) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.GetClaims(r)
+	var req updateProfileRequest
+	if err := middleware.ReadJSON(r, &req); err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if err := app.service.UpdateProfile(r.Context(), claims.UserID, req.DisplayName, req.AvatarURL, req.Phone, req.Address); err != nil {
+		app.log.Errorw("update profile", zap.Error(err))
+		middleware.WriteError(w, http.StatusInternalServerError, "could not update profile")
+		return
+	}
+	user, _ := app.service.GetByID(r.Context(), claims.UserID)
+	middleware.WriteJSON(w, http.StatusOK, map[string]any{
+		"id":           user.ID,
+		"display_name": user.DisplayName,
+		"avatar_url":   user.AvatarURL,
+		"phone":        user.Phone,
+		"address":      user.Address,
+	})
+}
+
+func (app *application) handleInternalGetUser(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	var id int64
+	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
+		middleware.WriteError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	user, err := app.service.GetByID(r.Context(), id)
+	if err != nil {
+		middleware.WriteError(w, http.StatusNotFound, "user not found")
+		return
+	}
+	middleware.WriteJSON(w, http.StatusOK, map[string]any{
+		"id":           user.ID,
+		"display_name": user.DisplayName,
+		"avatar_url":   user.AvatarURL,
+	})
+}
+
+func (app *application) handleLogout(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.GetClaims(r)
+	if claims != nil && claims.ExpiresAt != nil {
+		ttl := time.Until(claims.ExpiresAt.Time)
+		if ttl > 0 {
+			if err := app.blacklist.Revoke(r.Context(), claims.ID, ttl); err != nil {
+				app.log.Warnw("revoke token", "jti", claims.ID, "err", err)
+			}
+		}
+	}
+	middleware.WriteJSON(w, http.StatusOK, map[string]string{"message": "logged out"})
 }
 
 func (app *application) handleHealth(w http.ResponseWriter, r *http.Request) {

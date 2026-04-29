@@ -22,8 +22,8 @@ func New(users domain.UserStore, invitations domain.InvitationStore, cache domai
 	return &UserService{users: users, invitations: invitations, cache: cache, mailer: mailer}
 }
 
-func (s *UserService) Register(ctx context.Context, email, plainPassword string, role domain.Role) (*domain.User, error) {
-	user := &domain.User{Email: email, Role: role}
+func (s *UserService) Register(ctx context.Context, email, plainPassword string, role domain.Role, displayName, phone string) (*domain.User, error) {
+	user := &domain.User{Email: email, Role: role, DisplayName: displayName, Phone: phone}
 	if err := user.Password.Set(plainPassword); err != nil {
 		return nil, err
 	}
@@ -69,6 +69,14 @@ func (s *UserService) GetByID(ctx context.Context, id int64) (*domain.User, erro
 
 func (s *UserService) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
 	return s.users.GetByEmail(ctx, email)
+}
+
+func (s *UserService) UpdateProfile(ctx context.Context, userID int64, displayName, avatarURL, phone, address string) error {
+	if err := s.users.UpdateProfile(ctx, userID, displayName, avatarURL, phone, address); err != nil {
+		return err
+	}
+	s.cache.Delete(ctx, userID)
+	return nil
 }
 
 func generateToken() (string, error) {

@@ -8,8 +8,6 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 )
 
-// KafkaHeadersCarrier implements TextMapCarrier for Kafka message headers.
-// Kafka headers are []byte — we store/read trace context as UTF-8 strings.
 type KafkaHeadersCarrier map[string][]byte
 
 func (c KafkaHeadersCarrier) Get(key string) string {

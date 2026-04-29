@@ -1,23 +1,28 @@
 package domain
 
 import (
+	"time"
+
 	tripTypes "drova/services/trip-service/pkg/types"
 	pb "drova/shared/proto/trip"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+const FareExpiryDuration = 5 * time.Minute
+
 type RideFareModel struct {
-	ID                primitive.ObjectID
+	ID                string
 	UserID            string
+	RiderName         string
+	RiderAvatar       string
 	PackageSlug       string
 	TotalPriceInCents float64
 	Route             *tripTypes.MapboxRouteResponse
+	ExpiresAt         time.Time
 }
 
 func (r *RideFareModel) ToProto() *pb.RideFare {
 	return &pb.RideFare{
-		Id:                r.ID.Hex(),
+		Id:                r.ID,
 		UserID:            r.UserID,
 		PackageSlug:       r.PackageSlug,
 		TotalPriceInCents: r.TotalPriceInCents,

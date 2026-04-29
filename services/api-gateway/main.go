@@ -2,17 +2,23 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
 
+	"drova/services/api-gateway/grpc_clients"
 	"drova/shared/env"
+	"drova/shared/logger"
 	"drova/shared/messaging"
 	"drova/shared/tracing"
+
+	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
 var (
@@ -21,9 +27,14 @@ var (
 )
 
 var kafkaClient *messaging.Kafka
+var appLog *zap.SugaredLogger
+var gatewayRdb *redis.Client
 
 func main() {
-	log.Println("Starting API Gateway")
+	appLog = logger.New(env.GetString("ENVIRONMENT", "development"))
+	defer appLog.Sync()
+
+	appLog.Infow("api-gateway starting")
 
 	stopTracer, err := tracing.InitTracer(tracing.Config{
 		ServiceName:    "api-gateway",
@@ -31,7 +42,7 @@ func main() {
 		JaegerEndpoint: env.GetString("JAEGER_ENDPOINT", "jaeger:4318"),
 	})
 	if err != nil {
-		log.Printf("warning: tracing init failed: %v", err)
+		appLog.Warnw("tracing init failed", zap.Error(err))
 	} else {
 		defer stopTracer(context.Background())
 	}
@@ -50,41 +61,77 @@ func main() {
 		messaging.TopicPaymentCreateSession,
 		messaging.TopicPaymentSessionCreated,
 		messaging.TopicPaymentSuccess,
+		messaging.TopicTripCancelled,
+		messaging.TopicTripDriverArrived,
+		messaging.TopicTripInProgress,
+		messaging.TopicTripCompleted,
+		messaging.TopicDriverLocation,
 	); err != nil {
-		log.Printf("warning: ensure topics: %v", err)
+		appLog.Warnw("ensure topics", zap.Error(err))
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	gatewayRdb = newRedisClient(
+		env.GetString("REDIS_URL", "localhost:6379"),
+		env.GetString("REDIS_PASSWORD", ""),
+	)
+	if gatewayRdb != nil {
+		defer gatewayRdb.Close()
+	}
+
+	if err := grpc_clients.InitSharedClients(); err != nil {
+		appLog.Warnw("grpc clients init", zap.Error(err))
+	} else {
+		defer grpc_clients.CloseSharedClients()
+	}
+
 	startNotificationConsumers(ctx)
+
+	userServiceURL, _ := url.Parse(env.GetString("USER_SERVICE_URL", "http://localhost:8082"))
+	userProxy := httputil.NewSingleHostReverseProxy(userServiceURL)
 
 	mux := http.NewServeMux()
 
+	mux.Handle("/v1/", userProxy)
 	mux.HandleFunc("GET /health", enableCORS(handleHealth))
+	mux.HandleFunc("GET /readyz", enableCORS(handleReadyz(kafkaClient)))
 	mux.HandleFunc("GET /config", enableCORS(handleConfig))
-	mux.Handle("POST /trip/preview", tracing.WrapHandlerFunc(enableCORS(handleTripPreview), "POST /trip/preview"))
-	mux.HandleFunc("OPTIONS /trip/preview", enableCORS(handleTripPreview))
-	mux.Handle("POST /trip/start", tracing.WrapHandlerFunc(enableCORS(handleTripStart), "POST /trip/start"))
-	mux.HandleFunc("OPTIONS /trip/start", enableCORS(handleTripStart))
+	mux.Handle("POST /trip/preview", tracing.WrapHandlerFunc(enableCORS(requireAuth(handleTripPreview)), "POST /trip/preview"))
+	mux.HandleFunc("OPTIONS /trip/preview", enableCORS(handleOptions))
+	mux.Handle("POST /trip/start", tracing.WrapHandlerFunc(enableCORS(requireAuth(handleTripStart)), "POST /trip/start"))
+	mux.HandleFunc("OPTIONS /trip/start", enableCORS(handleOptions))
+	mux.HandleFunc("GET /trips/history", enableCORS(requireAuth(handleTripHistory)))
+	mux.HandleFunc("GET /trips/driver-history", enableCORS(handleDriverHistory))
+	mux.Handle("POST /trip/rate", tracing.WrapHandlerFunc(enableCORS(requireAuth(handleTripRate)), "POST /trip/rate"))
+	mux.HandleFunc("OPTIONS /trip/rate", enableCORS(handleOptions))
 	mux.Handle("/ws/drivers", tracing.WrapHandlerFunc(handleDriversWebSocket, "/ws/drivers"))
 	mux.Handle("/ws/riders", tracing.WrapHandlerFunc(handleRidersWebSocket, "/ws/riders"))
 	mux.Handle("POST /webhook/stripe", tracing.WrapHandlerFunc(handleStripeWebhook, "POST /webhook/stripe"))
-	mux.Handle("/", http.FileServer(http.Dir("./frontend")))
+	fs := http.FileServer(http.Dir("./frontend"))
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" || strings.HasSuffix(r.URL.Path, ".html") {
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			w.Header().Set("Pragma", "no-cache")
+			w.Header().Set("Expires", "0")
+		}
+		fs.ServeHTTP(w, r)
+	}))
 
 	server := &http.Server{
 		Addr:              httpAddr,
-		Handler:           mux,
+		Handler:           requestID(securityHeaders(gatewayRateLimit(gatewayRdb)(mux))),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       120 * time.Second,
-		MaxHeaderBytes:    1 << 20, // 1 MB
+		MaxHeaderBytes:    1 << 20,
 	}
 
 	serverErrors := make(chan error, 1)
 	go func() {
-		log.Printf("Server listening on %s", httpAddr)
+		appLog.Infow("api-gateway ready", "addr", httpAddr)
 		serverErrors <- server.ListenAndServe()
 	}()
 
@@ -93,14 +140,14 @@ func main() {
 
 	select {
 	case err := <-serverErrors:
-		log.Printf("Error starting the server: %v", err)
+		appLog.Errorw("server error", zap.Error(err))
 	case sig := <-shutdown:
-		log.Printf("Shutting down due to %v", sig)
+		appLog.Infow("shutting down", "signal", sig)
 		cancel()
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownCancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
-			log.Printf("Could not stop the server gracefully: %v", err)
+			appLog.Errorw("graceful shutdown failed", zap.Error(err))
 			server.Close()
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 const tokenTTL = 24 * time.Hour
@@ -28,6 +29,7 @@ func NewAuthenticator(secret, issuer, aud string) *Authenticator {
 func (a *Authenticator) GenerateToken(userID int64, role string) (string, error) {
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        uuid.New().String(),
 			Issuer:    a.issuer,
 			Subject:   "access",
 			Audience:  jwt.ClaimStrings{a.aud},

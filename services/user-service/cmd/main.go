@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"expvar"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,12 +9,14 @@ import (
 	"time"
 
 	"drova/services/user-service/internal/auth"
+	"drova/services/user-service/internal/domain"
 	"drova/services/user-service/internal/mailer"
 	"drova/services/user-service/internal/middleware"
 	"drova/services/user-service/internal/service"
 	"drova/services/user-service/internal/store"
 	"drova/shared/env"
 	"drova/shared/logger"
+	"drova/shared/tracing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
@@ -23,15 +24,38 @@ import (
 )
 
 type application struct {
-	service *service.UserService
-	auth    *auth.Authenticator
-	log     *zap.SugaredLogger
-	rdb     *redis.Client
+	service   *service.UserService
+	auth      *auth.Authenticator
+	blacklist domain.TokenBlacklist
+	log       *zap.SugaredLogger
+	rdb       *redis.Client
 }
 
 func main() {
 	log := logger.New(env.GetString("ENVIRONMENT", "development"))
 	defer log.Sync()
+
+	stopTracer, err := tracing.InitTracer(tracing.Config{
+		ServiceName:    "user-service",
+		Environment:    env.GetString("ENVIRONMENT", "development"),
+		JaegerEndpoint: env.GetString("JAEGER_ENDPOINT", "jaeger:4318"),
+	})
+	if err != nil {
+		log.Warnw("tracing init failed", zap.Error(err))
+	} else {
+		defer stopTracer(context.Background())
+	}
+
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		if err := runMigrations(
+			env.GetString("DB_URL", ""),
+			env.GetString("MIGRATIONS_PATH", "migrations"),
+		); err != nil {
+			log.Fatalw("migrations failed", zap.Error(err))
+		}
+		log.Infow("migrations complete")
+		return
+	}
 
 	poolCfg, err := pgxpool.ParseConfig(env.GetString("DB_URL", ""))
 	if err != nil {
@@ -48,7 +72,8 @@ func main() {
 	defer db.Close()
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr: env.GetString("REDIS_URL", "localhost:6379"),
+		Addr:     env.GetString("REDIS_URL", "localhost:6379"),
+		Password: env.GetString("REDIS_PASSWORD", ""),
 	})
 	defer rdb.Close()
 
@@ -57,40 +82,58 @@ func main() {
 		log.Fatalw("migrations", zap.Error(err))
 	}
 
+	if env.GetString("SEED", "") == "true" {
+		store.Seed(context.Background(), db)
+	}
+
 	m := mailer.New(
-		env.GetString("MAILTRAP_HOST", "sandbox.smtp.mailtrap.io"),
-		env.GetString("MAILTRAP_PORT", "2525"),
-		env.GetString("MAILTRAP_USERNAME", ""),
-		env.GetString("MAILTRAP_PASSWORD", ""),
+		env.GetString("SMTP_HOST", "smtp.gmail.com"),
+		env.GetString("SMTP_PORT", "587"),
+		env.GetString("SMTP_USERNAME", ""),
+		env.GetString("SMTP_PASSWORD", ""),
+		env.GetString("FROM_EMAIL", ""),
+		env.GetString("APP_BASE_URL", "http://localhost:8081"),
 	)
 
-	authenticator := auth.NewAuthenticator(
-		env.GetString("JWT_SECRET", ""),
-		"drova",
-		"drova-users",
-	)
+	jwtSecret := env.GetString("JWT_SECRET", "")
+	if len(jwtSecret) < 32 {
+		log.Fatalw("JWT_SECRET must be at least 32 characters")
+	}
+	authenticator := auth.NewAuthenticator(jwtSecret, "drova", "drova-users")
 
 	userStore := store.NewUserStore(db)
 	invStore := store.NewInvitationStore(db)
 	userCache := store.NewUserCache(rdb)
+	blacklist := store.NewTokenBlacklist(rdb)
 	svc := service.New(userStore, invStore, userCache, m)
 
-	app := &application{service: svc, auth: authenticator, log: log, rdb: rdb}
+	app := &application{service: svc, auth: authenticator, blacklist: blacklist, log: log, rdb: rdb}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/health", app.handleHealth)
 	mux.HandleFunc("POST /v1/users/register", app.handleRegister)
 	mux.HandleFunc("GET /v1/users/activate/{token}", app.handleActivate)
 	mux.HandleFunc("POST /v1/auth/token", app.handleCreateToken)
-	mux.Handle("GET /debug/vars", expvar.Handler())
 
-	protected := middleware.Authenticate(authenticator)
+	mux.HandleFunc("GET /v1/internal/users/{id}", app.handleInternalGetUser)
+
+	protected := middleware.Authenticate(authenticator, blacklist)
 	mux.Handle("GET /v1/users/me", protected(http.HandlerFunc(app.handleGetMe)))
+	mux.Handle("PATCH /v1/users/profile", protected(http.HandlerFunc(app.handleUpdateProfile)))
+	mux.Handle("POST /v1/auth/logout", protected(http.HandlerFunc(app.handleLogout)))
 
-	handler := middleware.Metrics(middleware.RateLimit(mux))
+	handler := middleware.Metrics(middleware.RateLimit(rdb)(mux))
 
 	addr := env.GetString("HTTP_ADDR", ":8082")
-	srv := &http.Server{Addr: addr, Handler: handler}
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
 
 	go func() {
 		log.Infow("user-service started", "addr", addr)

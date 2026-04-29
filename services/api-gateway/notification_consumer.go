@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
 
 	"drova/shared/contracts"
 	"drova/shared/messaging"
@@ -15,6 +14,10 @@ func startNotificationConsumers(ctx context.Context) {
 	go kafkaClient.ConsumeMessages(ctx, messaging.TopicTripNoDriversFound, "api-gateway-no-drivers", handleNotification)
 	go kafkaClient.ConsumeMessages(ctx, messaging.TopicPaymentSessionCreated, "api-gateway-payment-session", handleNotification)
 	go kafkaClient.ConsumeMessages(ctx, messaging.TopicDriverLocation, "api-gateway-location-notify", handleNotification)
+	go kafkaClient.ConsumeMessages(ctx, messaging.TopicTripCancelled, "api-gateway-cancelled", handleNotification)
+	go kafkaClient.ConsumeMessages(ctx, messaging.TopicTripDriverArrived, "api-gateway-arrived", handleNotification)
+	go kafkaClient.ConsumeMessages(ctx, messaging.TopicTripInProgress, "api-gateway-in-progress", handleNotification)
+	go kafkaClient.ConsumeMessages(ctx, messaging.TopicTripCompleted, "api-gateway-completed", handleNotification)
 }
 
 func handleNotification(ctx context.Context, payload []byte) error {
@@ -23,19 +26,22 @@ func handleNotification(ctx context.Context, payload []byte) error {
 		return err
 	}
 
-	log.Printf("Notification received: type=%s owner=%s → dispatching to WS", msg.Type, msg.OwnerID)
+	appLog.Infow("notification", "type", msg.Type, "owner", msg.OwnerID)
 
-	if err := connManager.SendMessage(msg.OwnerID, contracts.WSMessage{
+	cm := riderConnManager
+	if msg.Type == messaging.TopicDriverTripRequest || msg.Type == messaging.TopicTripCancelled {
+		cm = driverConnManager
+	}
+
+	if err := cm.SendMessage(msg.OwnerID, contracts.WSMessage{
 		Type: msg.Type,
 		Data: json.RawMessage(msg.Data),
 	}); err != nil {
 		if err != messaging.ErrConnectionNotFound {
-			log.Printf("Error sending notification to %s: %v", msg.OwnerID, err)
-		} else {
-			log.Printf("No active WS for %s — dropping notification", msg.OwnerID)
+			appLog.Warnw("send notification failed", "owner", msg.OwnerID, "error", err)
 		}
 	} else {
-		log.Printf("WS dispatched: type=%s → %s", msg.Type, msg.OwnerID)
+		appLog.Infow("ws dispatched", "type", msg.Type, "owner", msg.OwnerID)
 	}
 	return nil
 }

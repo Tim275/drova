@@ -14,18 +14,25 @@ import (
 
 type driverGrpcHandler struct {
 	pb.UnimplementedDriverServiceServer
-	service *Service
+	service  *Service
+	consumer *TripConsumer
 }
 
-func NewGrpcHandler(s *grpc.Server, service *Service) {
-	handler := &driverGrpcHandler{service: service}
+func NewGrpcHandler(s *grpc.Server, service *Service, consumer *TripConsumer) {
+	handler := &driverGrpcHandler{service: service, consumer: consumer}
 	pb.RegisterDriverServiceServer(s, handler)
 }
 
 func (h *driverGrpcHandler) RegisterDriver(ctx context.Context, req *pb.RegisterDriverRequest) (*pb.RegisterDriverResponse, error) {
-	driver, err := h.service.RegisterDriver(req.GetDriverID(), req.GetPackageSlug())
+	driver, err := h.service.RegisterDriver(req.GetDriverID(), req.GetPackageSlug(), req.GetName())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to register driver")
+	}
+
+	// Check if any passengers are already waiting for a driver with this package
+	loc := driver.GetLocation()
+	if loc != nil {
+		h.consumer.TryMatchWaiting(ctx, driver.GetPackageSlug(), loc.GetLatitude(), loc.GetLongitude())
 	}
 
 	return &pb.RegisterDriverResponse{Driver: driver}, nil

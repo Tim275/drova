@@ -1,0 +1,11 @@
+{
+  "type": "record",
+  "name": "PaymentStatusUpdate",
+  "namespace": "drova.events",
+  "fields": [
+    {"name": "trip_id",           "type": "string"},
+    {"name": "user_id",           "type": "string"},
+    {"name": "driver_id",         "type": "string"},
+    {"name": "stripe_session_id", "type": "string"}
+  ]
+}
