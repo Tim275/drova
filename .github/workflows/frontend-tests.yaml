@@ -1,0 +1,37 @@
+name: Frontend Tests
+
+on:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-tests.yaml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  test:
+    name: Validate Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify frontend exists
+        run: |
+          test -f frontend/index.html
+          echo "frontend/index.html: $(wc -l < frontend/index.html) lines"
+
+      - name: Validate HTML
+        run: |
+          sudo apt-get install -y tidy
+          tidy -errors -quiet -utf8 frontend/index.html || true
+
+      - name: Check for debugger leaks
+        run: |
+          if grep -n "debugger" frontend/index.html; then
+            echo "ERROR: debugger statement found" && exit 1
+          fi
+          echo "No debugger statements found"

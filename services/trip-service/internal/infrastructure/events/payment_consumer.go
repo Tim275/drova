@@ -4,19 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 
 	"drova/services/trip-service/internal/domain"
 	"drova/shared/messaging"
+
+	"go.uber.org/zap"
 )
 
 type PaymentConsumer struct {
 	kafka   *messaging.Kafka
 	service domain.TripService
+	log     *zap.SugaredLogger
 }
 
-func NewPaymentConsumer(kafka *messaging.Kafka, service domain.TripService) *PaymentConsumer {
-	return &PaymentConsumer{kafka: kafka, service: service}
+func NewPaymentConsumer(kafka *messaging.Kafka, service domain.TripService, log *zap.SugaredLogger) *PaymentConsumer {
+	return &PaymentConsumer{kafka: kafka, service: service, log: log}
 }
 
 func (c *PaymentConsumer) Start(ctx context.Context) {
@@ -34,7 +36,7 @@ func (c *PaymentConsumer) handlePaymentSuccess(ctx context.Context, raw []byte) 
 		return fmt.Errorf("unmarshal payment status: %w", err)
 	}
 
-	log.Printf("Trip paid: trip=%s user=%s", payload.TripID, payload.UserID)
+	c.log.Infow("trip paid", "trip", payload.TripID, "user", payload.UserID)
 
 	return c.service.UpdateTrip(ctx, payload.TripID, "paid", nil)
 }

@@ -7,9 +7,31 @@ import (
 
 	"drova/services/trip-service/internal/domain"
 	pbd "drova/shared/proto/driver"
-	pbt "drova/shared/proto/trip"
 )
 
+// validTransitions defines the allowed state machine for a trip.
+var validTransitions = map[string][]string{
+	"searching":      {"accepted", "cancelled"},
+	"accepted":       {"driver_arrived", "cancelled"},
+	"driver_arrived": {"in_progress", "cancelled"},
+	"in_progress":    {"completed"},
+	"completed":      {"paid"},
+	"paid":           {},
+	"cancelled":      {},
+}
+
+func isValidTransition(from, to string) bool {
+	allowed, ok := validTransitions[from]
+	if !ok {
+		return false
+	}
+	for _, s := range allowed {
+		if s == to {
+			return true
+		}
+	}
+	return false
+}
 
 type inmemRepository struct {
 	trips     map[string]*domain.TripModel
@@ -27,14 +49,14 @@ func NewInmemRepository() domain.TripRepository {
 func (r *inmemRepository) CreateTrip(ctx context.Context, trip *domain.TripModel) (*domain.TripModel, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.trips[trip.ID.Hex()] = trip
+	r.trips[trip.ID] = trip
 	return trip, nil
 }
 
 func (r *inmemRepository) SaveRideFare(ctx context.Context, f *domain.RideFareModel) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.rideFares[f.ID.Hex()] = f
+	r.rideFares[f.ID] = f
 	return nil
 }
 
@@ -65,14 +87,75 @@ func (r *inmemRepository) UpdateTrip(ctx context.Context, tripID string, status 
 	if !ok {
 		return fmt.Errorf("trip not found: %s", tripID)
 	}
+	if !isValidTransition(trip.Status, status) {
+		return fmt.Errorf("invalid trip transition: %s → %s", trip.Status, status)
+	}
 	trip.Status = status
 	if driver != nil {
-		trip.Driver = &pbt.TripDriver{
-			Id:             driver.Id,
-			Name:           driver.Name,
-			ProfilePicture: driver.ProfilePicture,
-			CarPlate:       driver.CarPlate,
+		trip.DriverID = driver.Id
+		trip.DriverName = driver.Name
+		trip.DriverAvatar = driver.ProfilePicture
+		trip.DriverPlate = driver.CarPlate
+	}
+	return nil
+}
+
+func (r *inmemRepository) CancelTrip(ctx context.Context, tripID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	trip, ok := r.trips[tripID]
+	if !ok {
+		return fmt.Errorf("trip not found: %s", tripID)
+	}
+	trip.Status = "cancelled"
+	return nil
+}
+
+func (r *inmemRepository) ExpireSearch(ctx context.Context, tripID string) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	trip, ok := r.trips[tripID]
+	if !ok || trip.Status != "searching" {
+		return false, nil
+	}
+	trip.Status = "cancelled"
+	return true, nil
+}
+
+func (r *inmemRepository) GetTripsByUser(ctx context.Context, userID string) ([]*domain.TripModel, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var trips []*domain.TripModel
+	for _, t := range r.trips {
+		if t.UserID == userID {
+			trips = append(trips, t)
 		}
 	}
+	return trips, nil
+}
+
+func (r *inmemRepository) GetTripsByDriver(ctx context.Context, driverID string) ([]*domain.TripModel, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var trips []*domain.TripModel
+	for _, t := range r.trips {
+		if t.DriverID == driverID {
+			trips = append(trips, t)
+		}
+	}
+	return trips, nil
+}
+
+func (r *inmemRepository) RateTrip(ctx context.Context, tripID string, rating int) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if rating < 1 || rating > 5 {
+		return fmt.Errorf("invalid rating %d: must be 1–5", rating)
+	}
+	trip, ok := r.trips[tripID]
+	if !ok {
+		return fmt.Errorf("trip not found: %s", tripID)
+	}
+	trip.Rating = rating
 	return nil
 }

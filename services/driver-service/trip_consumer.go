@@ -4,15 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
-	"math/rand/v2"
+	"sync"
+	"time"
 
 	"drova/shared/messaging"
 )
 
+type pendingInfo struct {
+	event    messaging.TripCreatedEvent
+	driverID string
+}
+
 type TripConsumer struct {
-	kafka   *messaging.Kafka
-	service *Service
+	kafka    *messaging.Kafka
+	service  *Service
+	pending  sync.Map // tripID → pendingInfo
+	waiting  sync.Map // tripID → TripCreatedEvent (no drivers found yet)
 }
 
 func NewTripConsumer(kafka *messaging.Kafka, service *Service) *TripConsumer {
@@ -22,6 +29,9 @@ func NewTripConsumer(kafka *messaging.Kafka, service *Service) *TripConsumer {
 func (c *TripConsumer) Start(ctx context.Context) {
 	go c.kafka.ConsumeMessages(ctx, messaging.TopicTripCreated, "driver-service", c.handleFindAndNotifyDrivers)
 	go c.kafka.ConsumeMessages(ctx, messaging.TopicDriverNotInterested, "driver-service-not-interested", c.handleFindAndNotifyDrivers)
+	go c.kafka.ConsumeMessages(ctx, messaging.TopicDriverTripResponse, "driver-service-response-tracker", c.handleDriverResponse)
+	go c.kafka.ConsumeMessages(ctx, messaging.TopicTripCancelled, "driver-service-cancellation", c.handleTripCancelled)
+	go c.kafka.ConsumeMessages(ctx, messaging.TopicTripCompleted, "driver-service-completed", c.handleTripCompleted)
 }
 
 func (c *TripConsumer) handleFindAndNotifyDrivers(ctx context.Context, payload []byte) error {
@@ -35,18 +45,135 @@ func (c *TripConsumer) handleFindAndNotifyDrivers(ctx context.Context, payload [
 		return fmt.Errorf("unmarshal trip event: %w", err)
 	}
 
-	log.Printf("Trip search: tripID=%s package=%s type=%s", event.TripID, event.PackageSlug, msg.Type)
+	appLog.Infow("trip search", "tripID", event.TripID, "package", event.PackageSlug, "type", msg.Type)
 
-	drivers := c.service.FindAvailableDrivers(event.PackageSlug)
+	drivers := c.service.FindAvailableDrivers(event.PackageSlug, event.Pickup.Lat, event.Pickup.Lng, event.ExcludeDriverIDs)
 	if len(drivers) == 0 {
-		log.Printf("No available drivers for package %s — notifying rider %s", event.PackageSlug, event.UserID)
+		appLog.Infow("no drivers available, queuing trip", "package", event.PackageSlug, "rider", event.UserID, "trip", event.TripID)
+		c.waiting.Store(event.TripID, event)
 		return c.publishNoDriversFound(ctx, event)
 	}
 
-	picked := drivers[rand.IntN(len(drivers))]
-	log.Printf("Picked driver %s out of %d available for package %s", picked.Id, len(drivers), event.PackageSlug)
+	picked := drivers[0] // nearest driver first (sorted by haversine in FindAvailableDrivers)
+	appLog.Infow("driver picked", "driver", picked.Id, "available", len(drivers), "package", event.PackageSlug, "distanceKm", "nearest")
 
-	return c.notifyDriver(ctx, picked.Id, event)
+	if err := c.notifyDriver(ctx, picked.Id, event); err != nil {
+		return err
+	}
+
+	c.service.SetBusy(picked.Id, event.TripID)
+	pi := pendingInfo{event: event, driverID: picked.Id}
+	c.pending.Store(event.TripID, pi)
+
+	go c.startResponseTimer(ctx, event.TripID, picked.Id, event)
+	return nil
+}
+
+func (c *TripConsumer) startResponseTimer(ctx context.Context, tripID, driverID string, event messaging.TripCreatedEvent) {
+	select {
+	case <-time.After(15 * time.Second):
+	case <-ctx.Done():
+		return
+	}
+	val, loaded := c.pending.LoadAndDelete(tripID)
+	if !loaded {
+		return // driver already responded
+	}
+	pi := val.(pendingInfo)
+	if pi.driverID != driverID {
+		// A later driver was assigned before our timer fired — restore their entry
+		c.pending.Store(tripID, pi)
+		return
+	}
+	appLog.Infow("driver timed out", "driver", driverID, "trip", tripID)
+	c.service.ClearBusy(driverID)
+	event.ExcludeDriverIDs = append(event.ExcludeDriverIDs, driverID)
+	_ = c.publishRetry(ctx, event)
+}
+
+func (c *TripConsumer) handleDriverResponse(ctx context.Context, payload []byte) error {
+	var msg messaging.KafkaMessage
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		return fmt.Errorf("unmarshal: %w", err)
+	}
+	var data messaging.DriverTripResponseData
+	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		return fmt.Errorf("unmarshal data: %w", err)
+	}
+	c.pending.Delete(data.TripID) // stop the 15s response timer
+	if msg.Type == "driver.cmd.trip_decline" {
+		// only free the driver on decline — on accept they stay busy until trip ends/cancels
+		c.service.ClearBusy(data.Driver.ID)
+	}
+	return nil
+}
+
+func (c *TripConsumer) handleTripCancelled(ctx context.Context, payload []byte) error {
+	var msg messaging.KafkaMessage
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		return nil
+	}
+	var data messaging.TripCancelledEvent
+	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		return nil
+	}
+	c.waiting.Delete(data.TripID)
+	// Driver still in pending (hasn't responded yet) → stop timer + free driver
+	if val, loaded := c.pending.LoadAndDelete(data.TripID); loaded {
+		pi := val.(pendingInfo)
+		c.service.ClearBusy(pi.driverID)
+		appLog.Infow("trip cancelled (pre-accept)", "trip", data.TripID, "driver", pi.driverID)
+		return nil
+	}
+	// Driver already accepted (not in pending) → free them from the active trip
+	if data.DriverID != "" {
+		c.service.ClearBusy(data.DriverID)
+		appLog.Infow("trip cancelled (post-accept)", "trip", data.TripID, "driver", data.DriverID)
+	}
+	return nil
+}
+
+func (c *TripConsumer) handleTripCompleted(ctx context.Context, payload []byte) error {
+	var msg messaging.KafkaMessage
+	if err := json.Unmarshal(payload, &msg); err != nil {
+		return nil
+	}
+	var data messaging.TripStatusEvent
+	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		return nil
+	}
+	if data.DriverID != "" {
+		c.service.ClearBusy(data.DriverID)
+		appLog.Infow("trip completed, driver freed", "trip", data.TripID, "driver", data.DriverID)
+	}
+	return nil
+}
+
+// TryMatchWaiting checks if a newly active driver matches any waiting trips.
+// Called when a driver registers or updates location.
+func (c *TripConsumer) TryMatchWaiting(ctx context.Context, packageSlug string, lat, lng float64) {
+	c.waiting.Range(func(key, val any) bool {
+		event := val.(messaging.TripCreatedEvent)
+		if event.PackageSlug != packageSlug {
+			return true
+		}
+		drivers := c.service.FindAvailableDrivers(event.PackageSlug, event.Pickup.Lat, event.Pickup.Lng, event.ExcludeDriverIDs)
+		if len(drivers) == 0 {
+			return true
+		}
+		c.waiting.Delete(key)
+		picked := drivers[0] // nearest first
+		appLog.Infow("matched waiting trip to new driver", "trip", event.TripID, "driver", picked.Id)
+		if err := c.notifyDriver(ctx, picked.Id, event); err != nil {
+			appLog.Warnw("notify driver failed, restoring waiting trip", "err", err)
+			c.waiting.Store(key, event)
+			return true
+		}
+		c.service.SetBusy(picked.Id, event.TripID)
+		c.pending.Store(event.TripID, pendingInfo{event: event, driverID: picked.Id})
+		go c.startResponseTimer(ctx, event.TripID, picked.Id, event)
+		return true
+	})
 }
 
 func (c *TripConsumer) publishNoDriversFound(ctx context.Context, event messaging.TripCreatedEvent) error {
@@ -71,17 +198,31 @@ func (c *TripConsumer) notifyDriver(ctx context.Context, driverID string, event 
 	if err != nil {
 		return fmt.Errorf("marshal event: %w", err)
 	}
-
 	msg := messaging.KafkaMessage{
 		Type:    messaging.TopicDriverTripRequest,
 		OwnerID: driverID,
 		Data:    data,
 	}
-
 	payload, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("marshal message: %w", err)
 	}
-
 	return c.kafka.PublishMessage(ctx, messaging.TopicDriverTripRequest, payload)
+}
+
+func (c *TripConsumer) publishRetry(ctx context.Context, event messaging.TripCreatedEvent) error {
+	data, err := json.Marshal(event)
+	if err != nil {
+		return err
+	}
+	msg := messaging.KafkaMessage{
+		Type:    messaging.TopicDriverNotInterested,
+		OwnerID: event.UserID,
+		Data:    data,
+	}
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	return c.kafka.PublishMessage(ctx, messaging.TopicDriverNotInterested, payload)
 }

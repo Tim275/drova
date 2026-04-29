@@ -68,6 +68,18 @@ func (f *fakeUserStore) Activate(_ context.Context, token string) (*domain.User,
 	return nil, domain.ErrNotFound
 }
 
+func (f *fakeUserStore) UpdateProfile(_ context.Context, userID int64, displayName, avatarURL, phone, address string) error {
+	u, ok := f.byID[userID]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	u.DisplayName = displayName
+	u.AvatarURL = avatarURL
+	u.Phone = phone
+	u.Address = address
+	return nil
+}
+
 type fakeInvStore struct{ tokens map[string]int64 }
 
 func newFakeInvStore() *fakeInvStore { return &fakeInvStore{tokens: make(map[string]int64)} }
@@ -103,7 +115,7 @@ func newTestApp(t *testing.T) *application {
 	authenticator := auth.NewAuthenticator("testsecret123456789012345678901", "drova", "drova-users")
 
 	// We wire a real mailer stub that doesn't send emails
-	m := mailer.New("", "", "", "")
+	m := mailer.New("", "", "", "", "", "")
 	svc := service.New(userStore, invStore, cache, m)
 
 	return &application{
@@ -118,7 +130,7 @@ func newTestApp(t *testing.T) *application {
 func TestHandleRegister_Success(t *testing.T) {
 	app := newTestApp(t)
 
-	body := `{"email":"test@drova.de","password":"secret123","role":"rider"}`
+	body := `{"display_name":"Test User","email":"test@drova.de","phone":"+4915112345678","password":"secret123","role":"rider"}`
 	req := httptest.NewRequest(http.MethodPost, "/v1/users/register", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

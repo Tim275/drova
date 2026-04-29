@@ -1,0 +1,55 @@
+name: Update GitOps Repository
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+        description: "Release tag (e.g. v0.9.0)"
+    secrets:
+      GITOPS_PAT:
+        required: true
+
+jobs:
+  update-gitops:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout drova repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITOPS_PAT }}
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Update image tags
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          FILE="infra/production/k8s/kustomization.yaml"
+          yq e -i '(.images[] | select(.name | test("ghcr.io/tim275/drova/"))).newTag = strenv(TAG)' "$FILE"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITOPS_PAT }}
+          commit-message: "chore: update drova images to ${{ inputs.tag }}"
+          committer: GitOps Bot <gitops-bot@github.com>
+          author: GitOps Bot <gitops-bot@github.com>
+          branch: gitops/release-${{ inputs.tag }}
+          delete-branch: true
+          title: "chore: deploy ${{ inputs.tag }} to production"
+          body: |
+            Updates all Drova service image tags to `${{ inputs.tag }}` in `infra/production/k8s/kustomization.yaml`.
+
+            Release: https://github.com/Tim275/drova/releases/tag/${{ inputs.tag }}
+          labels: |
+            automated-pr
+            gitops

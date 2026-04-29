@@ -19,6 +19,10 @@ type User struct {
 	Role        Role
 	IsActivated bool
 	CreatedAt   time.Time
+	DisplayName string
+	AvatarURL   string
+	Phone       string
+	Address     string
 }
 
 type password struct {
@@ -46,6 +50,7 @@ type UserStore interface {
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetByID(ctx context.Context, id int64) (*User, error)
 	Activate(ctx context.Context, token string) (*User, error)
+	UpdateProfile(ctx context.Context, userID int64, displayName, avatarURL, phone, address string) error
 }
 
 type InvitationStore interface {
@@ -53,14 +58,17 @@ type InvitationStore interface {
 	Delete(ctx context.Context, token string) error
 }
 
-// UserCacher abstracts the caching layer — service layer never imports Redis directly.
 type UserCacher interface {
 	Get(ctx context.Context, id int64) (*User, error)
 	Set(ctx context.Context, u *User) error
 	Delete(ctx context.Context, id int64)
 }
 
-// EmailSender abstracts email delivery — service layer never imports mailer directly.
 type EmailSender interface {
 	SendActivation(toEmail, token string) error
+}
+
+type TokenBlacklist interface {
+	Revoke(ctx context.Context, jti string, ttl time.Duration) error
+	IsRevoked(ctx context.Context, jti string) (bool, error)
 }

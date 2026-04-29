@@ -1,0 +1,45 @@
+name: Backend Tests
+
+on:
+  pull_request:
+    paths:
+      - "services/**"
+      - "shared/**"
+      - "proto/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/backend-tests.yaml"
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  test:
+    name: Test & Build All Services
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        run: go test -race ./...
+
+      - name: Build all services
+        run: |
+          CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/api-gateway
+          CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/user-service/cmd
+          CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/trip-service/cmd
+          CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/driver-service
+          CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/payment-service/cmd
+          CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/chat-service

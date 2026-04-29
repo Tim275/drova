@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"github.com/google/uuid"
 	"drova/services/trip-service/internal/domain"
 	tripTypes "drova/services/trip-service/pkg/types"
 	"drova/shared/env"
@@ -16,6 +17,8 @@ import (
 )
 
 var mapboxToken = env.GetString("MAPBOX_TOKEN", "")
+
+var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 type service struct {
 	repo domain.TripRepository
@@ -27,11 +30,13 @@ func NewService(repo domain.TripRepository) domain.TripService {
 
 func (s *service) CreateTrip(ctx context.Context, fare *domain.RideFareModel) (*domain.TripModel, error) {
 	trip := &domain.TripModel{
-		ID:     primitive.NewObjectID(),
-		UserID: fare.UserID,
-		Status: "pending",
-		Fare:   fare,
-		Driver: nil,
+		ID:          uuid.New().String(),
+		UserID:      fare.UserID,
+		RiderName:   fare.RiderName,
+		RiderAvatar: fare.RiderAvatar,
+		Status:      "searching",
+		Fare:        fare,
+		CreatedAt:   time.Now().Unix(),
 	}
 	return s.repo.CreateTrip(ctx, trip)
 }
@@ -49,7 +54,7 @@ func (s *service) GetRoute(ctx context.Context, pickup, destination *types.Coord
 		return nil, fmt.Errorf("create directions request: %w", err)
 	}
 	req.Header.Set("Referer", env.GetString("SERVICE_REFERER", "http://localhost:8083"))
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("directions api: %w", err)
 	}
@@ -82,14 +87,18 @@ func (s *service) EstimatePackagesPriceWithRoute(route *tripTypes.MapboxRouteRes
 }
 
 func (s *service) GenerateTripFares(ctx context.Context, rideFares []*domain.RideFareModel, userID string, route *tripTypes.MapboxRouteResponse) ([]*domain.RideFareModel, error) {
+	riderName, riderAvatar := fetchRiderInfo(ctx, userID)
 	fares := make([]*domain.RideFareModel, len(rideFares))
 	for i, f := range rideFares {
 		fare := &domain.RideFareModel{
-			ID:                primitive.NewObjectID(),
+			ID:                uuid.New().String(),
 			UserID:            userID,
+			RiderName:         riderName,
+			RiderAvatar:       riderAvatar,
 			PackageSlug:       f.PackageSlug,
 			TotalPriceInCents: f.TotalPriceInCents,
 			Route:             route,
+			ExpiresAt:         time.Now().Add(domain.FareExpiryDuration),
 		}
 		if err := s.repo.SaveRideFare(ctx, fare); err != nil {
 			return nil, fmt.Errorf("failed to save trip fare: %w", err)
@@ -107,6 +116,26 @@ func (s *service) UpdateTrip(ctx context.Context, tripID string, status string, 
 	return s.repo.UpdateTrip(ctx, tripID, status, driver)
 }
 
+func (s *service) CancelTrip(ctx context.Context, tripID string) error {
+	return s.repo.CancelTrip(ctx, tripID)
+}
+
+func (s *service) ExpireSearch(ctx context.Context, tripID string) (bool, error) {
+	return s.repo.ExpireSearch(ctx, tripID)
+}
+
+func (s *service) GetTripsByUser(ctx context.Context, userID string) ([]*domain.TripModel, error) {
+	return s.repo.GetTripsByUser(ctx, userID)
+}
+
+func (s *service) GetTripsByDriver(ctx context.Context, driverID string) ([]*domain.TripModel, error) {
+	return s.repo.GetTripsByDriver(ctx, driverID)
+}
+
+func (s *service) RateTrip(ctx context.Context, tripID string, rating int) error {
+	return s.repo.RateTrip(ctx, tripID, rating)
+}
+
 func (s *service) GetAndValidateFare(ctx context.Context, fareID, userID string) (*domain.RideFareModel, error) {
 	fare, err := s.repo.GetRideFareByID(ctx, fareID)
 	if err != nil {
@@ -114,6 +143,9 @@ func (s *service) GetAndValidateFare(ctx context.Context, fareID, userID string)
 	}
 	if fare.UserID != userID {
 		return nil, fmt.Errorf("fare does not belong to user")
+	}
+	if time.Now().After(fare.ExpiresAt) {
+		return nil, fmt.Errorf("fare expired: please request a new quote")
 	}
 	return fare, nil
 }
@@ -136,4 +168,25 @@ func getBaseFares() []*domain.RideFareModel {
 		{PackageSlug: "van", TotalPriceInCents: 1000},
 		{PackageSlug: "business", TotalPriceInCents: 1500},
 	}
+}
+
+func fetchRiderInfo(ctx context.Context, userID string) (name, avatar string) {
+	userSvcURL := env.GetString("USER_SERVICE_URL", "http://user-service:8082")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, userSvcURL+"/v1/internal/users/"+userID, nil)
+	if err != nil {
+		return "", ""
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return "", ""
+	}
+	defer resp.Body.Close()
+	var body struct {
+		DisplayName string `json:"display_name"`
+		AvatarURL   string `json:"avatar_url"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return "", ""
+	}
+	return body.DisplayName, body.AvatarURL
 }
