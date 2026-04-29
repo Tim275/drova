@@ -1,12 +1,17 @@
 .env
 *.exe
 *.docx
+*.rtf
 ~$*
 /api-gateway
 /cmd
+/chat-service
+/driver-service
 CLAUDE.md
 /build/
 note.txt
 ZUSAMMENFASSUNG-ASYNC-WS.md
 data.md
+homelab.md
+.DS_Store
 infra/local/k8s/secrets.yaml

@@ -67,9 +67,10 @@ jobs:
       tag: ${{ steps.tag.outputs.TAG }}
 
   trigger-gitops:
-    name: Trigger GitOps
+    name: Deploy to Production
     needs: build-and-push
     if: success()
+    environment: production
     uses: ./.github/workflows/update-gitops.yaml
     with:
       tag: ${{ needs.build-and-push.outputs.tag }}
