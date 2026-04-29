@@ -2,30 +2,17 @@ name: Frontend Tests
 
 on:
   pull_request:
+    paths:
+      - "frontend/**"
+      - ".github/workflows/frontend-tests.yaml"
 
 permissions:
   contents: read
   pull-requests: write
 
 jobs:
-  check_paths:
-    runs-on: ubuntu-latest
-    outputs:
-      should_run: ${{ steps.filter.outputs.frontend }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3.0.2
-        id: filter
-        with:
-          filters: |
-            frontend:
-              - 'frontend/**'
-              - '.github/workflows/frontend-tests.yaml'
-
   test:
     name: Validate Frontend
-    needs: check_paths
-    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -42,7 +29,7 @@ jobs:
           sudo apt-get install -y tidy
           tidy -errors -quiet -utf8 frontend/index.html || true
 
-      - name: Check for console.error / debugger leaks
+      - name: Check for debugger leaks
         run: |
           if grep -n "debugger" frontend/index.html; then
             echo "ERROR: debugger statement found" && exit 1
