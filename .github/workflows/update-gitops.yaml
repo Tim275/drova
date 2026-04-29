@@ -10,6 +10,12 @@ on:
     secrets:
       GITOPS_PAT:
         required: true
+  workflow_dispatch:
+    inputs:
+      tag:
+        required: true
+        type: string
+        description: "Release tag (e.g. v0.9.0)"
 
 jobs:
   update-gitops:
