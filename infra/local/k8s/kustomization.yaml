@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# LOCAL KUBERNETES TESTING (kind / minikube)
+# Production → homelab repo: kubernetes/apps/base/drova/environments/production/
+
+namespace: drova
+
+resources:
+  - namespace.yaml
+  - app-config.yaml
+  - secrets.yaml         # cp secrets.template.yaml secrets.yaml (secrets.yaml ist in .gitignore)
+  - services/api-gateway.yaml
+  - services/user-service.yaml
+  - services/trip-service.yaml
+  - services/driver-service.yaml
+  - services/payment-service.yaml
+  - services/chat-service.yaml

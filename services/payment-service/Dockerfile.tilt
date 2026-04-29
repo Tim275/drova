@@ -1,0 +1,6 @@
+FROM gcr.io/distroless/static-debian12:nonroot
+WORKDIR /app
+COPY --chown=nonroot:nonroot build/payment-service /app/payment-service
+COPY --chown=nonroot:nonroot services/payment-service/migrations /app/migrations
+USER nonroot:nonroot
+ENTRYPOINT ["/app/payment-service"]

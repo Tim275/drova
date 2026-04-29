@@ -11,6 +11,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
 COPY --from=builder --chown=nonroot:nonroot /out/payment-service /app/payment-service
+COPY --from=builder --chown=nonroot:nonroot /app/services/payment-service/migrations /app/migrations
 USER nonroot:nonroot
 EXPOSE 9004
 ENTRYPOINT ["/app/payment-service"]

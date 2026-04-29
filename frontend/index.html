@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <title>Drova</title>
@@ -10,8 +10,23 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f3f4f6; min-height: 100vh; }
 
+    /* Auth screen */
+    #authscreen { display: none; position: fixed; inset: 0; z-index: 999; background: #f3f4f6; align-items: center; justify-content: center; padding: 16px; }
+    #authscreen.active { display: flex; }
+    .auth-tabs { display: flex; gap: 4px; background: #f3f4f6; border-radius: 8px; padding: 4px; margin-bottom: 20px; }
+    .auth-tab { flex: 1; padding: 8px; border: none; background: transparent; border-radius: 6px; font-size: 14px; font-weight: 600; color: #6b7280; cursor: pointer; transition: all .15s; }
+    .auth-tab.active { background: white; color: #111827; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .field-input { width: 100%; padding: 9px 11px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 13px; color: #111827; outline: none; display: block; margin-bottom: 10px; }
+    .field-input:focus { border-color: #111827; }
+    .role-select { display: flex; gap: 10px; margin-bottom: 14px; }
+    .role-opt { display: flex; align-items: center; gap: 6px; font-size: 14px; color: #374151; cursor: pointer; flex: 1; padding: 10px 12px; border: 1.5px solid #e5e7eb; border-radius: 8px; transition: border-color .15s; }
+    .role-opt:has(input:checked) { border-color: #111827; background: #f9fafb; }
+    #autherr { display: none; margin-top: 10px; padding: 10px; background: #fef2f2; border-radius: 8px; font-size: 12px; color: #dc2626; }
+    #authmsg { display: none; margin-top: 10px; padding: 10px; background: #f0fdf4; border-radius: 8px; font-size: 12px; color: #16a34a; }
+
     /* Welcome */
-    #welcome { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 16px; }
+    #welcome { display: none; align-items: center; justify-content: center; min-height: 100vh; padding: 16px; }
+    #welcome.active { display: flex; }
     .card { background: white; padding: 32px; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); width: 100%; max-width: 400px; text-align: center; }
     .card h2 { font-size: 22px; font-weight: 700; color: #111827; margin-bottom: 8px; }
     .card p  { color: #6b7280; font-size: 14px; margin-bottom: 28px; }
@@ -20,6 +35,26 @@
     .btn:disabled { opacity: .4; cursor: not-allowed; }
     .btn-primary { background: #111827; color: white; margin-bottom: 12px; }
     .btn-outline { background: white; color: #111827; border: 1.5px solid #e5e7eb; }
+    .user-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #f9fafb; border-radius: 8px; margin-bottom: 20px; }
+    .user-bar span { font-size: 13px; color: #374151; font-weight: 500; }
+    .user-bar button { background: none; border: none; font-size: 12px; color: #6b7280; cursor: pointer; font-weight: 600; }
+    .user-bar button:hover { color: #dc2626; }
+
+    /* Package selection overlay */
+    #pkgoverlay { display: none; position: fixed; inset: 0; z-index: 900; background: rgba(0,0,0,0.4); align-items: center; justify-content: center; padding: 16px; }
+    #pkgoverlay.active { display: flex; }
+    #pkgcard { background: white; padding: 28px; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); max-width: 420px; width: 100%; }
+    #pkgcard h2 { font-size: 20px; font-weight: 700; color: #111827; margin-bottom: 4px; }
+    #pkgcard .subtitle { color: #6b7280; font-size: 13px; margin-bottom: 16px; }
+    #pkgNameInput { width: 100%; padding: 9px 11px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 13px; color: #111827; outline: none; margin-bottom: 16px; }
+    #pkgNameInput:focus { border-color: #111827; }
+    .pkg-opt { display: flex; align-items: center; gap: 14px; padding: 14px; border: 1.5px solid #e5e7eb; border-radius: 10px; margin-bottom: 8px; cursor: pointer; transition: border-color .15s, background .15s; }
+    .pkg-opt:hover { border-color: #111827; background: #f9fafb; }
+    .pkg-opt.selected { border-color: #111827; background: #f9fafb; }
+    .pkg-icon { width: 40px; height: 40px; background: #f3f4f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .pkg-icon svg { width: 22px; height: 22px; stroke: #111827; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .pkg-name { font-size: 14px; font-weight: 600; color: #111827; }
+    .pkg-desc { font-size: 12px; color: #6b7280; margin-top: 2px; }
 
     /* Map screen: sidebar + map + ridepanel */
     #mapscreen { display: none; height: 100vh; }
@@ -36,8 +71,6 @@
     }
     #sidebar h3 { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 4px; }
     .field-label { font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 4px; display: block; }
-    .field-input { width: 100%; padding: 9px 11px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 13px; color: #111827; outline: none; }
-    .field-input:focus { border-color: #111827; }
     #calcBtn { margin-top: 4px; padding: 11px; background: #111827; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; }
     #calcBtn:hover { opacity: .85; }
     #calcBtn:disabled { opacity: .5; cursor: not-allowed; }
@@ -56,7 +89,7 @@
       box-shadow: -2px 0 12px rgba(0,0,0,0.06);
     }
     #ridepanel h2 { font-size: 20px; font-weight: 700; color: #111827; margin-bottom: 6px; }
-    #routeinfo  { font-size: 13px; color: #6b7280; margin-bottom: 6px; }
+    #routeinfo  { font-size: 15px; font-weight: 600; color: #111827; margin-bottom: 4px; }
     #arrivalinfo { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #374151; margin-bottom: 24px; }
 
     .ride-option {
@@ -81,7 +114,12 @@
     #errbox { margin-top: 8px; padding: 10px; background: #fef2f2; border-radius: 8px; font-size: 12px; color: #dc2626; display: none; }
     .style-opt { padding: 10px 16px; font-size: 13px; color: #111827; cursor: pointer; }
     .style-opt:hover { background: #f3f4f6; }
-    #routeinfo { font-size: 15px; font-weight: 600; color: #111827; margin-bottom: 4px; }
+
+    /* Rider sidebar user header */
+    .sidebar-user-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #f3f4f6; }
+    .sidebar-user-bar .uname { font-size: 13px; font-weight: 600; color: #374151; }
+    .sidebar-action-btn { background: none; border: 1px solid #e5e7eb; border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #6b7280; cursor: pointer; }
+    .sidebar-action-btn:hover { background: #f9fafb; color: #111827; }
 
     /* Driver screen — fullscreen map + right sidebar */
     #driverscreen { display: none; height: 100vh; }
@@ -90,24 +128,264 @@
     #driverMap { position: absolute; inset: 0; }
     #driverSidebar {
       width: 360px; min-width: 360px; background: white;
-      padding: 24px 22px; overflow-y: auto;
+      padding: 0; overflow-y: auto;
       box-shadow: -2px 0 12px rgba(0,0,0,0.06);
-      display: flex; flex-direction: column; gap: 16px;
+      display: flex; flex-direction: column;
     }
+    .ds-user-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid #f3f4f6; flex-shrink: 0;
+    }
+    .ds-user-info { display: flex; align-items: center; gap: 10px; }
+    .ds-user-name { font-size: 14px; font-weight: 700; color: #111827; }
+    .ds-user-role { font-size: 11px; color: #6b7280; margin-top: 1px; }
+    .ds-profile-btn { background: none; border: 1px solid #e5e7eb; border-radius: 6px; padding: 5px 10px; font-size: 12px; font-weight: 600; color: #374151; cursor: pointer; }
+    .ds-profile-btn:hover { background: #f9fafb; }
+    #dsOffline { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+    #dsOffline h3 { font-size: 15px; font-weight: 700; color: #111827; margin-bottom: 0; }
+    #dsOnline { padding: 20px; display: none; flex-direction: column; gap: 14px; }
     .driver-header { display: flex; align-items: center; gap: 14px; }
-    .driver-avatar { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; background: #f3f4f6; }
-    .driver-name { font-size: 16px; font-weight: 700; color: #111827; }
+    .driver-avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; background: #f3f4f6; }
+    .small-avatar { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; background: #f3f4f6; }
+    .driver-name { font-size: 15px; font-weight: 700; color: #111827; }
     .driver-meta { font-size: 12px; color: #6b7280; margin-top: 2px; }
     #driverStatus {
       padding: 10px 12px; background: #f9fafb; border-radius: 8px;
       font-size: 13px; color: #374151; line-height: 1.5;
     }
-    #closedriverpanel {
-      margin-top: auto; padding: 11px; background: white; color: #111827;
-      border: 1.5px solid #e5e7eb; border-radius: 8px;
-      font-size: 14px; font-weight: 600; cursor: pointer;
+    .ds-pkg-opt { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1.5px solid #e5e7eb; border-radius: 8px; cursor: pointer; transition: border-color .15s; margin-bottom: 6px; }
+    .ds-pkg-opt:hover { border-color: #111827; background: #f9fafb; }
+    .ds-pkg-opt.selected { border-color: #111827; background: #f9fafb; }
+    .ds-pkg-name { font-size: 13px; font-weight: 600; color: #111827; }
+    .ds-pkg-desc { font-size: 11px; color: #6b7280; }
+
+    /* Profile overlay */
+    #profileoverlay { display: none; position: fixed; inset: 0; z-index: 950; background: rgba(0,0,0,0.45); align-items: center; justify-content: center; padding: 16px; }
+    #profileoverlay.active { display: flex; }
+    #profilecard { background: white; border-radius: 16px; padding: 28px; max-width: 440px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto; }
+    .profile-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .profile-header h2 { font-size: 18px; font-weight: 700; color: #111827; }
+    .profile-close { background: none; border: none; font-size: 22px; color: #9ca3af; cursor: pointer; line-height: 1; }
+    .profile-close:hover { color: #374151; }
+    .profile-avatar-section { display: flex; flex-direction: column; align-items: center; margin-bottom: 20px; }
+    .btn-link { background: none; border: none; color: #6366f1; font-size: 13px; cursor: pointer; padding: 4px 0; text-decoration: underline; }
+    #profileAvatarPreview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; background: #f3f4f6; border: 2px solid #e5e7eb; margin-bottom: 10px; }
+    #profileMsg { display: none; margin-top: 10px; padding: 10px; border-radius: 8px; font-size: 12px; }
+
+    /* Trip status bar (rider, shown in ride panel during active trip) */
+    #tripStatusBar { display:none; padding:14px; background:#f9fafb; border:1.5px solid #e5e7eb; border-radius:10px; margin-top:12px; }
+    .trip-status-text { font-size:14px; font-weight:600; color:#111827; margin-bottom:8px; }
+    .trip-status-sub  { font-size:12px; color:#6b7280; margin-bottom:10px; }
+    #cancelTripBtn { padding:9px 14px; background:white; color:#111827; border:1.5px solid #d1d5db; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; width:100%; }
+    #cancelTripBtn:hover { background:#f3f4f6; }
+
+    /* Driver info card (shown on rider side after driver accepts) */
+    #driverInfoCard { display:none; background:white; border:1.5px solid #e5e7eb; border-radius:12px; padding:14px 16px; margin-top:10px; }
+    .dic-row { display:flex; align-items:center; gap:12px; }
+    .dic-avatar { width:48px; height:48px; border-radius:50%; object-fit:cover; background:#f3f4f6; flex-shrink:0; }
+    .dic-info { flex:1; min-width:0; }
+    .dic-name { font-size:14px; font-weight:700; color:#111827; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .dic-plate { display:inline-block; margin-top:4px; background:#f3f4f6; border:1px solid #d1d5db; border-radius:6px; padding:2px 8px; font-size:12px; font-weight:600; color:#374151; letter-spacing:0.04em; }
+    .dic-label { font-size:11px; color:#9ca3af; margin-top:2px; }
+
+    /* Rating overlay */
+    #ratingoverlay { display:none; position:fixed; inset:0; z-index:1010; background:rgba(0,0,0,0.45); align-items:center; justify-content:center; padding:16px; }
+    #ratingoverlay.active { display:flex; }
+    #ratingcard { background:white; border-radius:16px; padding:32px 28px; max-width:380px; width:100%; box-shadow:0 10px 40px rgba(0,0,0,0.2); text-align:center; }
+    #ratingcard h2 { font-size:20px; font-weight:700; color:#111827; margin-bottom:6px; }
+    #ratingcard p  { font-size:14px; color:#6b7280; margin-bottom:20px; }
+    .stars { display:flex; justify-content:center; gap:8px; margin-bottom:20px; }
+    .star { font-size:36px; cursor:pointer; color:#d1d5db; transition:color .15s; line-height:1; }
+    .star.active { color:#f59e0b; }
+    #submitRatingBtn { width:100%; padding:13px; background:#111827; color:white; border:none; border-radius:8px; font-size:15px; font-weight:600; cursor:pointer; }
+    #submitRatingBtn:hover { opacity:.85; }
+
+    /* Trip history panel */
+    #historyBtn { padding:7px 12px; background:none; border:1px solid #e5e7eb; border-radius:6px; font-size:12px; font-weight:600; color:#6b7280; cursor:pointer; }
+    #historyBtn:hover { background:#f9fafb; color:#111827; }
+    #historyoverlay { display:none; position:fixed; inset:0; z-index:950; background:rgba(0,0,0,0.45); align-items:center; justify-content:center; padding:16px; }
+    #historyoverlay.active { display:flex; }
+    #historycard { background:white; border-radius:16px; padding:28px; max-width:480px; width:100%; box-shadow:0 10px 40px rgba(0,0,0,0.2); max-height:85vh; overflow-y:auto; }
+    .history-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+    .history-header h2 { font-size:18px; font-weight:700; color:#111827; }
+    .history-item { padding:14px; border:1px solid #f3f4f6; border-radius:10px; margin-bottom:10px; }
+    .history-item-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
+    .history-pkg { font-size:13px; font-weight:700; color:#111827; text-transform:capitalize; }
+    .history-price { font-size:14px; font-weight:700; color:#111827; }
+    .history-meta { font-size:12px; color:#6b7280; }
+    .history-status { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; margin-top:4px; }
+    .history-status.completed { background:#dcfce7; color:#16a34a; }
+    .history-status.cancelled { background:#fef2f2; color:#dc2626; }
+    .history-status.paid      { background:#dbeafe; color:#1d4ed8; }
+    .history-status.searching,.history-status.accepted,.history-status.driver_arrived,.history-status.in_progress { background:#fef9c3; color:#854d0e; }
+    .history-stars { color:#f59e0b; font-size:13px; margin-top:4px; }
+
+    /* Payment history overlay */
+    #payhistoryoverlay { display:none; position:fixed; inset:0; z-index:950; background:rgba(0,0,0,0.45); align-items:center; justify-content:center; padding:16px; }
+    #payhistoryoverlay.active { display:flex; }
+    #payhistorycard { background:white; border-radius:16px; padding:28px; max-width:480px; width:100%; box-shadow:0 10px 40px rgba(0,0,0,0.2); max-height:85vh; overflow-y:auto; }
+    .receipt { border:1px solid #f3f4f6; border-radius:12px; margin-bottom:12px; overflow:hidden; }
+    .receipt-top { display:flex; justify-content:space-between; align-items:flex-start; padding:14px 16px 10px; }
+    .receipt-pkg { font-size:13px; font-weight:700; color:#111827; text-transform:capitalize; display:flex; align-items:center; gap:6px; }
+    .receipt-pkg-dot { width:8px; height:8px; border-radius:50%; background:#111827; flex-shrink:0; }
+    .receipt-amount { font-size:18px; font-weight:800; color:#111827; }
+    .receipt-driver { display:flex; align-items:center; gap:10px; padding:10px 16px; border-top:1px solid #f3f4f6; background:#f9fafb; }
+    .receipt-driver img { width:32px; height:32px; border-radius:50%; object-fit:cover; }
+    .receipt-driver-name { font-size:12px; font-weight:600; color:#374151; }
+    .receipt-driver-plate { font-size:11px; color:#9ca3af; }
+    .receipt-footer { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; border-top:1px solid #f3f4f6; }
+    .receipt-date { font-size:11px; color:#9ca3af; }
+    .receipt-badge { display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:600; }
+    .receipt-badge.paid     { background:#dbeafe; color:#1d4ed8; }
+    .receipt-badge.completed { background:#dcfce7; color:#16a34a; }
+    .receipt-badge.pending  { background:#fef9c3; color:#854d0e; }
+    .receipt-stars { color:#f59e0b; font-size:12px; }
+
+    /* Driver trip status actions */
+    #tripStatusActions { display:none; padding:14px; background:#f9fafb; border:1.5px solid #e5e7eb; border-radius:10px; }
+    #tripStatusActions .status-label { font-size:13px; font-weight:700; color:#111827; margin-bottom:10px; }
+    .status-action-btn { width:100%; padding:11px; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; margin-bottom:6px; }
+    .status-action-btn:last-child { margin-bottom:0; }
+    .btn-arrive  { background:#111827; color:white; }
+    .btn-start   { background:#111827; color:white; }
+    .btn-end     { background:white; color:#111827; border:1.5px solid #d1d5db; }
+    .btn-arrive:hover { background:#1f2937; }
+    .btn-start:hover  { background:#1f2937; }
+    .btn-end:hover    { background:#f9fafb; }
+
+    /* Chat */
+    #chatBtnRider, #chatBtnDriver {
+      width:100%; margin-top:8px; padding:11px; background:#111827; color:white;
+      border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; transition:opacity .15s;
     }
-    #closedriverpanel:hover { background: #f9fafb; }
+    #chatBtnRider:hover, #chatBtnDriver:hover { opacity:.85; }
+    #chatoverlay { display:none; position:fixed; inset:0; z-index:1020; background:rgba(0,0,0,0.45); align-items:center; justify-content:center; padding:16px; backdrop-filter:blur(2px); }
+    #chatoverlay.active { display:flex; }
+    #chatcard {
+      background:#f0f2f5; border-radius:18px; width:100%; max-width:440px;
+      height:560px; display:flex; flex-direction:column;
+      box-shadow:0 20px 60px rgba(0,0,0,0.3); overflow:hidden;
+    }
+    #chatHeader {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 16px; background:#111827; gap:10px;
+    }
+    #chatHeaderInfo { display:flex; align-items:center; gap:10px; min-width:0; }
+    #chatHeaderAvatar { width:38px; height:38px; border-radius:50%; object-fit:cover; background:#374151; flex-shrink:0; border:2px solid rgba(255,255,255,0.15); }
+    #chatHeaderMeta { min-width:0; }
+    #chatHeaderName { font-size:14px; font-weight:700; color:white; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #chatHeaderSub { font-size:11px; color:rgba(255,255,255,0.55); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #chatCloseBtn { background:none; border:none; font-size:20px; cursor:pointer; color:rgba(255,255,255,0.6); line-height:1; padding:4px 8px; border-radius:6px; flex-shrink:0; transition:background .15s; }
+    #chatCloseBtn:hover { background:rgba(255,255,255,0.1); color:white; }
+
+    #chatMessages {
+      flex:1; overflow-y:auto; padding:14px 16px; display:flex; flex-direction:column; gap:4px;
+      background:#f0f2f5;
+    }
+    #chatMessages::-webkit-scrollbar { width:4px; }
+    #chatMessages::-webkit-scrollbar-thumb { background:#d1d5db; border-radius:4px; }
+
+    /* Message row = avatar + bubble */
+    .chat-row { display:flex; align-items:flex-end; gap:8px; }
+    .chat-row.mine  { flex-direction:row-reverse; }
+    .chat-row.theirs { flex-direction:row; }
+
+    .chat-avatar {
+      width:28px; height:28px; border-radius:50%; object-fit:cover;
+      flex-shrink:0; background:#e5e7eb;
+    }
+    .chat-avatar.hidden { visibility:hidden; }
+
+    .chat-bubble-wrap { display:flex; flex-direction:column; max-width:72%; }
+    .chat-row.mine  .chat-bubble-wrap { align-items:flex-end; }
+    .chat-row.theirs .chat-bubble-wrap { align-items:flex-start; }
+
+    .chat-msg {
+      padding:8px 12px; font-size:13.5px; line-height:1.45; word-break:break-word;
+      position:relative; box-shadow:0 1px 2px rgba(0,0,0,0.12);
+      animation: msgIn .2s cubic-bezier(.34,1.56,.64,1) both;
+    }
+    .chat-msg.mine {
+      background:#111827; color:white;
+      border-radius:18px 4px 18px 18px;
+    }
+    .chat-msg.theirs {
+      background:white; color:#111827;
+      border-radius:4px 18px 18px 18px;
+    }
+    .chat-msg.theirs.role-driver {
+      background:#1d4ed8; color:white;
+      border-radius:4px 18px 18px 18px;
+    }
+    .chat-sender-label {
+      font-size:10px; font-weight:700; margin-bottom:2px;
+      padding:0 2px;
+    }
+    .chat-row.mine  .chat-sender-label { text-align:right; color:#6b7280; }
+    .chat-row.theirs .chat-sender-label { text-align:left; color:#6b7280; }
+    .chat-msg-time {
+      font-size:10px; opacity:.5; margin-top:3px; padding:0 2px;
+      display:flex; align-items:center; gap:4px;
+    }
+    .chat-row.mine  .chat-msg-time { justify-content:flex-end; }
+    .chat-row.theirs .chat-msg-time { justify-content:flex-start; }
+    .chat-tick { font-size:11px; }
+
+    /* Date separator */
+    .chat-date-sep {
+      text-align:center; font-size:11px; color:#6b7280;
+      background:#e5e7eb; border-radius:10px; padding:3px 10px;
+      align-self:center; margin:6px 0;
+    }
+
+    /* Slide in animation */
+    @keyframes msgIn {
+      from { opacity:0; transform:translateY(10px) scale(0.95); }
+      to   { opacity:1; transform:translateY(0)    scale(1); }
+    }
+    .chat-row.mine  .chat-msg { animation-name: msgInMine; }
+    .chat-row.theirs .chat-msg { animation-name: msgInTheirs; }
+    @keyframes msgInMine   { from { opacity:0; transform:translateX(16px) scale(.95); } to { opacity:1; transform:none; } }
+    @keyframes msgInTheirs { from { opacity:0; transform:translateX(-16px) scale(.95); } to { opacity:1; transform:none; } }
+
+    /* Input row */
+    #chatInputRow {
+      display:flex; align-items:center; gap:8px;
+      padding:10px 12px; background:white; border-top:1px solid #e5e7eb;
+    }
+    #chatEmojiBtn {
+      background:none; border:none; font-size:22px; cursor:pointer;
+      padding:4px; border-radius:50%; transition:background .15s; line-height:1; flex-shrink:0;
+    }
+    #chatEmojiBtn:hover { background:#f3f4f6; }
+    #chatInput {
+      flex:1; padding:9px 14px; border:1.5px solid #e5e7eb; border-radius:22px;
+      font-size:13.5px; outline:none; font-family:inherit; color:#111827;
+      background:#f9fafb; transition:border-color .15s, background .15s;
+    }
+    #chatInput:focus { border-color:#111827; background:white; }
+    #chatSendBtn {
+      width:38px; height:38px; background:#111827; color:white; border:none;
+      border-radius:50%; font-size:16px; cursor:pointer;
+      display:flex; align-items:center; justify-content:center;
+      transition:opacity .15s, transform .1s; flex-shrink:0;
+    }
+    #chatSendBtn:hover { opacity:.85; }
+    #chatSendBtn:active { transform:scale(.9); }
+
+    /* Emoji picker */
+    #emojiPicker {
+      display:none; position:absolute; bottom:70px; left:12px;
+      background:white; border-radius:14px; padding:10px;
+      box-shadow:0 8px 30px rgba(0,0,0,0.15); z-index:10;
+      display:none; flex-wrap:wrap; gap:4px; width:232px;
+    }
+    #emojiPicker.open { display:flex; }
+    .emoji-btn {
+      font-size:22px; background:none; border:none; cursor:pointer;
+      padding:4px; border-radius:8px; transition:background .1s; line-height:1;
+    }
+    .emoji-btn:hover { background:#f3f4f6; }
 
     /* Payment Required overlay */
     #paymentoverlay {
@@ -166,7 +444,7 @@
   </div>
 </div>
 
-<!-- Payment Required overlay (StripePaymentButton card) -->
+<!-- Payment Required overlay -->
 <div id="paymentoverlay">
   <div id="paymentcard">
     <h2>Payment Required</h2>
@@ -186,13 +464,126 @@
   </div>
 </div>
 
+<!-- Rating overlay -->
+<div id="ratingoverlay">
+  <div id="ratingcard">
+    <h2>How was your ride?</h2>
+    <p>Please rate your driver</p>
+    <div class="stars">
+      <span class="star" data-val="1" onclick="setRating(1)">★</span>
+      <span class="star" data-val="2" onclick="setRating(2)">★</span>
+      <span class="star" data-val="3" onclick="setRating(3)">★</span>
+      <span class="star" data-val="4" onclick="setRating(4)">★</span>
+      <span class="star" data-val="5" onclick="setRating(5)">★</span>
+    </div>
+    <button id="submitRatingBtn" onclick="submitRating()" disabled>Submit Rating</button>
+    <button class="btn btn-outline" style="margin-top:10px;" onclick="closeRating()">Skip</button>
+  </div>
+</div>
+
+<!-- Trip history overlay -->
+<div id="historyoverlay">
+  <div id="historycard">
+    <div class="history-header">
+      <h2>My Trips</h2>
+      <button class="profile-close" onclick="closeHistory()">×</button>
+    </div>
+    <div id="historyList"><p style="color:#6b7280;font-size:14px;">Loading...</p></div>
+  </div>
+</div>
+
+<!-- Payment History overlay -->
+<div id="payhistoryoverlay">
+  <div id="payhistorycard">
+    <div class="history-header">
+      <h2>Payment History</h2>
+      <button class="profile-close" onclick="closePayHistory()">×</button>
+    </div>
+    <div id="payhistoryList"><p style="color:#6b7280;font-size:14px;">Loading...</p></div>
+  </div>
+</div>
+
+<!-- Profile overlay -->
+<div id="profileoverlay">
+  <div id="profilecard">
+    <div class="profile-header">
+      <h2>My Profile</h2>
+      <button class="profile-close" onclick="closeProfile()">×</button>
+    </div>
+    <div class="profile-avatar-section">
+      <img id="profileAvatarPreview" src="" alt="Avatar">
+      <button class="btn-link" onclick="document.getElementById('avatarUrlWrap').style.display=document.getElementById('avatarUrlWrap').style.display==='none'?'block':'none'">Change profile picture</button>
+      <div id="avatarUrlWrap" style="display:none;width:100%;margin-top:6px;">
+        <input class="field-input" id="profileAvatarUrl" type="url" placeholder="https://..." oninput="document.getElementById('profileAvatarPreview').src=this.value||defaultAvatar(currentUser.name)" style="text-align:center;">
+      </div>
+    </div>
+    <span class="field-label">Name</span>
+    <input class="field-input" id="profileName" type="text" placeholder="Your name">
+    <span class="field-label">Phone</span>
+    <input class="field-input" id="profilePhone" type="tel" placeholder="+1 234 567 8900">
+    <span class="field-label">Address</span>
+    <input class="field-input" id="profileAddress" type="text" placeholder="123 Main St, New York">
+    <div id="profileMsg"></div>
+    <button class="btn btn-primary" style="margin-top:16px;" onclick="saveProfile()">Save</button>
+  </div>
+</div>
+
+<!-- Auth screen -->
+<div id="authscreen">
+  <div class="card">
+    <h2>Drova</h2>
+    <p>Sign in or create an account</p>
+    <div class="auth-tabs">
+      <button class="auth-tab active" id="tab-login" onclick="showTab('login')">Sign In</button>
+      <button class="auth-tab" id="tab-register" onclick="showTab('register')">Register</button>
+    </div>
+
+    <div id="loginform">
+      <input class="field-input" id="loginEmail" type="email" placeholder="Email">
+      <input class="field-input" id="loginPassword" type="password" placeholder="Password">
+      <button class="btn btn-primary" onclick="login()">Sign In</button>
+    </div>
+
+    <div id="registerform" style="display:none;">
+      <input class="field-input" id="regName" type="text" placeholder="Full Name">
+      <input class="field-input" id="regEmail" type="email" placeholder="Email">
+      <input class="field-input" id="regPhone" type="tel" placeholder="Phone number (e.g. +15551234567)">
+      <input class="field-input" id="regPassword" type="password" placeholder="Password (min. 8 characters)">
+      <div class="role-select">
+        <label class="role-opt"><input type="radio" name="role" value="rider" checked> Rider</label>
+        <label class="role-opt"><input type="radio" name="role" value="driver"> Driver</label>
+      </div>
+      <button class="btn btn-primary" onclick="register()">Create Account</button>
+    </div>
+
+    <div id="autherr"></div>
+    <div id="authmsg"></div>
+  </div>
+</div>
+
 <!-- Welcome -->
 <div id="welcome">
   <div class="card">
+    <div class="user-bar">
+      <span id="welcomeEmail"></span>
+      <button onclick="logout()">Sign Out</button>
+    </div>
     <h2>Welcome to Drova</h2>
-    <p>Choose how you'd like to use our service today</p>
-    <button class="btn btn-primary" onclick="startRider()">I Need a Ride</button>
-    <button class="btn btn-outline" onclick="startDriver()">I Want to Drive</button>
+    <p>How would you like to use our service today?</p>
+    <button id="btnRide" class="btn btn-primary" onclick="startRider()">I need a ride</button>
+    <button id="btnDrive" class="btn btn-outline" onclick="showPkgOverlay()">I want to drive</button>
+  </div>
+</div>
+
+<!-- Package selection overlay -->
+<div id="pkgoverlay">
+  <div id="pkgcard">
+    <h2>Choose a Vehicle Package</h2>
+    <p class="subtitle">What's your name and which package do you offer?</p>
+    <input id="pkgNameInput" type="text" placeholder="Your driver name">
+    <div id="pkgoptions"></div>
+    <button class="btn btn-primary" style="margin-top:8px;" onclick="goOnline()">Go Online</button>
+    <button class="btn btn-outline" style="margin-top:8px;" onclick="closePkgOverlay()">Cancel</button>
   </div>
 </div>
 
@@ -202,23 +593,34 @@
 
     <!-- Left sidebar -->
     <div id="sidebar">
-      <h3>Plan your trip</h3>
+      <div class="sidebar-user-bar">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <img id="riderSidebarAvatar" class="small-avatar" src="" alt="">
+          <span class="uname" id="riderSidebarName"></span>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="sidebar-action-btn" onclick="showHistory()">Trips</button>
+          <button class="sidebar-action-btn" onclick="showPayHistory()">Payments</button>
+          <button class="sidebar-action-btn" onclick="showProfile()">Profile</button>
+          <button class="sidebar-action-btn" onclick="logout()">Sign Out</button>
+        </div>
+      </div>
+      <h3>Plan a Ride</h3>
       <div>
         <span class="field-label">Pickup</span>
-        <input class="field-input" id="pickup" placeholder="e.g. Düsseldorf Hauptbahnhof">
+        <input class="field-input" id="pickup" placeholder="e.g. Berlin Central Station" style="margin-bottom:0;">
       </div>
       <div>
         <span class="field-label">Destination</span>
-        <input class="field-input" id="destination" placeholder="e.g. Köln Hauptbahnhof">
+        <input class="field-input" id="destination" placeholder="e.g. Hamburg Central Station" style="margin-bottom:0;">
       </div>
-      <button id="calcBtn" onclick="getRoute()">Calculate Route</button>
+      <button id="calcBtn" onclick="getRoute()">Get Route</button>
       <div id="errbox"></div>
     </div>
 
     <!-- Map -->
     <div id="mapwrap">
       <div id="map"></div>
-      <!-- Style picker button (bottom-left, like Google Maps) -->
       <div id="stylepicker" style="position:absolute;bottom:24px;left:12px;z-index:2;">
         <button onclick="toggleStyleMenu()" style="background:white;border:none;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:600;color:#374151;box-shadow:0 2px 8px rgba(0,0,0,0.15);cursor:pointer;display:flex;align-items:center;gap:6px;">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
@@ -237,56 +639,362 @@
 
     <!-- Ride selection panel -->
     <div id="ridepanel">
-      <h2>Select your desired ride</h2>
+      <h2>Choose a Ride</h2>
       <div id="routeinfo"></div>
       <div id="arrivalinfo"></div>
       <div id="rideoptions"></div>
       <button id="confirmbtn" onclick="confirmRide()">Confirm Ride</button>
       <button id="backbtn" onclick="backToMap()">Back to Map</button>
+      <!-- Active trip status (shown after confirm) -->
+      <div id="tripStatusBar">
+        <div class="trip-status-text" id="tripStatusText">Searching for driver...</div>
+        <div class="trip-status-sub" id="tripStatusSub"></div>
+        <button id="cancelTripBtn" onclick="cancelTrip()">Cancel Trip</button>
+        <button id="chatBtnRider" style="display:none;" onclick="openChat()">Message Driver</button>
+      </div>
+      <div id="driverInfoCard">
+        <div class="dic-row">
+          <img id="dicAvatar" class="dic-avatar" src="" alt="">
+          <div class="dic-info">
+            <div class="dic-name" id="dicName"></div>
+            <span class="dic-plate" id="dicPlate"></span>
+            <div class="dic-label">Driver en route</div>
+          </div>
+        </div>
+      </div>
     </div>
 
   </div>
 </div>
 
-<!-- Driver screen (fullscreen map + sidebar) -->
+<!-- Driver screen -->
 <div id="driverscreen">
   <div id="driverMapWrap">
     <div id="driverMap"></div>
   </div>
   <div id="driverSidebar">
-    <div class="driver-header">
-      <img id="driverAvatar" class="driver-avatar" src="" alt="Driver">
+
+    <!-- User bar (always visible) -->
+    <div class="ds-user-bar">
+      <div class="ds-user-info">
+        <img id="dsUserAvatar" class="small-avatar" src="" alt="">
+        <div>
+          <div id="dsUserName" class="ds-user-name">Driver</div>
+          <div class="ds-user-role">Driver Account</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="ds-profile-btn" onclick="showProfile()">Profile</button>
+        <button class="ds-profile-btn" onclick="logout()">Sign Out</button>
+      </div>
+    </div>
+
+    <!-- Offline panel: go online -->
+    <div id="dsOffline">
+      <h3>Go Online</h3>
       <div>
-        <div id="driverName" class="driver-name">Verbinde...</div>
-        <div id="driverMeta" class="driver-meta"></div>
+        <span class="field-label">Vehicle Package</span>
+        <div id="dsPkgOptions"></div>
       </div>
+      <button class="btn btn-primary" onclick="goOnlineDriver()">Go Online</button>
     </div>
-    <div id="driverStatus">Warte auf Registrierung...</div>
-    <div id="tripRequest" style="display:none;padding:14px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;">
-      <div style="font-weight:700;font-size:14px;margin-bottom:8px;">Neue Fahrtanfrage!</div>
-      <div id="tripRequestInfo" style="font-size:13px;color:#374151;margin-bottom:12px;line-height:1.5;"></div>
-      <div style="display:flex;gap:8px;">
-        <button onclick="acceptTrip()" style="flex:1;padding:10px;background:#16a34a;color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Annehmen</button>
-        <button onclick="declineTrip()" style="flex:1;padding:10px;background:#dc2626;color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Ablehnen</button>
+
+    <!-- Online panel: driving mode -->
+    <div id="dsOnline">
+      <div id="driverStatus">Waiting for registration...</div>
+      <div id="tripRequest" style="display:none;padding:14px;background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:10px;">
+        <div style="font-weight:700;font-size:14px;margin-bottom:8px;color:#111827;">New Trip Request</div>
+        <div id="tripRequestInfo" style="font-size:13px;color:#374151;margin-bottom:12px;line-height:1.5;"></div>
+        <div style="display:flex;gap:8px;">
+          <button onclick="acceptTrip()" style="flex:1;padding:10px;background:#111827;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Accept</button>
+          <button onclick="declineTrip()" style="flex:1;padding:10px;background:white;color:#111827;border:1.5px solid #d1d5db;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">Decline</button>
+        </div>
       </div>
+      <!-- Trip status progression (shown after accepting) -->
+      <div id="tripStatusActions">
+        <div class="status-label" id="driverTripStatusLabel">Driving to pickup</div>
+        <button id="btnArrived"  class="status-action-btn btn-arrive" onclick="driverArrived()">I'm here</button>
+        <button id="btnTripStart" class="status-action-btn btn-start" onclick="driverTripStart()" style="display:none;">Start Trip</button>
+        <button id="btnTripEnd"   class="status-action-btn btn-end"   onclick="driverTripEnd()"   style="display:none;">End Trip</button>
+        <button id="btnTripCancel" class="status-action-btn" style="margin-top:6px;background:white;color:#111827;border:1.5px solid #d1d5db;" onclick="driverCancelTrip()">Cancel Trip</button>
+        <button id="chatBtnDriver" onclick="openChat()">Message Rider</button>
+      </div>
+      <button class="btn btn-outline" style="margin-top:auto;" onclick="goOfflineDriver()">Go Offline</button>
+      <button class="sidebar-action-btn" style="margin-top:8px;" onclick="showDriverHistory()">My Trips</button>
     </div>
-    <button id="closedriverpanel" onclick="closeDriverPanel()">Offline gehen</button>
+
+  </div>
+</div>
+
+<!-- Driver History Overlay -->
+<div id="driverhistoryoverlay" style="display:none;position:fixed;inset:0;z-index:950;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;padding:16px;">
+  <div id="driverhistorycard" style="background:white;border-radius:16px;padding:28px;max-width:480px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.2);max-height:85vh;overflow-y:auto;">
+    <div class="history-header">
+      <h2>My Trips</h2>
+      <button class="profile-close" onclick="closeDriverHistory()">×</button>
+    </div>
+    <div id="driverHistoryList"><p style="color:#6b7280;font-size:14px;">Loading...</p></div>
+  </div>
+</div>
+
+<!-- Chat Overlay -->
+<div id="chatoverlay">
+  <div id="chatcard" style="position:relative;">
+    <div id="chatHeader">
+      <div id="chatHeaderInfo">
+        <img id="chatHeaderAvatar" src="" alt="">
+        <div id="chatHeaderMeta">
+          <div id="chatHeaderName">Messages</div>
+          <div id="chatHeaderSub"></div>
+        </div>
+      </div>
+      <button id="chatCloseBtn" onclick="closeChat()">×</button>
+    </div>
+    <div id="chatMessages"></div>
+    <div id="emojiPicker">
+      <button class="emoji-btn" onclick="insertEmoji('😊')">😊</button>
+      <button class="emoji-btn" onclick="insertEmoji('👍')">👍</button>
+      <button class="emoji-btn" onclick="insertEmoji('🙏')">🙏</button>
+      <button class="emoji-btn" onclick="insertEmoji('😂')">😂</button>
+      <button class="emoji-btn" onclick="insertEmoji('❤️')">❤️</button>
+      <button class="emoji-btn" onclick="insertEmoji('🔥')">🔥</button>
+      <button class="emoji-btn" onclick="insertEmoji('✅')">✅</button>
+      <button class="emoji-btn" onclick="insertEmoji('🚗')">🚗</button>
+      <button class="emoji-btn" onclick="insertEmoji('📍')">📍</button>
+      <button class="emoji-btn" onclick="insertEmoji('⏱️')">⏱️</button>
+      <button class="emoji-btn" onclick="insertEmoji('👋')">👋</button>
+      <button class="emoji-btn" onclick="insertEmoji('😅')">😅</button>
+      <button class="emoji-btn" onclick="insertEmoji('🤝')">🤝</button>
+      <button class="emoji-btn" onclick="insertEmoji('💬')">💬</button>
+      <button class="emoji-btn" onclick="insertEmoji('⭐')">⭐</button>
+      <button class="emoji-btn" onclick="insertEmoji('😎')">😎</button>
+    </div>
+    <div id="chatInputRow">
+      <button id="chatEmojiBtn" onclick="toggleEmojiPicker()" title="Emoji">😊</button>
+      <input id="chatInput" type="text" placeholder="Write a message..." maxlength="500"
+        onkeydown="if(event.key==='Enter')sendChatMessage()" />
+      <button id="chatSendBtn" onclick="sendChatMessage()" title="Senden">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
   </div>
 </div>
 
 <script>
-  // Payment success screen (/?payment=success)
+  // Payment success screen
   if (new URLSearchParams(location.search).get('payment') === 'success') {
-    document.getElementById('welcome').style.display = 'none';
     document.getElementById('paymentsuccess').classList.add('active');
+    // Show rating after short delay
+    setTimeout(() => {
+      const tripID = localStorage.getItem('drova_last_trip_id');
+      if (tripID) showRating(tripID);
+    }, 1200);
   }
 
-  let map, selectedRide = null, selectedFareID = null;
-  let pickupCoords = null, destinationCoords = null;
-  let pickupMarker = null, destinationMarker = null;
-  const markers = [];
+  if (new URLSearchParams(location.search).get('activated') === 'true') {
+    showAuth();
+    showAuthMsg('Email confirmed! You can now sign in.');
+    history.replaceState(null, '', '/');
+  }
 
-  // SVG icons — outline style
+  // Auth state
+  let currentUser = null;
+
+  function authToken() { return localStorage.getItem('drova_token'); }
+
+  async function initApp() {
+    const token = authToken();
+    if (!token) { showAuth(); return; }
+
+    try {
+      const res = await fetch('/v1/users/me', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (!res.ok) { localStorage.clear(); showAuth(); return; }
+      const data = await res.json();
+      currentUser = {
+        id: String(data.id), email: data.email, role: data.role,
+        name: data.display_name || '', avatarUrl: data.avatar_url || '',
+        phone: data.phone || '', address: data.address || '',
+      };
+      navigateByRole();
+    } catch (_) { showAuth(); }
+  }
+
+  function navigateByRole() {
+    if (currentUser.role === 'rider')  { startRider(); return; }
+    if (currentUser.role === 'driver') { startDriverScreen(); return; }
+    showWelcome();
+  }
+
+  function showAuth() {
+    document.getElementById('authscreen').classList.add('active');
+    document.getElementById('welcome').classList.remove('active');
+    document.getElementById('mapscreen').style.display = 'none';
+    document.getElementById('driverscreen').classList.remove('active');
+  }
+
+  function showWelcome() {
+    document.getElementById('authscreen').classList.remove('active');
+    document.getElementById('welcome').classList.add('active');
+    document.getElementById('welcomeEmail').textContent = currentUser.email;
+
+    const rideBtn  = document.getElementById('btnRide');
+    const driveBtn = document.getElementById('btnDrive');
+    if (rideBtn)  rideBtn.style.display  = currentUser.role === 'driver' ? 'none' : 'block';
+    if (driveBtn) driveBtn.style.display = currentUser.role === 'rider'  ? 'none' : 'block';
+  }
+
+  function showTab(tab) {
+    document.getElementById('loginform').style.display    = tab === 'login'    ? 'block' : 'none';
+    document.getElementById('registerform').style.display = tab === 'register' ? 'block' : 'none';
+    document.getElementById('tab-login').classList.toggle('active', tab === 'login');
+    document.getElementById('tab-register').classList.toggle('active', tab === 'register');
+    clearAuthMsg();
+  }
+
+  function clearAuthMsg() {
+    const err = document.getElementById('autherr');
+    const msg = document.getElementById('authmsg');
+    err.style.display = 'none'; err.textContent = '';
+    msg.style.display = 'none'; msg.textContent = '';
+  }
+
+  function showAuthErr(text) {
+    const el = document.getElementById('autherr');
+    el.textContent = text; el.style.display = 'block';
+    document.getElementById('authmsg').style.display = 'none';
+  }
+
+  function showAuthMsg(text) {
+    const el = document.getElementById('authmsg');
+    el.textContent = text; el.style.display = 'block';
+    document.getElementById('autherr').style.display = 'none';
+  }
+
+  async function login() {
+    clearAuthMsg();
+    const email    = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    if (!email || !password) { showAuthErr('Please enter your email and password.'); return; }
+
+    try {
+      const res = await fetch('/v1/auth/token', {
+        method: 'POST',
+        headers: { 'Authorization': 'Basic ' + btoa(email + ':' + password) }
+      });
+      const data = await res.json();
+      if (!res.ok) { showAuthErr(data.error || 'Login failed.'); return; }
+
+      localStorage.setItem('drova_token', data.token);
+
+      const meRes = await fetch('/v1/users/me', {
+        headers: { 'Authorization': 'Bearer ' + data.token }
+      });
+      const me = await meRes.json();
+      currentUser = {
+        id: String(me.id), email: me.email, role: me.role,
+        name: me.display_name || '', avatarUrl: me.avatar_url || '',
+        phone: me.phone || '', address: me.address || '',
+      };
+      localStorage.setItem('drova_user', JSON.stringify(currentUser));
+
+      navigateByRole();
+    } catch (_) { showAuthErr('Network error. Please try again.'); }
+  }
+
+  async function register() {
+    clearAuthMsg();
+    const display_name = document.getElementById('regName').value.trim();
+    const email        = document.getElementById('regEmail').value.trim();
+    const phone        = document.getElementById('regPhone').value.trim();
+    const password     = document.getElementById('regPassword').value;
+    const role         = document.querySelector('input[name="role"]:checked')?.value ?? 'rider';
+    if (!display_name || !email || !phone || !password) { showAuthErr('Please fill in all fields.'); return; }
+
+    try {
+      const res = await fetch('/v1/users/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name, email, phone, password, role })
+      });
+      const data = await res.json();
+      if (!res.ok) { showAuthErr(data.error || 'Registration failed.'); return; }
+      showAuthMsg('Account created! Please activate your account via the link in the email.');
+    } catch (_) { showAuthErr('Network error. Please try again.'); }
+  }
+
+  function logout() {
+    if (ws) { ws.close(); ws = null; }
+    if (driverIdleWatchId !== null) { navigator.geolocation.clearWatch(driverIdleWatchId); driverIdleWatchId = null; }
+    driverCurrentGPS = null;
+    if (driverIdleMarker) { driverIdleMarker.remove(); driverIdleMarker = null; }
+    if (driverMap) { driverMap.remove(); driverMap = null; }
+    if (map) { map.remove(); map = null; }
+    document.getElementById('driverscreen').classList.remove('active');
+    document.getElementById('mapscreen').style.display = 'none';
+    document.getElementById('welcome').classList.remove('active');
+    localStorage.clear();
+    currentUser = null;
+    showAuth();
+  }
+
+  function showProfile() {
+    if (!currentUser) return;
+    document.getElementById('profileName').value      = currentUser.name    || '';
+    document.getElementById('profileAvatarUrl').value = currentUser.avatarUrl || '';
+    document.getElementById('profilePhone').value     = currentUser.phone   || '';
+    document.getElementById('profileAddress').value   = currentUser.address || '';
+    document.getElementById('avatarUrlWrap').style.display = 'none';
+    const preview = document.getElementById('profileAvatarPreview');
+    preview.src = currentUser.avatarUrl || defaultAvatar(currentUser.name || currentUser.email);
+    document.getElementById('profileMsg').style.display = 'none';
+    document.getElementById('profileoverlay').classList.add('active');
+  }
+
+  function closeProfile() {
+    document.getElementById('profileoverlay').classList.remove('active');
+  }
+
+  async function saveProfile() {
+    const displayName = document.getElementById('profileName').value.trim();
+    const avatarUrl   = document.getElementById('profileAvatarUrl').value.trim();
+    const phone       = document.getElementById('profilePhone').value.trim();
+    const address     = document.getElementById('profileAddress').value.trim();
+    const msgEl       = document.getElementById('profileMsg');
+
+    try {
+      const res = await fetch('/v1/users/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken() },
+        body: JSON.stringify({ display_name: displayName, avatar_url: avatarUrl, phone, address }),
+      });
+      if (!res.ok) throw new Error('Error saving profile');
+      currentUser.name      = displayName;
+      currentUser.avatarUrl = avatarUrl;
+      currentUser.phone     = phone;
+      currentUser.address   = address;
+      localStorage.setItem('drova_user', JSON.stringify(currentUser));
+      updateSidebarUI();
+      msgEl.textContent  = 'Saved!';
+      msgEl.style.cssText = 'display:block;background:#f0fdf4;color:#16a34a;';
+      setTimeout(closeProfile, 1200);
+    } catch (e) {
+      msgEl.textContent  = e.message;
+      msgEl.style.cssText = 'display:block;background:#fef2f2;color:#dc2626;';
+    }
+  }
+
+  // Package selection
+  let selectedPkg = null;
+
+  const vehicles = [
+    { id: 'economy',  name: 'Economy',  desc: 'VW Golf, Skoda Octavia' },
+    { id: 'comfort',  name: 'Comfort',  desc: 'BMW 3 Series, Mercedes C-Class' },
+    { id: 'van',      name: 'Van',      desc: 'VW Touran, Ford Galaxy' },
+    { id: 'business', name: 'Business', desc: 'Mercedes E-Class, Audi A6' },
+  ];
+
   const icons = {
     economy:  `<svg viewBox="0 0 24 24"><path d="M7 17H3a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h1l4-4h6l4 4h1a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-4"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></svg>`,
     comfort:  `<svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l3-3h8l3 3h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M5 9h14"/></svg>`,
@@ -294,33 +1002,88 @@
     business: `<svg viewBox="0 0 24 24"><path d="M2 17H1a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h1l3-4h10l3 4h1a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-2"/><path d="M5 9h14"/><path d="M8 9V7"/><circle cx="6" cy="17" r="2"/><circle cx="18" cy="17" r="2"/><path d="M8 17h8"/></svg>`,
   };
 
-  const vehicles = [
-    { id: 'economy',  name: 'Economy',  desc: 'VW Golf, Skoda Octavia',        rateBase: 5,  rateKm: 1.2 },
-    { id: 'comfort',  name: 'Comfort',  desc: 'BMW 3er, Mercedes C-Klasse',    rateBase: 8,  rateKm: 1.8 },
-    { id: 'van',      name: 'Van',      desc: 'VW Touran, Ford Galaxy',         rateBase: 10, rateKm: 2.0 },
-    { id: 'business', name: 'Business', desc: 'Mercedes E-Klasse, Audi A6',    rateBase: 15, rateKm: 2.5 },
-  ];
+  function showPkgOverlay() {
+    selectedPkg = null;
+    document.getElementById('pkgoptions').innerHTML = vehicles.map(v => `
+      <div class="pkg-opt" id="pkg-${v.id}" onclick="selectPkg('${v.id}')">
+        <div class="pkg-icon">${icons[v.id]}</div>
+        <div>
+          <div class="pkg-name">${v.name}</div>
+          <div class="pkg-desc">${v.desc}</div>
+        </div>
+      </div>`).join('');
+    document.getElementById('pkgoverlay').classList.add('active');
+  }
+
+  function selectPkg(id) {
+    selectedPkg = id;
+    document.querySelectorAll('.pkg-opt').forEach(el => el.classList.remove('selected'));
+    document.getElementById('pkg-' + id)?.classList.add('selected');
+  }
+
+  function closePkgOverlay() {
+    document.getElementById('pkgoverlay').classList.remove('active');
+    selectedPkg = null;
+  }
+
+  async function goOnline() {
+    if (!selectedPkg) { alert('Please select a package first.'); return; }
+    const name = document.getElementById('pkgNameInput').value.trim() || currentUser.name || currentUser.email.split('@')[0];
+    const pkg = selectedPkg;
+    closePkgOverlay();
+    // welcome-screen fallback: init driver screen then connect
+    await startDriverScreen();
+    document.getElementById('dsOffline').style.display = 'none';
+    document.getElementById('dsOnline').style.display = 'flex';
+    connectDriverWS(pkg, name);
+  }
+
+  // App state
+  let map, selectedRide = null, selectedFareID = null;
+  let pickupCoords = null, destinationCoords = null;
+  let pickupMarker = null, destinationMarker = null;
 
   async function reverseGeocode(lng, lat) {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}&limit=1&language=de`;
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}&limit=1&language=en`;
     const res  = await fetch(url);
     const data = await res.json();
     return data.features?.[0]?.place_name ?? `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
   }
 
   async function geocode(address) {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxgl.accessToken}&limit=1&country=de`;
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxgl.accessToken}&limit=1`;
     const res  = await fetch(url);
     const data = await res.json();
-    console.log('geocode response:', JSON.stringify(data));
-    if (!data.features?.length) throw new Error(`Adresse nicht gefunden: ${address}`);
+    if (!data.features?.length) throw new Error(`Address not found: ${address}`);
     const [lng, lat] = data.features[0].center;
     return { latitude: lat, longitude: lng };
   }
 
+  function defaultAvatar(name) {
+    const seed = encodeURIComponent(name || 'user');
+    return `https://api.dicebear.com/9.x/bottts/svg?seed=${seed}&backgroundColor=b6e3f4`;
+  }
+
+  function updateSidebarUI() {
+    const name = currentUser.name || currentUser.email.split('@')[0];
+    const avatar = currentUser.avatarUrl || defaultAvatar(name);
+    // Rider sidebar
+    const ra = document.getElementById('riderSidebarAvatar');
+    const rn = document.getElementById('riderSidebarName');
+    if (ra) ra.src = avatar;
+    if (rn) rn.textContent = name;
+    // Driver user bar
+    const da = document.getElementById('dsUserAvatar');
+    const dn = document.getElementById('dsUserName');
+    if (da) da.src = avatar;
+    if (dn) dn.textContent = name;
+  }
+
   async function startRider() {
-    document.getElementById('welcome').style.display = 'none';
+    document.getElementById('authscreen').classList.remove('active');
+    document.getElementById('welcome').classList.remove('active');
     document.getElementById('mapscreen').style.display = 'block';
+    updateSidebarUI();
 
     const cfg = await fetch('/config').then(r => r.json());
     mapboxgl.accessToken = cfg.mapboxToken;
@@ -335,6 +1098,123 @@
       zoom: 6,
     });
     map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+
+    const riderGeolocate = new mapboxgl.GeolocateControl({
+      positionOptions: { enableHighAccuracy: true },
+      trackUserLocation: true,
+      showUserHeading: false,
+    });
+    map.addControl(riderGeolocate, 'bottom-right');
+    map.on('load', () => riderGeolocate.trigger());
+  }
+
+  async function startDriverScreen() {
+    document.getElementById('authscreen').classList.remove('active');
+    document.getElementById('welcome').classList.remove('active');
+    document.getElementById('driverscreen').classList.add('active');
+    updateSidebarUI();
+
+    // Render package options in sidebar
+    document.getElementById('dsPkgOptions').innerHTML = vehicles.map(v => `
+      <div class="ds-pkg-opt" id="dspkg-${v.id}" onclick="selectPkg('${v.id}');document.querySelectorAll('.ds-pkg-opt').forEach(e=>e.classList.remove('selected'));document.getElementById('dspkg-${v.id}').classList.add('selected');">
+        <div class="pkg-icon" style="width:32px;height:32px;">${icons[v.id]}</div>
+        <div>
+          <div class="ds-pkg-name">${v.name}</div>
+          <div class="ds-pkg-desc">${v.desc}</div>
+        </div>
+      </div>`).join('');
+
+    if (!mapboxgl.accessToken) {
+      const cfg = await fetch('/config').then(r => r.json());
+      mapboxgl.accessToken = cfg.mapboxToken;
+    }
+
+    driverMap = new mapboxgl.Map({
+      container: 'driverMap',
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [10.4515, 51.1657],
+      zoom: 6,
+    });
+    driverMap.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+
+    // Start persistent GPS watch so position is known before going online
+    if (driverIdleWatchId !== null) { navigator.geolocation.clearWatch(driverIdleWatchId); driverIdleWatchId = null; }
+    driverIdleWatchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (!driverMap) return;
+        driverCurrentGPS = pos.coords;
+        const lat = pos.coords.latitude, lng = pos.coords.longitude;
+        driverMap.flyTo({ center: [lng, lat], zoom: 13, duration: 1500 });
+        // Show/update offline location marker (before going online)
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          if (!driverIdleMarker) {
+            const el = createCarMarkerElement();
+            el.style.opacity = '0.5';
+            driverIdleMarker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+              .setLngLat([lng, lat])
+              .addTo(driverMap);
+          } else {
+            driverIdleMarker.setLngLat([lng, lat]);
+          }
+        }
+        // If already online but marker still at server fallback, snap to real GPS
+        if (driverMarker && ws && ws.readyState === WebSocket.OPEN && !currentTripRequest) {
+          driverMarker.setLngLat([lng, lat]);
+          prevSendLat = lat; prevSendLng = lng;
+          ws.send(JSON.stringify({ type: 'driver.cmd.location', data: { lat, lng, rider_id: '' } }));
+        }
+      },
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+    );
+  }
+
+  function goOnlineDriver() {
+    if (!selectedPkg) { alert('Please select a vehicle package first.'); return; }
+    if (driverCurrentGPS) {
+      _doGoOnline();
+    } else {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => { driverCurrentGPS = pos.coords; _doGoOnline(); },
+        () => { alert('Location access is required to go online as a driver.\n\nPlease allow location access in your browser settings and try again.'); },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+  }
+
+  function _doGoOnline() {
+    const name = currentUser.name || currentUser.email.split('@')[0];
+    document.getElementById('dsOffline').style.display = 'none';
+    document.getElementById('dsOnline').style.display = 'flex';
+    connectDriverWS(selectedPkg, name);
+  }
+
+  function goOfflineDriver() {
+    if (locationWatchId !== null) { navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
+    if (simulationInterval !== null) { clearInterval(simulationInterval); simulationInterval = null; }
+    stopPreTripTracking();
+    if (driverReconnectTimer) { clearTimeout(driverReconnectTimer); driverReconnectTimer = null; }
+    tripEndPending = false;
+    driverReconnectPkg = null;
+    if (ws) { ws.close(); ws = null; }
+    if (driverIdleMarker) { driverIdleMarker.remove(); driverIdleMarker = null; }
+    if (driverMarker) { driverMarker.remove(); driverMarker = null; }
+    if (tripPickupMarker) { tripPickupMarker.remove(); tripPickupMarker = null; }
+    if (tripDestMarker) { tripDestMarker.remove(); tripDestMarker = null; }
+    if (driverMap && driverMap.getLayer('trip-route-line')) {
+      driverMap.removeLayer('trip-route-line');
+      driverMap.removeSource('trip-route');
+    }
+    document.getElementById('tripRequest').style.display = 'none';
+    document.getElementById('tripStatusActions').style.display = 'none';
+    document.getElementById('btnArrived').style.display = 'block';
+    document.getElementById('btnTripStart').style.display = 'none';
+    document.getElementById('btnTripEnd').style.display = 'none';
+    document.getElementById('dsOnline').style.display = 'none';
+    document.getElementById('dsOffline').style.display = 'flex';
+    currentTripRequest = null;
+    selectedPkg = null;
+    document.querySelectorAll('.ds-pkg-opt').forEach(e => e.classList.remove('selected'));
   }
 
   async function getRoute() {
@@ -342,7 +1222,7 @@
     const destination = document.getElementById('destination').value.trim();
     if (!pickup || !destination) {
       document.getElementById('errbox').style.display = 'block';
-      document.getElementById('errbox').textContent = 'Bitte beide Adressen eingeben';
+      document.getElementById('errbox').textContent = 'Please enter both addresses';
       return;
     }
 
@@ -358,8 +1238,8 @@
 
       const resp = await fetch('/trip/preview', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userID: 'user-1', pickup: pickupCoords, destination: destinationCoords })
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken() },
+        body: JSON.stringify({ userID: currentUser.id, pickup: pickupCoords, destination: destinationCoords })
       });
       if (!resp.ok) throw new Error('API error ' + resp.status);
       const json  = await resp.json();
@@ -376,7 +1256,7 @@
       errbox.textContent = e.message;
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Calculate Route';
+      btn.textContent = 'Get Route';
     }
   }
 
@@ -411,15 +1291,15 @@
     try {
       const resp = await fetch('/trip/preview', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userID: 'user-1', pickup: pickupCoords, destination: destinationCoords })
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken() },
+        body: JSON.stringify({ userID: currentUser.id, pickup: pickupCoords, destination: destinationCoords })
       });
       if (!resp.ok) return;
       const json  = await resp.json();
       const route = json.data?.route;
       const fares = json.data?.rideFares;
       if (!route) return;
-      drawRoute(route, false); // no fitBounds when dragging
+      drawRoute(route, false);
       showRidePanel(route, fares);
     } catch (_) {}
   }
@@ -443,8 +1323,8 @@
     const km  = route.distance / 1000;
     const min = Math.round(route.duration / 60);
 
-    document.getElementById('routeinfo').textContent  = `Routing for ${km.toFixed(2)} km`;
-    document.getElementById('arrivalinfo').innerHTML  = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> You'll arrive in: ${min} minutes`;
+    document.getElementById('routeinfo').textContent  = `Route: ${km.toFixed(2)} km`;
+    document.getElementById('arrivalinfo').innerHTML  = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Arrival in: ${min} min`;
 
     document.getElementById('rideoptions').innerHTML = fares.map(fare => {
       const v     = vehicles.find(x => x.id === fare.packageSlug) ?? { name: fare.packageSlug, desc: '' };
@@ -482,7 +1362,6 @@
     document.querySelector('#stylepicker button').innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg> ${label}`;
   }
 
-  // Close style menu when clicking outside
   document.addEventListener('click', (e) => {
     if (!document.getElementById('stylepicker')?.contains(e.target)) {
       document.getElementById('stylemenu').style.display = 'none';
@@ -496,6 +1375,10 @@
 
   let ws = null;
   let currentTripRequest = null;
+  let activeTripID = null;
+  let activeTripDriverID = null;
+  let activeTripRiderID = null;
+  let selectedRating = 0;
   let driverMap = null;
   let driverMarker = null;
   let driverMarkerAnimId = null;
@@ -503,10 +1386,18 @@
   let tripDestMarker = null;
   let locationWatchId = null;
   let simulationInterval = null;
+  let driverIdleWatchId = null;
+  let driverIdleMarker = null;
+  let registeredDriverID = '';
+  let driverCurrentGPS = null;
   let simRouteIndex = 0;
+  let driverReconnectPkg = null;
+  let driverReconnectTimer = null;
+  let tripEndPending = false;
   let riderDriverMarker = null;
   let previousDriverPos = null;
   let carAnimationId = null;
+  let preTripLocationTimer = null;
 
   function createCarMarkerElement() {
     const el = document.createElement('div');
@@ -531,7 +1422,7 @@
     const from = riderDriverMarker.getLngLat();
     const startLng = from.lng, startLat = from.lat;
     const startTime = performance.now();
-    const duration = 1800;
+    const duration = 380;
     function step(now) {
       const t = Math.min((now - startTime) / duration, 1);
       const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
@@ -548,7 +1439,7 @@
     const from = driverMarker.getLngLat();
     const startLng = from.lng, startLat = from.lat;
     const startTime = performance.now();
-    const duration = 1800;
+    const duration = 380;
     function step(now) {
       const t = Math.min((now - startTime) / duration, 1);
       const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
@@ -577,7 +1468,7 @@
         driverMarker.setLngLat([lng, lat]);
       }
     }
-    if (driverMap) driverMap.easeTo({ center: [lng, lat], duration: 1800 });
+    if (driverMap) driverMap.easeTo({ center: [lng, lat], duration: 380 });
     prevSendLat = lat; prevSendLng = lng;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify({ type: 'driver.cmd.location', data: { lat, lng, rider_id: riderID } }));
@@ -592,107 +1483,131 @@
       ? route.map(c => [c.lat, c.lng])
       : SIM_ROUTE;
 
-    setStatus('Fahrt simuliert (kein GPS) — Fahrer fährt Route entlang');
+    setStatus('Simulating (no GPS) — driving along route');
     const tick = () => {
-      const [lat, lng] = coords[simRouteIndex % coords.length];
+      if (simRouteIndex >= coords.length) {
+        clearInterval(simulationInterval);
+        simulationInterval = null;
+        setStatus('Destination reached. End the trip to trigger payment.');
+        return;
+      }
+      const [lat, lng] = coords[simRouteIndex];
       simRouteIndex++;
       sendLocation(lat, lng, riderID);
     };
     tick();
-    simulationInterval = setInterval(tick, 2000);
+    simulationInterval = setInterval(tick, 400);
   }
 
   function startLocationUpdates(riderID, route) {
     if (locationWatchId !== null) { navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
     if (simulationInterval !== null) { clearInterval(simulationInterval); simulationInterval = null; }
 
-    let gpsHasFired = false;
-
     locationWatchId = navigator.geolocation.watchPosition(
       (pos) => {
-        gpsHasFired = true;
+        driverCurrentGPS = pos.coords;
         if (simulationInterval !== null) { clearInterval(simulationInterval); simulationInterval = null; }
         const { latitude: lat, longitude: lng } = pos.coords;
-        setStatus(`GPS aktiv · ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+        setStatus(`GPS active · ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
         sendLocation(lat, lng, riderID);
       },
-      () => { if (!gpsHasFired) startSimulation(riderID, route); },
-      { enableHighAccuracy: false, maximumAge: 5000, timeout: 3000 }
+      () => { setStatus('GPS unavailable — location paused'); },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
     );
-
-    setTimeout(() => {
-      if (!gpsHasFired) startSimulation(riderID, route);
-    }, 3500);
   }
 
   function setStatus(text) {
     document.getElementById('driverStatus').textContent = text;
   }
 
-  async function startDriver() {
-    const pkg = prompt('Welches Paket bietest du an?\n\neconomy / comfort / van / business');
-    if (!pkg || !['economy','comfort','van','business'].includes(pkg.trim())) {
-      alert('Ungültiges Paket. Bitte economy, comfort, van oder business eingeben.');
-      return;
-    }
+  function stopPreTripTracking() {
+    if (preTripLocationTimer) { clearInterval(preTripLocationTimer); preTripLocationTimer = null; }
+    if (locationWatchId !== null) { navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
+  }
 
-    document.getElementById('welcome').style.display = 'none';
-    document.getElementById('driverscreen').classList.add('active');
-
-    if (!mapboxgl.accessToken) {
-      const cfg = await fetch('/config').then(r => r.json());
-      mapboxgl.accessToken = cfg.mapboxToken;
-    }
-
-    driverMap = new mapboxgl.Map({
-      container: 'driverMap',
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center: [6.7735, 51.2277], // Düsseldorf
-      zoom: 12,
-    });
-    driverMap.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
-
-    const driverID = 'driver-' + Math.random().toString(36).slice(2, 8);
-    ws = new WebSocket(`ws://${location.host}/ws/drivers?userID=${driverID}&packageSlug=${pkg.trim()}`);
+  function connectDriverWS(pkg, driverName) {
+    driverReconnectPkg = pkg;
+    const wsName = driverName || currentUser.name || currentUser.email.split('@')[0];
+    const driverAvatar = currentUser.avatarUrl || defaultAvatar(wsName);
+    ws = new WebSocket(`ws://${location.host}/ws/drivers?userID=${currentUser.id}&packageSlug=${pkg}&name=${encodeURIComponent(wsName)}&avatarUrl=${encodeURIComponent(driverAvatar)}&token=${encodeURIComponent(authToken())}`);
 
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
       if (msg.type === 'driver.cmd.register') {
         const d = msg.data;
-        document.getElementById('driverName').textContent = d.name;
-        document.getElementById('driverMeta').textContent = `${d.carPlate} · ${d.packageSlug}`;
-        document.getElementById('driverAvatar').src = d.profilePicture;
-        setStatus(`Online als ${d.packageSlug}-Fahrer. Warte auf Anfragen...`);
+        registeredDriverID = d.id || '';
 
-        // Place marker at backend-assigned position first, then override with real GPS
-        const initLat = d.location?.latitude  ?? 51.2277;
-        const initLng = d.location?.longitude ?? 6.7735;
+        if (driverIdleMarker) { driverIdleMarker.remove(); driverIdleMarker = null; }
         if (driverMarker) driverMarker.remove();
-        driverMarker = new mapboxgl.Marker({ element: createCarMarkerElement(), anchor: 'center' })
-          .setLngLat([initLng, initLat])
-          .addTo(driverMap);
 
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            if (!driverMarker) return;
-            const { latitude: lat, longitude: lng } = pos.coords;
-            driverMarker.setLngLat([lng, lat]);
-            driverMap.easeTo({ center: [lng, lat], zoom: 14, duration: 800 });
-            setStatus(`Online als ${d.packageSlug}-Fahrer · GPS aktiv`);
-          },
-          () => {
-            driverMap.easeTo({ center: [initLng, initLat], zoom: 13, duration: 1000 });
-          },
-          { enableHighAccuracy: false, maximumAge: 30000, timeout: 8000 }
-        );
+        if (driverCurrentGPS) {
+          const lat = driverCurrentGPS.latitude, lng = driverCurrentGPS.longitude;
+          driverMarker = new mapboxgl.Marker({ element: createCarMarkerElement(), anchor: 'center' })
+            .setLngLat([lng, lat])
+            .addTo(driverMap);
+          driverMap.easeTo({ center: [lng, lat], zoom: 14, duration: 800 });
+          setStatus(`Online as ${d.packageSlug} driver · GPS active`);
+          prevSendLat = lat; prevSendLng = lng;
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'driver.cmd.location', data: { lat, lng, rider_id: '' } }));
+          }
+        } else {
+          // GPS not ready yet — place hidden marker at map center, idle watchPosition will snap it
+          const center = driverMap.getCenter();
+          driverMarker = new mapboxgl.Marker({ element: createCarMarkerElement(), anchor: 'center' })
+            .setLngLat([center.lng, center.lat])
+            .addTo(driverMap);
+          setStatus(`Online as ${d.packageSlug} driver · Getting location...`);
+        }
       } else if (msg.type === 'driver.cmd.trip_request') {
         currentTripRequest = msg.data;
         renderTripOnDriverMap(msg.data);
         showTripRequestInfo(msg.data);
+      } else if (msg.type === 'trip.event.cancelled') {
+        // Rider cancelled — go back to waiting state
+        document.getElementById('tripRequest').style.display = 'none';
+        document.getElementById('tripStatusActions').style.display = 'none';
+        document.getElementById('btnArrived').style.display = 'block';
+        document.getElementById('btnTripStart').style.display = 'none';
+        document.getElementById('btnTripEnd').style.display = 'none';
+        if (tripPickupMarker) { tripPickupMarker.remove(); tripPickupMarker = null; }
+        if (tripDestMarker) { tripDestMarker.remove(); tripDestMarker = null; }
+        if (driverMap && driverMap.getLayer('trip-route-line')) {
+          driverMap.removeLayer('trip-route-line');
+          driverMap.removeSource('trip-route');
+        }
+        if (locationWatchId !== null) { navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
+        if (simulationInterval !== null) { clearInterval(simulationInterval); simulationInterval = null; }
+        stopPreTripTracking();
+        currentTripRequest = null;
+        setStatus('Trip cancelled by rider. Waiting for new requests...');
       }
     };
 
-    ws.onclose = () => setStatus('Verbindung getrennt.');
+    ws.onclose = () => {
+      if (currentTripRequest && driverReconnectPkg) {
+        setStatus('Connection lost — reconnecting...');
+        if (driverReconnectTimer) clearTimeout(driverReconnectTimer);
+        driverReconnectTimer = setTimeout(() => {
+          driverReconnectTimer = null;
+          connectDriverWS(driverReconnectPkg);
+          if (tripEndPending) {
+            setTimeout(() => {
+              if (ws && ws.readyState === WebSocket.OPEN && currentTripRequest) {
+                ws.send(JSON.stringify({
+                  type: 'driver.cmd.trip_end',
+                  data: { trip_id: currentTripRequest.trip_id, rider_id: currentTripRequest.user_id }
+                }));
+                tripEndPending = false;
+                setStatus('Trip ended. Triggering payment...');
+              }
+            }, 2000);
+          }
+        }, 1500);
+      } else {
+        setStatus('Connection lost.');
+      }
+    };
   }
 
   function renderTripOnDriverMap(data) {
@@ -705,11 +1620,11 @@
     if (tripDestMarker) tripDestMarker.remove();
     tripPickupMarker = new mapboxgl.Marker({ color: '#22c55e' })
       .setLngLat(pickup)
-      .setPopup(new mapboxgl.Popup({ offset: 25 }).setText('Abholung'))
+      .setPopup(new mapboxgl.Popup({ offset: 25 }).setText('Pickup'))
       .addTo(driverMap);
     tripDestMarker = new mapboxgl.Marker({ color: '#dc2626' })
       .setLngLat(dest)
-      .setPopup(new mapboxgl.Popup({ offset: 25 }).setText('Ziel'))
+      .setPopup(new mapboxgl.Popup({ offset: 25 }).setText('Destination'))
       .addTo(driverMap);
 
     const coords = (data.route || []).map(c => [c.lng, c.lat]);
@@ -737,14 +1652,13 @@
       : '?';
     const box = document.getElementById('tripRequestInfo');
 
-    // Sofort anzeigen — Adressen kommen nachgeladen
     box.innerHTML =
-      `<strong>Paket:</strong> ${data.package_slug}<br>` +
-      `<strong>Distanz:</strong> ca. ${km} km<br>` +
-      `<strong>Abholung:</strong> <em>wird geladen...</em><br>` +
-      `<strong>Ziel:</strong> <em>wird geladen...</em>`;
+      `<strong>Package:</strong> ${data.package_slug}<br>` +
+      `<strong>Distance:</strong> ~${km} km<br>` +
+      `<strong>Pickup:</strong> <em>loading...</em><br>` +
+      `<strong>Destination:</strong> <em>loading...</em>`;
     document.getElementById('tripRequest').style.display = 'block';
-    setStatus('Fahrtanfrage eingegangen.');
+    setStatus('New trip request received.');
 
     try {
       const [pickupAddr, destAddr] = await Promise.all([
@@ -752,10 +1666,10 @@
         reverseGeocode(data.destination.lng, data.destination.lat),
       ]);
       box.innerHTML =
-        `<strong>Paket:</strong> ${data.package_slug}<br>` +
-        `<strong>Distanz:</strong> ca. ${km} km<br>` +
-        `<strong>Abholung:</strong> ${pickupAddr}<br>` +
-        `<strong>Ziel:</strong> ${destAddr}`;
+        `<strong>Package:</strong> ${data.package_slug}<br>` +
+        `<strong>Distance:</strong> ~${km} km<br>` +
+        `<strong>Pickup:</strong> ${pickupAddr}<br>` +
+        `<strong>Destination:</strong> ${destAddr}`;
     } catch (_) {}
   }
 
@@ -769,27 +1683,39 @@
   function acceptTrip() {
     if (!currentTripRequest || !ws) return;
     const riderID = currentTripRequest.user_id;
-    const pickup  = currentTripRequest.pickup;
-    const route   = currentTripRequest.route || [];
+    const pickup  = currentTripRequest.pickup;      // {lat, lng}
+    const route   = currentTripRequest.route || []; // [{lat,lng}] pickup → destination
 
-    // Build full path: random start ~1-2 km from pickup → pickup → route
-    let fullRoute = route;
-    if (pickup && pickup.lat) {
-      const offset = 0.008 + Math.random() * 0.008;
-      const angle  = Math.random() * 2 * Math.PI;
-      const startLat = pickup.lat + offset * Math.cos(angle);
-      const startLng = pickup.lng + offset * Math.sin(angle);
-      fullRoute = [{ lat: startLat, lng: startLng }, pickup, ...route];
+    // Stop any existing tracking/simulation
+    if (locationWatchId !== null) { navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
+    if (simulationInterval !== null) { clearInterval(simulationInterval); simulationInterval = null; }
+
+    // Teleport car marker to pickup instantly
+    if (driverMarker && pickup) {
+      driverMarker.setLngLat([pickup.lng, pickup.lat]);
+      if (driverMap) driverMap.easeTo({ center: [pickup.lng, pickup.lat], zoom: 14, duration: 800 });
     }
+
+    // Save route for simulation when trip actually starts
+    window._currentTripRoute = route;
+    window._currentTripRiderID = riderID;
 
     ws.send(JSON.stringify({
       type: 'driver.cmd.trip_accept',
       data: { trip_id: currentTripRequest.trip_id, rider_id: riderID }
     }));
+
+    // Start real GPS watch so rider's map shows driver's actual position (not pickup coords)
+    startLocationUpdates(riderID, []);
+
     document.getElementById('tripRequest').style.display = 'none';
-    setStatus('Fahrt angenommen. Fahre zur Abholung.');
-    startLocationUpdates(riderID, fullRoute);
-    currentTripRequest = null;
+    document.getElementById('tripStatusActions').style.display = 'block';
+    document.getElementById('driverTripStatusLabel').textContent = 'Driving to pickup';
+    document.getElementById('btnArrived').style.display = 'block';
+    document.getElementById('btnTripStart').style.display = 'none';
+    document.getElementById('btnTripEnd').style.display = 'none';
+    setStatus('Trip accepted. Driving to pickup...');
+    activeTripID = currentTripRequest.trip_id;
   }
 
   function declineTrip() {
@@ -807,47 +1733,123 @@
     }
     if (locationWatchId !== null) { navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
     if (simulationInterval !== null) { clearInterval(simulationInterval); simulationInterval = null; }
-    setStatus('Fahrt abgelehnt. Warte auf neue Anfragen...');
+    stopPreTripTracking();
+    setStatus('Trip declined. Waiting for new requests...');
     currentTripRequest = null;
   }
 
+  function setTripStatus(text, sub, showCancel) {
+    const bar = document.getElementById('tripStatusBar');
+    bar.style.display = 'block';
+    document.getElementById('tripStatusText').textContent = text;
+    document.getElementById('tripStatusSub').textContent = sub || '';
+    document.getElementById('cancelTripBtn').style.display = showCancel ? 'block' : 'none';
+    document.getElementById('confirmbtn').style.display = 'none';
+    document.getElementById('backbtn').style.display = 'none';
+  }
+
+  function hideDriverInfoCard() {
+    document.getElementById('driverInfoCard').style.display = 'none';
+    document.getElementById('dicAvatar').src = '';
+    document.getElementById('dicName').textContent = '';
+    document.getElementById('dicPlate').textContent = '';
+  }
+
+  function cancelTrip() {
+    if (!activeTripID || !ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({
+      type: 'trip.cmd.cancel',
+      data: { trip_id: activeTripID, driver_id: activeTripDriverID || '' }
+    }));
+    document.getElementById('tripStatusText').textContent = 'Trip cancelled.';
+    document.getElementById('cancelTripBtn').style.display = 'none';
+    hideDriverInfoCard();
+    activeTripID = null;
+    activeTripDriverID = null;
+  }
+
   async function confirmRide() {
-    if (!selectedRide || !selectedFareID) { alert('Please select a ride type'); return; }
+    if (!selectedRide || !selectedFareID) { alert('Please select a ride'); return; }
+    const btn = document.getElementById('confirmbtn');
+    if (btn.disabled) return;
+    btn.disabled = true;
 
-    await fetch('/trip/start', {
+    const resp = await fetch('/trip/start', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rideFareID: selectedFareID, userID: 'user-1' })
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken() },
+      body: JSON.stringify({ rideFareID: selectedFareID, userID: currentUser.id })
     });
+    if (!resp.ok) { btn.disabled = false; return; }
+    const data = await resp.json();
+    activeTripID = data.data?.tripID || null;
+    activeTripDriverID = null;
 
+    setTripStatus('Searching for driver...', '', true);
     const infoBox = document.getElementById('routeinfo');
-    infoBox.textContent = 'Fahrtanfrage gesendet. Suche verfügbaren Fahrer...';
+    infoBox.textContent = '';
 
     if (ws) { ws.close(); ws = null; }
     if (riderDriverMarker) { riderDriverMarker.remove(); }
     riderDriverMarker = null;
     previousDriverPos = null;
-    ws = new WebSocket(`ws://${location.host}/ws/riders?userID=user-1`);
+    ws = new WebSocket(`ws://${location.host}/ws/riders?userID=${currentUser.id}&token=${encodeURIComponent(authToken())}`);
 
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
       if (msg.type === 'trip.event.driver_assigned') {
         const d = msg.data;
         window.lastAssignedDriver = d;
-        infoBox.innerHTML =
-          `<strong>Fahrer gefunden:</strong> ${d.name || 'Fahrer'}<br>` +
-          `Kennzeichen: ${d.car_plate || '—'}`;
+        activeTripDriverID = d.id || '';
+        if (pickupMarker) pickupMarker.setDraggable(false);
+        if (destinationMarker) destinationMarker.setDraggable(false);
+        setTripStatus('Driver found', 'On the way to you', true);
+        const card = document.getElementById('driverInfoCard');
+        const driverName = d.name || 'Driver';
+        document.getElementById('dicName').textContent = driverName;
+        document.getElementById('dicPlate').textContent = d.car_plate || '—';
+        const dicAvatar = document.getElementById('dicAvatar');
+        dicAvatar.src = d.profile_picture || defaultAvatar(driverName);
+        dicAvatar.onerror = () => { dicAvatar.src = defaultAvatar(driverName); };
+        card.style.display = 'block';
+        document.getElementById('chatBtnRider').style.display = 'block';
       } else if (msg.type === 'trip.event.no_drivers_found') {
-        infoBox.textContent = 'Keine Fahrer verfügbar. Bitte später erneut versuchen.';
+        activeTripID = null;
+        activeTripDriverID = null;
+        setTripStatus('No drivers available.', 'Please try again later.', false);
+        if (pickupMarker) pickupMarker.setDraggable(true);
+        if (destinationMarker) destinationMarker.setDraggable(true);
+      } else if (msg.type === 'trip.event.driver_arrived') {
+        setTripStatus('Driver has arrived!', 'Please go to the vehicle.', false);
+      } else if (msg.type === 'trip.event.in_progress') {
+        setTripStatus('Trip in progress...', 'Enjoy the ride!', false);
+      } else if (msg.type === 'trip.event.completed') {
+        setTripStatus('Trip completed.', 'Please complete payment.', false);
+        hideDriverInfoCard();
+        document.getElementById('chatBtnRider').style.display = 'none';
+        closeChatWs();
+      } else if (msg.type === 'trip.event.cancelled') {
+        setTripStatus('Trip was cancelled.', '', false);
+        hideDriverInfoCard();
+        activeTripID = null; activeTripDriverID = null;
+        if (pickupMarker) pickupMarker.setDraggable(true);
+        if (destinationMarker) destinationMarker.setDraggable(true);
+        document.getElementById('chatBtnRider').style.display = 'none';
+        closeChatWs();
+      } else if (msg.type === 'trip.event.cancelled_by_driver') {
+        setTripStatus('Driver cancelled the trip.', '', false);
+        hideDriverInfoCard();
+        activeTripID = null; activeTripDriverID = null;
+        if (pickupMarker) pickupMarker.setDraggable(true);
+        if (destinationMarker) destinationMarker.setDraggable(true);
+        document.getElementById('chatBtnRider').style.display = 'none';
+        closeChatWs();
       } else if (msg.type === 'driver.cmd.location') {
         const d = msg.data;
-        console.log('[location] received:', d.lat, d.lng, 'marker exists:', !!riderDriverMarker);
         if (!riderDriverMarker) {
           riderDriverMarker = new mapboxgl.Marker({ element: createCarMarkerElement(), anchor: 'center' })
             .setLngLat([d.lng, d.lat])
             .addTo(map);
           map.flyTo({ center: [d.lng, d.lat], zoom: 14, duration: 1500 });
-          console.log('[location] marker created at', d.lat, d.lng);
         } else {
           if (previousDriverPos) {
             riderDriverMarker.setRotation(calculateBearing(previousDriverPos, d));
@@ -858,8 +1860,12 @@
       } else if (msg.type === 'payment.event.session_created') {
         const d = msg.data;
         const drv = window.lastAssignedDriver || {};
-        document.getElementById('payDriverAvatar').src = drv.profile_picture || '';
-        document.getElementById('payDriverName').textContent = drv.name || 'Driver';
+        localStorage.setItem('drova_last_trip_id', d.trip_id);
+        const payDrvName = drv.name || 'Driver';
+        const payDrvAvatar = document.getElementById('payDriverAvatar');
+        payDrvAvatar.src = drv.profile_picture || defaultAvatar(payDrvName);
+        payDrvAvatar.onerror = () => { payDrvAvatar.src = defaultAvatar(payDrvName); };
+        document.getElementById('payDriverName').textContent = payDrvName;
         document.getElementById('payDriverPlate').textContent = drv.car_plate || '';
         document.getElementById('payAmount').textContent = `${(d.amount / 100).toFixed(2)} ${(d.currency || 'eur').toUpperCase()}`;
         document.getElementById('payTripId').textContent = d.trip_id;
@@ -875,13 +1881,474 @@
   }
 
   function closeDriverPanel() {
+    goOfflineDriver();
+    if (driverIdleWatchId !== null) { navigator.geolocation.clearWatch(driverIdleWatchId); driverIdleWatchId = null; }
+    driverCurrentGPS = null;
+    if (driverMap) { driverMap.remove(); driverMap = null; }
+    document.getElementById('driverscreen').classList.remove('active');
+    showAuth();
+  }
+
+  // --- Rating ---
+  let ratingTripID = null;
+
+  function showRating(tripID) {
+    ratingTripID = tripID;
+    selectedRating = 0;
+    document.querySelectorAll('.star').forEach(s => s.classList.remove('active'));
+    document.getElementById('submitRatingBtn').disabled = true;
+    document.getElementById('ratingoverlay').classList.add('active');
+  }
+
+  function setRating(val) {
+    selectedRating = val;
+    document.querySelectorAll('.star').forEach(s => {
+      s.classList.toggle('active', parseInt(s.dataset.val) <= val);
+    });
+    document.getElementById('submitRatingBtn').disabled = false;
+  }
+
+  async function submitRating() {
+    if (!selectedRating || !ratingTripID) return;
+    try {
+      await fetch('/trip/rate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trip_id: ratingTripID, rating: selectedRating }),
+      });
+    } catch (_) {}
+    localStorage.removeItem('drova_last_trip_id');
+    closeRating();
+  }
+
+  function closeRating() {
+    document.getElementById('ratingoverlay').classList.remove('active');
+    ratingTripID = null;
+    selectedRating = 0;
+  }
+
+  // --- History ---
+  async function showHistory() {
+    document.getElementById('historyoverlay').classList.add('active');
+    document.getElementById('historyList').innerHTML = '<p style="color:#6b7280;font-size:14px;">Loading...</p>';
+    try {
+      const res = await fetch(`/trips/history`, { headers: { 'Authorization': 'Bearer ' + authToken() } });
+      const trips = await res.json();
+      if (!trips || trips.length === 0) {
+        document.getElementById('historyList').innerHTML = '<p style="color:#6b7280;font-size:14px;">No trips found.</p>';
+        return;
+      }
+      const statusLabels = {
+        searching: 'Searching', accepted: 'Driver en route',
+        driver_arrived: 'Driver arrived', in_progress: 'In progress',
+        completed: 'Completed', cancelled: 'Cancelled', paid: 'Paid',
+      };
+      const pkgNames = { economy: 'Economy', comfort: 'Comfort', van: 'Van', business: 'Business' };
+      document.getElementById('historyList').innerHTML = trips.map(t => {
+        const date = t.createdAt ? new Date(t.createdAt * 1000).toLocaleDateString('en-US', { day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
+        const stars = t.rating ? '★'.repeat(t.rating) + '☆'.repeat(5 - t.rating) : '';
+        const statusLabel = statusLabels[t.status] || t.status;
+        return `
+          <div class="history-item">
+            <div class="history-item-top">
+              <span class="history-pkg">${pkgNames[t.packageSlug] || t.packageSlug}</span>
+              <span class="history-price">€${(t.priceCents / 100).toFixed(2)}</span>
+            </div>
+            <div class="history-meta">${date}${t.driverName ? ` · ${t.driverName}` : ''}${t.driverPlate ? ` · ${t.driverPlate}` : ''}</div>
+            <span class="history-status ${t.status}">${statusLabel}</span>
+            ${stars ? `<div class="history-stars">${stars}</div>` : ''}
+          </div>`;
+      }).join('');
+    } catch (e) {
+      document.getElementById('historyList').innerHTML = '<p style="color:#dc2626;font-size:13px;">Error loading trips.</p>';
+    }
+  }
+
+  function closeHistory() {
+    document.getElementById('historyoverlay').classList.remove('active');
+  }
+
+  async function showDriverHistory() {
+    const overlay = document.getElementById('driverhistoryoverlay');
+    overlay.style.display = 'flex';
+    document.getElementById('driverHistoryList').innerHTML = '<p style="color:#6b7280;font-size:14px;">Loading...</p>';
+    if (!registeredDriverID) {
+      document.getElementById('driverHistoryList').innerHTML = '<p style="color:#6b7280;font-size:14px;">Go online first to see your trips.</p>';
+      return;
+    }
+    try {
+      const res = await fetch(`/trips/driver-history?driverID=${encodeURIComponent(registeredDriverID)}`, {
+        headers: { 'Authorization': 'Bearer ' + authToken() }
+      });
+      const trips = await res.json();
+      if (!trips || trips.length === 0) {
+        document.getElementById('driverHistoryList').innerHTML = '<p style="color:#6b7280;font-size:14px;">No trips yet.</p>';
+        return;
+      }
+      const statusLabels = {
+        accepted: 'Driver en route', driver_arrived: 'Driver arrived',
+        in_progress: 'In progress', completed: 'Completed',
+        cancelled: 'Cancelled', paid: 'Paid',
+      };
+      const pkgNames = { economy: 'Economy', comfort: 'Comfort', van: 'Van', business: 'Business' };
+      document.getElementById('driverHistoryList').innerHTML = trips.map(t => {
+        const date = t.createdAt ? new Date(t.createdAt * 1000).toLocaleDateString('en-US', { day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
+        const statusLabel = statusLabels[t.status] || t.status;
+        const riderAvatar = t.riderAvatar || defaultAvatar(t.riderName || 'Rider');
+        return `
+          <div class="history-item">
+            <div class="history-item-top">
+              <span class="history-pkg">${pkgNames[t.packageSlug] || t.packageSlug}</span>
+              <span class="history-price">€${(t.priceCents / 100).toFixed(2)}</span>
+            </div>
+            <div class="history-meta" style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+              <img src="${riderAvatar}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;" onerror="this.src='${defaultAvatar(t.riderName || 'Rider')}'">
+              <span>${t.riderName || 'Rider'} · ${date}</span>
+            </div>
+            <span class="history-status ${t.status}">${statusLabel}</span>
+          </div>`;
+      }).join('');
+    } catch (e) {
+      document.getElementById('driverHistoryList').innerHTML = '<p style="color:#dc2626;font-size:13px;">Error loading trips.</p>';
+    }
+  }
+
+  function closeDriverHistory() {
+    document.getElementById('driverhistoryoverlay').style.display = 'none';
+  }
+
+  async function showPayHistory() {
+    document.getElementById('payhistoryoverlay').classList.add('active');
+    const listEl = document.getElementById('payhistoryList');
+    listEl.innerHTML = '<p style="color:#6b7280;font-size:14px;">Loading...</p>';
+    try {
+      const res = await fetch(`/trips/history`, { headers: { 'Authorization': 'Bearer ' + authToken() } });
+      const trips = await res.json();
+      const paid = (trips || []).filter(t => t.status === 'paid' || t.status === 'completed');
+      if (!paid.length) {
+        listEl.innerHTML = '<p style="color:#6b7280;font-size:14px;">No payments yet.</p>';
+        return;
+      }
+      const pkgNames = { economy: 'Economy', comfort: 'Comfort', van: 'Van', business: 'Business' };
+      listEl.innerHTML = paid.map(t => {
+        const date = t.createdAt
+          ? new Date(t.createdAt * 1000).toLocaleDateString('en-US', { day:'2-digit', month:'short', year:'numeric' })
+          : '—';
+        const amount = t.priceCents ? `€${(t.priceCents / 100).toFixed(2)}` : '—';
+        const pkg = pkgNames[t.packageSlug] || t.packageSlug || 'Trip';
+        const badgeClass = t.status === 'paid' ? 'paid' : 'completed';
+        const badgeLabel = t.status === 'paid' ? '✓ Paid' : '✓ Completed';
+        const stars = t.rating ? '★'.repeat(t.rating) + '☆'.repeat(5 - t.rating) : '';
+        const driverAvatar = t.driverAvatar || defaultAvatar(t.driverName || 'Driver');
+        return `
+          <div class="receipt">
+            <div class="receipt-top">
+              <div class="receipt-pkg">
+                <div class="receipt-pkg-dot"></div>
+                ${pkg}
+              </div>
+              <div class="receipt-amount">${amount}</div>
+            </div>
+            ${t.driverName ? `
+            <div class="receipt-driver">
+              <img src="${driverAvatar}" alt="">
+              <div>
+                <div class="receipt-driver-name">${t.driverName}</div>
+                ${t.driverPlate ? `<div class="receipt-driver-plate">${t.driverPlate}</div>` : ''}
+              </div>
+            </div>` : ''}
+            <div class="receipt-footer">
+              <div>
+                <div class="receipt-date">${date}</div>
+                ${stars ? `<div class="receipt-stars">${stars}</div>` : ''}
+              </div>
+              <span class="receipt-badge ${badgeClass}">${badgeLabel}</span>
+            </div>
+          </div>`;
+      }).join('');
+    } catch (e) {
+      listEl.innerHTML = '<p style="color:#dc2626;font-size:13px;">Error loading payments.</p>';
+    }
+  }
+
+  function closePayHistory() {
+    document.getElementById('payhistoryoverlay').classList.remove('active');
+  }
+
+  // --- Driver trip status actions ---
+  function driverArrived() {
+    if (!currentTripRequest || !ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({
+      type: 'driver.cmd.arrived',
+      data: { trip_id: currentTripRequest.trip_id, rider_id: currentTripRequest.user_id }
+    }));
+    document.getElementById('driverTripStatusLabel').textContent = 'Arrived at pickup';
+    document.getElementById('btnArrived').style.display = 'none';
+    document.getElementById('btnTripStart').style.display = 'block';
+    setStatus('At pickup. Waiting for rider...');
+  }
+
+  function driverTripStart() {
+    if (!currentTripRequest || !ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({
+      type: 'driver.cmd.trip_start',
+      data: { trip_id: currentTripRequest.trip_id, rider_id: currentTripRequest.user_id }
+    }));
+    document.getElementById('driverTripStatusLabel').textContent = 'Trip in progress';
+    document.getElementById('btnTripStart').style.display = 'none';
+    document.getElementById('btnTripEnd').style.display = 'block';
+    setStatus('Trip in progress — simulating route...');
+    stopPreTripTracking(); // clears locationWatchId + preTripLocationTimer
+    const route = window._currentTripRoute || [];
+    const riderID = window._currentTripRiderID || currentTripRequest.user_id;
+    startSimulation(riderID, route);
+  }
+
+  function driverTripEnd() {
+    if (!currentTripRequest) return;
     if (locationWatchId !== null) { navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
     if (simulationInterval !== null) { clearInterval(simulationInterval); simulationInterval = null; }
-    if (ws) { ws.close(); ws = null; }
-    if (driverMap) { driverMap.remove(); driverMap = null; }
-    driverMarker = tripPickupMarker = tripDestMarker = null;
-    document.getElementById('driverscreen').classList.remove('active');
-    document.getElementById('welcome').style.display = 'flex';
+    document.getElementById('tripStatusActions').style.display = 'none';
+    document.getElementById('btnArrived').style.display = 'block';
+    document.getElementById('btnTripStart').style.display = 'none';
+    document.getElementById('btnTripEnd').style.display = 'none';
+    closeChatWs();
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({
+        type: 'driver.cmd.trip_end',
+        data: { trip_id: currentTripRequest.trip_id, rider_id: currentTripRequest.user_id }
+      }));
+      setStatus('Trip ended. Triggering payment...');
+      window._currentTripRoute = null;
+      window._currentTripRiderID = null;
+      currentTripRequest = null;
+      tripEndPending = false;
+    } else {
+      setStatus('Connection lost — will retry automatically...');
+      tripEndPending = true;
+    }
+  }
+
+  function driverCancelTrip() {
+    if (!currentTripRequest || !ws) return;
+    if (!confirm('Cancel this trip?')) return;
+    ws.send(JSON.stringify({
+      type: 'driver.cmd.trip_cancel',
+      data: { trip_id: currentTripRequest.trip_id, rider_id: currentTripRequest.user_id }
+    }));
+    document.getElementById('tripStatusActions').style.display = 'none';
+    document.getElementById('btnArrived').style.display = 'block';
+    document.getElementById('btnTripStart').style.display = 'none';
+    document.getElementById('btnTripEnd').style.display = 'none';
+    document.getElementById('btnTripCancel').style.display = 'block';
+    setStatus('Trip cancelled.');
+    if (locationWatchId !== null) { navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
+    if (simulationInterval !== null) { clearInterval(simulationInterval); simulationInterval = null; }
+    stopPreTripTracking();
+    window._currentTripRoute = null;
+    window._currentTripRiderID = null;
+    currentTripRequest = null;
+  }
+
+  // Boot
+  initApp();
+
+  // ─── Chat ────────────────────────────────────────────────────────────────
+  let chatWs = null;
+  let chatTripID = null;
+
+  function openChat() {
+    // Driver always uses currentTripRequest.trip_id (most current),
+    // Rider falls back to activeTripID
+    const tripID = currentTripRequest?.trip_id || activeTripID;
+    if (!tripID) return;
+
+    // Populate chat header with the other party's info
+    const avatarEl = document.getElementById('chatHeaderAvatar');
+    const nameEl   = document.getElementById('chatHeaderName');
+    const subEl    = document.getElementById('chatHeaderSub');
+    if (currentUser.role === 'driver' && currentTripRequest) {
+      const riderName = currentTripRequest.rider_name || 'Rider';
+      avatarEl.src = currentTripRequest.rider_avatar || defaultAvatar(riderName);
+      avatarEl.onerror = () => { avatarEl.src = defaultAvatar(riderName); };
+      nameEl.textContent = riderName;
+      subEl.textContent  = currentTripRequest.package_slug || '';
+    } else {
+      const drv = window.lastAssignedDriver || {};
+      const drvName = drv.name || 'Driver';
+      avatarEl.src = drv.profile_picture || defaultAvatar(drvName);
+      avatarEl.onerror = () => { avatarEl.src = defaultAvatar(drvName); };
+      nameEl.textContent = drvName;
+      subEl.textContent  = drv.car_plate || '';
+    }
+
+    document.getElementById('chatoverlay').classList.add('active');
+
+    // Already connected to the right room — just show overlay, don't reset
+    if (chatWs && chatWs.readyState === WebSocket.OPEN && chatTripID === tripID) return;
+
+    chatTripID = tripID;
+    lastChatDate = null;
+    lastChatSender = null;
+    document.getElementById('chatMessages').innerHTML = '';
+
+    if (chatWs) { chatWs.close(); chatWs = null; }
+
+    const token = encodeURIComponent(authToken());
+    chatWs = new WebSocket(
+      `ws://${location.hostname}:8084/ws/chat?tripID=${chatTripID}&userID=${currentUser.id}&token=${token}`
+    );
+
+    chatWs.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'history') {
+        msg.messages.forEach(renderChatMessage);
+      } else {
+        renderChatMessage(msg);
+      }
+    };
+
+    chatWs.onerror = () => {
+      appendChatInfo('Chat connection failed.');
+    };
+  }
+
+  function closeChat() {
+    document.getElementById('chatoverlay').classList.remove('active');
+  }
+
+  function sendChatMessage() {
+    const input = document.getElementById('chatInput');
+    const content = input.value.trim();
+    if (!content || !chatWs || chatWs.readyState !== WebSocket.OPEN) return;
+    chatWs.send(JSON.stringify({ content }));
+    input.value = '';
+  }
+
+  let lastChatDate = null;
+  let lastChatSender = null;
+
+  function renderChatMessage(msg) {
+    const box = document.getElementById('chatMessages');
+    const isMine = msg.sender_id === String(currentUser.id);
+    const senderRole = msg.sender_role || (isMine ? currentUser.role : (currentUser.role === 'driver' ? 'rider' : 'driver'));
+
+    // Date separator
+    const msgDate = msg.sent_at ? new Date(msg.sent_at) : new Date();
+    const dateStr = msgDate.toLocaleDateString('en-US', { day:'2-digit', month:'2-digit', year:'numeric' });
+    if (dateStr !== lastChatDate) {
+      lastChatDate = dateStr;
+      lastChatSender = null;
+      const sep = document.createElement('div');
+      sep.className = 'chat-date-sep';
+      sep.textContent = dateStr;
+      box.appendChild(sep);
+    }
+
+    const senderChanged = msg.sender_id !== lastChatSender;
+    lastChatSender = msg.sender_id;
+
+    const time = msgDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+    // Avatar src
+    let avatarSrc = '';
+    let senderLabel = '';
+    if (isMine) {
+      avatarSrc = currentUser.avatarUrl || defaultAvatar(currentUser.name || 'me');
+      senderLabel = 'You';
+    } else {
+      if (currentUser.role === 'driver') {
+        const req = currentTripRequest || {};
+        const rName = req.rider_name || 'Rider';
+        avatarSrc = req.rider_avatar || defaultAvatar(rName);
+        senderLabel = rName;
+      } else {
+        const drv = window.lastAssignedDriver || {};
+        const dName = drv.name || 'Driver';
+        avatarSrc = drv.profile_picture || defaultAvatar(dName);
+        senderLabel = dName;
+      }
+    }
+
+    // Row
+    const row = document.createElement('div');
+    row.className = 'chat-row ' + (isMine ? 'mine' : 'theirs');
+
+    // Avatar — only show on first message of a group
+    const avatarImg = document.createElement('img');
+    avatarImg.className = 'chat-avatar' + (senderChanged ? '' : ' hidden');
+    avatarImg.src = avatarSrc;
+    avatarImg.alt = senderLabel;
+    avatarImg.onerror = () => { avatarImg.src = defaultAvatar(senderLabel); };
+
+    // Bubble wrap
+    const wrap = document.createElement('div');
+    wrap.className = 'chat-bubble-wrap';
+
+    // Sender label (only on first of a group)
+    if (senderChanged) {
+      const label = document.createElement('div');
+      label.className = 'chat-sender-label';
+      label.textContent = senderLabel;
+      wrap.appendChild(label);
+    }
+
+    const bubble = document.createElement('div');
+    // Color: mine = dark, theirs-driver = blue, theirs-rider = white
+    let bubbleClass = 'chat-msg ' + (isMine ? 'mine' : 'theirs');
+    if (!isMine && senderRole === 'driver') bubbleClass += ' role-driver';
+    bubble.className = bubbleClass;
+    bubble.textContent = msg.content;
+
+    const meta = document.createElement('div');
+    meta.className = 'chat-msg-time';
+    meta.textContent = time;
+
+    wrap.appendChild(bubble);
+    wrap.appendChild(meta);
+
+    if (isMine) {
+      row.appendChild(wrap);
+      row.appendChild(avatarImg);
+    } else {
+      row.appendChild(avatarImg);
+      row.appendChild(wrap);
+    }
+
+    box.appendChild(row);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function appendChatInfo(text) {
+    const box = document.getElementById('chatMessages');
+    const div = document.createElement('div');
+    div.className = 'chat-date-sep';
+    div.textContent = text;
+    box.appendChild(div);
+    lastChatSender = null;
+  }
+
+  function toggleEmojiPicker() {
+    const picker = document.getElementById('emojiPicker');
+    picker.classList.toggle('open');
+  }
+
+  function insertEmoji(emoji) {
+    const input = document.getElementById('chatInput');
+    input.value += emoji;
+    input.focus();
+    document.getElementById('emojiPicker').classList.remove('open');
+  }
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function closeChatWs() {
+    if (chatWs) { chatWs.close(); chatWs = null; }
+    chatTripID = null;
+    document.getElementById('chatoverlay').classList.remove('active');
   }
 </script>
 </body>

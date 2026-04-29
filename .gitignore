@@ -8,3 +8,5 @@ CLAUDE.md
 /build/
 note.txt
 ZUSAMMENFASSUNG-ASYNC-WS.md
+data.md
+infra/local/k8s/secrets.yaml

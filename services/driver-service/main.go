@@ -2,17 +2,22 @@ package main
 
 import (
 	"context"
-	"log"
 	"net"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
+	"drova/services/driver-service/store"
 	"drova/shared/env"
+	"drova/shared/logger"
 	"drova/shared/messaging"
 	"drova/shared/tracing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
 	grpcserver "google.golang.org/grpc"
 )
 
@@ -21,8 +26,13 @@ var (
 	kafkaBrokers = env.GetString("KAFKA_BROKERS", "kafka:9092")
 )
 
+var appLog *zap.SugaredLogger
+
 func main() {
-	log.Println("Starting Driver Service")
+	appLog = logger.New(env.GetString("ENVIRONMENT", "development"))
+	defer appLog.Sync()
+
+	appLog.Infow("driver-service starting")
 
 	stopTracer, err := tracing.InitTracer(tracing.Config{
 		ServiceName:    "driver-service",
@@ -30,7 +40,7 @@ func main() {
 		JaegerEndpoint: env.GetString("JAEGER_ENDPOINT", "jaeger:4318"),
 	})
 	if err != nil {
-		log.Printf("warning: tracing init failed: %v", err)
+		appLog.Warnw("tracing init failed", zap.Error(err))
 	} else {
 		defer stopTracer(context.Background())
 	}
@@ -50,27 +60,57 @@ func main() {
 
 	lis, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		appLog.Fatalw("listen failed", zap.Error(err))
 	}
 
-	svc := NewService()
+	poolCfg, err := pgxpool.ParseConfig(pgxURL(env.GetString("DB_URL", "")))
+	if err != nil {
+		appLog.Fatalw("db config", zap.Error(err))
+	}
+	poolCfg.MaxConns = 10
+	poolCfg.MinConns = 2
+	poolCfg.MaxConnIdleTime = 15 * time.Minute
+
+	db, err := pgxpool.NewWithConfig(ctx, poolCfg)
+	if err != nil {
+		appLog.Fatalw("db connect", zap.Error(err))
+	}
+	defer db.Close()
+
+	if err := runMigrations(env.GetString("DB_URL", ""), env.GetString("MIGRATIONS_PATH", "services/driver-service/migrations")); err != nil {
+		appLog.Fatalw("migrations", zap.Error(err))
+	}
+
+	pgStore := store.NewPostgresStore(db)
+	svc := NewService(pgStore)
 
 	consumer := NewTripConsumer(kafka, svc)
 	consumer.Start(ctx)
 
 	grpcServer := grpcserver.NewServer(tracing.WithTracingInterceptors()...)
-	NewGrpcHandler(grpcServer, svc)
+	NewGrpcHandler(grpcServer, svc, consumer)
 
-	log.Printf("gRPC server listening on %s", lis.Addr().String())
+	appLog.Infow("driver-service ready", "addr", grpcAddr)
 
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
-			log.Printf("failed to serve: %v", err)
+			appLog.Errorw("grpc serve failed", zap.Error(err))
 			cancel()
 		}
 	}()
 
 	<-ctx.Done()
-	log.Println("Shutting down driver service")
+	appLog.Infow("driver-service shutting down")
 	grpcServer.GracefulStop()
+}
+
+func pgxURL(dbURL string) string {
+	u, err := url.Parse(dbURL)
+	if err != nil {
+		return dbURL
+	}
+	q := u.Query()
+	q.Del("x-migrations-table")
+	u.RawQuery = q.Encode()
+	return u.String()
 }

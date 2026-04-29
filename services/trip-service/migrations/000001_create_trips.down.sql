@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS ride_fares;
+DROP TABLE IF EXISTS trips;

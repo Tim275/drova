@@ -55,4 +55,60 @@ docker_build_with_restart(
     ],
 )
 
+# --- User Service ---
+local_resource(
+    'user-service-compile',
+    cmd='CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/user-service ./services/user-service/cmd',
+    deps=['./services/user-service', './shared'],
+    dir='.',
+)
+
+docker_build_with_restart(
+    'drova-user-service',
+    context='.',
+    dockerfile='services/user-service/Dockerfile.tilt',
+    entrypoint='/app/user-service',
+    live_update=[
+        sync('./build/user-service', '/app/user-service'),
+        sync('./services/user-service/migrations', '/app/migrations'),
+    ],
+)
+
+# --- Payment Service ---
+local_resource(
+    'payment-service-compile',
+    cmd='CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/payment-service ./services/payment-service/cmd',
+    deps=['./services/payment-service', './shared'],
+    dir='.',
+)
+
+docker_build_with_restart(
+    'drova-payment-service',
+    context='.',
+    dockerfile='services/payment-service/Dockerfile.tilt',
+    entrypoint='/app/payment-service',
+    live_update=[
+        sync('./build/payment-service', '/app/payment-service'),
+        sync('./services/payment-service/migrations', '/app/migrations'),
+    ],
+)
+
+# --- Chat Service ---
+local_resource(
+    'chat-service-compile',
+    cmd='CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/chat-service ./services/chat-service',
+    deps=['./services/chat-service', './shared'],
+    dir='.',
+)
+
+docker_build_with_restart(
+    'drova-chat-service',
+    context='.',
+    dockerfile='services/chat-service/Dockerfile.tilt',
+    entrypoint='/app/chat-service',
+    live_update=[
+        sync('./build/chat-service', '/app/chat-service'),
+    ],
+)
+
 docker_compose('./docker-compose.yaml')

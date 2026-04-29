@@ -1,0 +1,7 @@
+FROM gcr.io/distroless/static-debian12:nonroot
+WORKDIR /app
+COPY --chown=nonroot:nonroot build/user-service /app/user-service
+COPY --chown=nonroot:nonroot services/user-service/migrations /app/migrations
+USER nonroot:nonroot
+EXPOSE 8082
+ENTRYPOINT ["/app/user-service"]

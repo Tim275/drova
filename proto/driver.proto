@@ -15,6 +15,7 @@ service DriverService {
 message RegisterDriverRequest {
   string driverID = 1;
   string packageSlug = 2;
+  string name = 3;
 }
 
 message RegisterDriverResponse {
