@@ -1529,7 +1529,8 @@
     driverReconnectPkg = pkg;
     const wsName = driverName || currentUser.name || currentUser.email.split('@')[0];
     const driverAvatar = currentUser.avatarUrl || defaultAvatar(wsName);
-    ws = new WebSocket(`ws://${location.host}/ws/drivers?userID=${currentUser.id}&packageSlug=${pkg}&name=${encodeURIComponent(wsName)}&avatarUrl=${encodeURIComponent(driverAvatar)}&token=${encodeURIComponent(authToken())}`);
+    const _wsSchemeD = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${_wsSchemeD}://${location.host}/ws/drivers?userID=${currentUser.id}&packageSlug=${pkg}&name=${encodeURIComponent(wsName)}&avatarUrl=${encodeURIComponent(driverAvatar)}&token=${encodeURIComponent(authToken())}`);
 
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
@@ -1792,7 +1793,8 @@
     if (riderDriverMarker) { riderDriverMarker.remove(); }
     riderDriverMarker = null;
     previousDriverPos = null;
-    ws = new WebSocket(`ws://${location.host}/ws/riders?userID=${currentUser.id}&token=${encodeURIComponent(authToken())}`);
+    const _wsSchemeR = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${_wsSchemeR}://${location.host}/ws/riders?userID=${currentUser.id}&token=${encodeURIComponent(authToken())}`);
 
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
@@ -2196,8 +2198,10 @@
     if (chatWs) { chatWs.close(); chatWs = null; }
 
     const token = encodeURIComponent(authToken());
+    const _wsSchemeC = location.protocol === 'https:' ? 'wss' : 'ws';
+    const _chatHost = location.protocol === 'https:' ? location.host : `${location.hostname}:8084`;
     chatWs = new WebSocket(
-      `ws://${location.hostname}:8084/ws/chat?tripID=${chatTripID}&userID=${currentUser.id}&token=${token}`
+      `${_wsSchemeC}://${_chatHost}/ws/chat?tripID=${chatTripID}&userID=${currentUser.id}&token=${token}`
     );
 
     chatWs.onmessage = (event) => {
