@@ -2,34 +2,21 @@ name: Backend Tests
 
 on:
   pull_request:
+    paths:
+      - "services/**"
+      - "shared/**"
+      - "proto/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/backend-tests.yaml"
 
 permissions:
   contents: read
   pull-requests: write
 
 jobs:
-  check_paths:
-    runs-on: ubuntu-latest
-    outputs:
-      should_run: ${{ steps.filter.outputs.backend }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3.0.2
-        id: filter
-        with:
-          filters: |
-            backend:
-              - 'services/**'
-              - 'shared/**'
-              - 'proto/**'
-              - 'go.mod'
-              - 'go.sum'
-              - '.github/workflows/backend-tests.yaml'
-
   test:
     name: Test & Build All Services
-    needs: check_paths
-    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
     runs-on: ubuntu-latest
 
     steps:
@@ -56,14 +43,3 @@ jobs:
           CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/driver-service
           CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/payment-service/cmd
           CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/chat-service
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@v0.30.0
-        with:
-          scan-type: fs
-          scan-ref: .
-          format: table
-          exit-code: "0"
-          ignore-unfixed: true
-          vuln-type: os,library
-          severity: CRITICAL,HIGH
