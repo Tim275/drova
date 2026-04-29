@@ -1,7 +1,6 @@
-# Drova — Ride Sharing Platform
+# Drova
 
-Microservices-based ride sharing backend (Go) — similar to Uber/Bolt.
-Built as a learning project + portfolio + consulting reference.
+Production-grade microservices backend in Go — event-driven architecture with Kafka, gRPC, and GitOps deployment to Kubernetes.
 
 ---
 

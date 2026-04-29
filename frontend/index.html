@@ -696,7 +696,7 @@
         <span class="field-label">Vehicle Package</span>
         <div id="dsPkgOptions"></div>
       </div>
-      <button class="btn btn-primary" onclick="goOnlineDriver()">Go Online</button>
+      <button id="goOnlineBtn" class="btn btn-primary" onclick="goOnlineDriver()">Go Online</button>
     </div>
 
     <!-- Online panel: driving mode -->
@@ -1171,15 +1171,47 @@
 
   function goOnlineDriver() {
     if (!selectedPkg) { alert('Please select a vehicle package first.'); return; }
-    if (driverCurrentGPS) {
+    if (driverCurrentGPS) { _doGoOnline(); return; }
+
+    if (driverIdleWatchId !== null) { navigator.geolocation.clearWatch(driverIdleWatchId); driverIdleWatchId = null; }
+
+    const btn = document.getElementById('goOnlineBtn');
+    if (btn) { btn.textContent = 'Getting location…'; btn.disabled = true; }
+
+    function onLocationSuccess(pos) {
+      driverCurrentGPS = pos.coords;
+      if (btn) { btn.textContent = 'Go Online'; btn.disabled = false; }
+      driverIdleWatchId = navigator.geolocation.watchPosition(
+        (p) => { driverCurrentGPS = p.coords; },
+        () => {},
+        { enableHighAccuracy: false, maximumAge: 10000, timeout: 15000 }
+      );
       _doGoOnline();
-    } else {
+    }
+
+    function onLocationError(err) {
+      if (err.code === err.PERMISSION_DENIED) {
+        if (btn) { btn.textContent = 'Go Online'; btn.disabled = false; }
+        alert('Location permission denied.\n\nPlease allow location in your browser settings, then reload the page.');
+        return;
+      }
+      // Timeout or unavailable — retry with low accuracy (works on desktop/Opera)
       navigator.geolocation.getCurrentPosition(
-        (pos) => { driverCurrentGPS = pos.coords; _doGoOnline(); },
-        () => { alert('Location access is required to go online as a driver.\n\nPlease allow location access in your browser settings and try again.'); },
-        { enableHighAccuracy: true, timeout: 10000 }
+        onLocationSuccess,
+        () => {
+          if (btn) { btn.textContent = 'Go Online'; btn.disabled = false; }
+          alert('Could not get your location.\n\nMake sure location is enabled in your browser and OS settings.');
+        },
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
       );
     }
+
+    // Try high accuracy first (mobile GPS), fall back to low accuracy on timeout (desktop/Opera)
+    navigator.geolocation.getCurrentPosition(
+      onLocationSuccess,
+      onLocationError,
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+    );
   }
 
   function _doGoOnline() {
@@ -1529,7 +1561,8 @@
     driverReconnectPkg = pkg;
     const wsName = driverName || currentUser.name || currentUser.email.split('@')[0];
     const driverAvatar = currentUser.avatarUrl || defaultAvatar(wsName);
-    ws = new WebSocket(`ws://${location.host}/ws/drivers?userID=${currentUser.id}&packageSlug=${pkg}&name=${encodeURIComponent(wsName)}&avatarUrl=${encodeURIComponent(driverAvatar)}&token=${encodeURIComponent(authToken())}`);
+    const _wsSchemeD = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${_wsSchemeD}://${location.host}/ws/drivers?userID=${currentUser.id}&packageSlug=${pkg}&name=${encodeURIComponent(wsName)}&avatarUrl=${encodeURIComponent(driverAvatar)}&token=${encodeURIComponent(authToken())}`);
 
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
@@ -1792,7 +1825,8 @@
     if (riderDriverMarker) { riderDriverMarker.remove(); }
     riderDriverMarker = null;
     previousDriverPos = null;
-    ws = new WebSocket(`ws://${location.host}/ws/riders?userID=${currentUser.id}&token=${encodeURIComponent(authToken())}`);
+    const _wsSchemeR = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${_wsSchemeR}://${location.host}/ws/riders?userID=${currentUser.id}&token=${encodeURIComponent(authToken())}`);
 
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
@@ -2196,8 +2230,10 @@
     if (chatWs) { chatWs.close(); chatWs = null; }
 
     const token = encodeURIComponent(authToken());
+    const _wsSchemeC = location.protocol === 'https:' ? 'wss' : 'ws';
+    const _chatHost = location.protocol === 'https:' ? location.host : `${location.hostname}:8084`;
     chatWs = new WebSocket(
-      `ws://${location.hostname}:8084/ws/chat?tripID=${chatTripID}&userID=${currentUser.id}&token=${token}`
+      `${_wsSchemeC}://${_chatHost}/ws/chat?tripID=${chatTripID}&userID=${currentUser.id}&token=${token}`
     );
 
     chatWs.onmessage = (event) => {

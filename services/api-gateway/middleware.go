@@ -51,7 +51,7 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
 		w.Header().Set("Content-Security-Policy",
 			"default-src 'self'; "+
-				"script-src 'self' 'unsafe-inline' https://js.stripe.com https://api.mapbox.com https://events.mapbox.com; "+
+				"script-src 'self' 'unsafe-inline' blob: https://js.stripe.com https://api.mapbox.com https://events.mapbox.com; "+
 				"style-src 'self' 'unsafe-inline' https://api.mapbox.com; "+
 				"img-src 'self' data: blob: https://api.mapbox.com https://api.dicebear.com; "+
 				"connect-src 'self' ws: wss: https://api.mapbox.com https://events.mapbox.com https://api.stripe.com; "+
