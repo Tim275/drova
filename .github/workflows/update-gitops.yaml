@@ -29,6 +29,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITOPS_PAT }}
+          ref: main
 
       - name: Install yq
         run: |
