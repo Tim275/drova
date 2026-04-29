@@ -1173,35 +1173,44 @@
     if (!selectedPkg) { alert('Please select a vehicle package first.'); return; }
     if (driverCurrentGPS) { _doGoOnline(); return; }
 
-    // Restart idle watch in case it failed from a previous permission denial
     if (driverIdleWatchId !== null) { navigator.geolocation.clearWatch(driverIdleWatchId); driverIdleWatchId = null; }
 
     const btn = document.getElementById('goOnlineBtn');
     if (btn) { btn.textContent = 'Getting location…'; btn.disabled = true; }
 
+    function onLocationSuccess(pos) {
+      driverCurrentGPS = pos.coords;
+      if (btn) { btn.textContent = 'Go Online'; btn.disabled = false; }
+      driverIdleWatchId = navigator.geolocation.watchPosition(
+        (p) => { driverCurrentGPS = p.coords; },
+        () => {},
+        { enableHighAccuracy: false, maximumAge: 10000, timeout: 15000 }
+      );
+      _doGoOnline();
+    }
+
+    function onLocationError(err) {
+      if (err.code === err.PERMISSION_DENIED) {
+        if (btn) { btn.textContent = 'Go Online'; btn.disabled = false; }
+        alert('Location permission denied.\n\nPlease allow location in your browser settings, then reload the page.');
+        return;
+      }
+      // Timeout or unavailable — retry with low accuracy (works on desktop/Opera)
+      navigator.geolocation.getCurrentPosition(
+        onLocationSuccess,
+        () => {
+          if (btn) { btn.textContent = 'Go Online'; btn.disabled = false; }
+          alert('Could not get your location.\n\nMake sure location is enabled in your browser and OS settings.');
+        },
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
+      );
+    }
+
+    // Try high accuracy first (mobile GPS), fall back to low accuracy on timeout (desktop/Opera)
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        driverCurrentGPS = pos.coords;
-        if (btn) { btn.textContent = 'Go Online'; btn.disabled = false; }
-        // Restart persistent idle watch with fresh permission
-        driverIdleWatchId = navigator.geolocation.watchPosition(
-          (p) => { driverCurrentGPS = p.coords; },
-          () => {},
-          { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
-        );
-        _doGoOnline();
-      },
-      (err) => {
-        if (btn) { btn.textContent = 'Go Online'; btn.disabled = false; }
-        if (err.code === err.PERMISSION_DENIED) {
-          alert('Location permission denied.\n\nPlease allow location in your browser settings, then reload the page and try again.');
-        } else if (err.code === err.TIMEOUT) {
-          alert('Could not get your location (timeout).\n\nMake sure GPS/Location is enabled on your device and try again.');
-        } else {
-          alert('Location unavailable. Please check your device settings and try again.');
-        }
-      },
-      { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 }
+      onLocationSuccess,
+      onLocationError,
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
   }
 
