@@ -1,0 +1,10 @@
+{
+  "type": "record",
+  "name": "TripStatusEvent",
+  "namespace": "drova.events",
+  "fields": [
+    {"name": "trip_id",   "type": "string"},
+    {"name": "rider_id",  "type": "string"},
+    {"name": "driver_id", "type": "string"}
+  ]
+}

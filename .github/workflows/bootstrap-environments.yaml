@@ -1,0 +1,41 @@
+name: Bootstrap Environments
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-environments:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Get reviewer user ID
+        id: reviewer
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_PAT }}
+        run: |
+          USER_ID=$(gh api users/Tim275 --jq '.id')
+          echo "USER_ID=$USER_ID" >> $GITHUB_OUTPUT
+
+      - name: Create production environment with required reviewer
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_PAT }}
+          USER_ID: ${{ steps.reviewer.outputs.USER_ID }}
+        run: |
+          gh api \
+            --method PUT \
+            repos/Tim275/drova/environments/production \
+            --field "reviewers[][type]=User" \
+            --field "reviewers[][id]=$USER_ID" \
+            --field "prevent_self_review=false"
+          echo "production environment created with required reviewer Tim275"
+
+      - name: Create staging environment (no reviewers - auto deploy)
+        env:
+          GH_TOKEN: ${{ secrets.GITOPS_PAT }}
+        run: |
+          gh api \
+            --method PUT \
+            repos/Tim275/drova/environments/staging
+          echo "staging environment created"

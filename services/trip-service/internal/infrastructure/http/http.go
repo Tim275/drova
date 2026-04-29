@@ -2,15 +2,17 @@ package http
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 
 	"drova/services/trip-service/internal/domain"
 	"drova/shared/types"
+
+	"go.uber.org/zap"
 )
 
 type HttpHandler struct {
 	Service domain.TripService
+	Log     *zap.SugaredLogger
 }
 
 type previewTripRequest struct {
@@ -29,7 +31,7 @@ func (h *HttpHandler) HandleTripPreview(w http.ResponseWriter, r *http.Request) 
 
 	route, err := h.Service.GetRoute(r.Context(), &reqBody.Pickup, &reqBody.Destination)
 	if err != nil {
-		log.Println(err)
+		h.Log.Warnw("get route failed", zap.Error(err))
 		http.Error(w, "failed to get route", http.StatusInternalServerError)
 		return
 	}

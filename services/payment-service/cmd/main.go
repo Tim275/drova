@@ -2,25 +2,41 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"drova/services/payment-service/internal/events"
 	"drova/services/payment-service/internal/infrastructure/stripe"
 	"drova/services/payment-service/internal/service"
+	"drova/services/payment-service/internal/store"
 	"drova/services/payment-service/pkg/types"
 	"drova/shared/env"
 	"drova/shared/logger"
 	"drova/shared/messaging"
 	"drova/shared/tracing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
 
 func main() {
 	log := logger.New(env.GetString("ENVIRONMENT", "development"))
 	defer log.Sync()
+
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		if err := runMigrations(
+			env.GetString("DB_URL", ""),
+			env.GetString("MIGRATIONS_PATH", "migrations"),
+		); err != nil {
+			log.Fatalw("migrations failed", fmt.Sprintf("%v", err))
+		}
+		log.Infow("migrations complete")
+		return
+	}
 
 	log.Infow("payment-service starting")
 
@@ -48,22 +64,62 @@ func main() {
 		log.Fatalw("STRIPE_SECRET_KEY is required")
 	}
 
+	poolCfg, err := pgxpool.ParseConfig(stripMigrateParams(env.GetString("DB_URL", "")))
+	if err != nil {
+		log.Fatalw("db config", zap.Error(err))
+	}
+	poolCfg.MaxConns = 10
+	poolCfg.MinConns = 2
+	poolCfg.MaxConnIdleTime = 15 * time.Minute
+
+	db, err := pgxpool.NewWithConfig(ctx, poolCfg)
+	if err != nil {
+		log.Fatalw("db connect", zap.Error(err))
+	}
+	defer db.Close()
+
+	migrationsPath := env.GetString("MIGRATIONS_PATH", "services/payment-service/migrations")
+	if err := runMigrations(env.GetString("DB_URL", ""), migrationsPath); err != nil {
+		log.Fatalw("migrations", zap.Error(err))
+	}
+
 	kafkaBrokers := env.GetString("KAFKA_BROKERS", "localhost:9092")
 	kafkaClient := messaging.NewKafka([]string{kafkaBrokers})
 	defer kafkaClient.Close()
 
+	paymentStore := store.NewPaymentStore(db)
 	processor := stripe.NewStripeClient(cfg)
 	svc := service.NewPaymentService(processor)
 
-	tripConsumer := events.NewTripConsumer(kafkaClient, svc)
+	tripConsumer := events.NewTripConsumer(kafkaClient, svc, paymentStore, log)
 	tripConsumer.Start(ctx)
 
-	log.Infow("payment-service ready", "topic", "payment.cmd.create_session")
+	paymentConsumer := events.NewPaymentConsumer(kafkaClient, paymentStore, log)
+	paymentConsumer.Start(ctx)
+
+	log.Infow("payment-service ready")
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
 	log.Infow("payment-service shutting down")
-	cancel() // signals all consumers to stop
+	cancel()
+}
+
+// stripMigrateParams removes golang-migrate specific query parameters (x-* prefix)
+// that pgxpool would forward as server parameters, causing a PostgreSQL FATAL error.
+func stripMigrateParams(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return rawURL
+	}
+	q := u.Query()
+	for k := range q {
+		if len(k) > 2 && k[:2] == "x-" {
+			q.Del(k)
+		}
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
 }

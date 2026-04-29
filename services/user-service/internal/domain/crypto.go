@@ -5,7 +5,7 @@ import (
 )
 
 func hashPassword(plain string) ([]byte, error) {
-	return bcrypt.GenerateFromPassword([]byte(plain), bcrypt.DefaultCost)
+	return bcrypt.GenerateFromPassword([]byte(plain), 12)
 }
 
 func comparePassword(hash []byte, plain string) (bool, error) {

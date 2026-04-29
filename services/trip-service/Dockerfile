@@ -11,6 +11,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
 COPY --from=builder --chown=nonroot:nonroot /out/trip-service /app/trip-service
+COPY --from=builder --chown=nonroot:nonroot /app/services/trip-service/migrations /app/migrations
 USER nonroot:nonroot
 EXPOSE 9093
 ENTRYPOINT ["/app/trip-service"]

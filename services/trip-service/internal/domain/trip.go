@@ -5,18 +5,22 @@ import (
 
 	tripTypes "drova/services/trip-service/pkg/types"
 	pbd "drova/shared/proto/driver"
-	pb "drova/shared/proto/trip"
 	"drova/shared/types"
-
-	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type TripModel struct {
-	ID     primitive.ObjectID
-	UserID string
-	Status string
-	Fare   *RideFareModel
-	Driver *pb.TripDriver
+	ID           string
+	UserID       string
+	RiderName    string
+	RiderAvatar  string
+	Status       string
+	Fare         *RideFareModel
+	DriverID     string
+	DriverName   string
+	DriverPlate  string
+	DriverAvatar string
+	Rating       int
+	CreatedAt    int64
 }
 
 type TripRepository interface {
@@ -25,6 +29,11 @@ type TripRepository interface {
 	GetRideFareByID(ctx context.Context, id string) (*RideFareModel, error)
 	GetTripByID(ctx context.Context, id string) (*TripModel, error)
 	UpdateTrip(ctx context.Context, tripID string, status string, driver *pbd.Driver) error
+	CancelTrip(ctx context.Context, tripID string) error
+	ExpireSearch(ctx context.Context, tripID string) (bool, error)
+	GetTripsByUser(ctx context.Context, userID string) ([]*TripModel, error)
+	GetTripsByDriver(ctx context.Context, driverID string) ([]*TripModel, error)
+	RateTrip(ctx context.Context, tripID string, rating int) error
 }
 
 type TripService interface {
@@ -35,4 +44,9 @@ type TripService interface {
 	GetAndValidateFare(ctx context.Context, fareID, userID string) (*RideFareModel, error)
 	GetTripByID(ctx context.Context, id string) (*TripModel, error)
 	UpdateTrip(ctx context.Context, tripID string, status string, driver *pbd.Driver) error
+	CancelTrip(ctx context.Context, tripID string) error
+	ExpireSearch(ctx context.Context, tripID string) (bool, error)
+	GetTripsByUser(ctx context.Context, userID string) ([]*TripModel, error)
+	GetTripsByDriver(ctx context.Context, driverID string) ([]*TripModel, error)
+	RateTrip(ctx context.Context, tripID string, rating int) error
 }

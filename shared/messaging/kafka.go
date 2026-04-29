@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"drova/shared/retry"
 	"drova/shared/tracing"
 
 	"github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go/sasl/plain"
 )
 
 type MessageHandler func(ctx context.Context, msg []byte) error
@@ -18,16 +20,34 @@ type MessageHandler func(ctx context.Context, msg []byte) error
 type Kafka struct {
 	brokers []string
 	writer  *kafka.Writer
+	dialer  *kafka.Dialer
 }
 
 func NewKafka(brokers []string) *Kafka {
+	dialer := kafka.DefaultDialer
+	var transport kafka.RoundTripper
+
+	saslUser := os.Getenv("KAFKA_SASL_USERNAME")
+	saslPass := os.Getenv("KAFKA_SASL_PASSWORD")
+	if saslUser != "" && saslPass != "" {
+		mechanism := plain.Mechanism{Username: saslUser, Password: saslPass}
+		transport = &kafka.Transport{SASL: mechanism}
+		dialer = &kafka.Dialer{
+			Timeout:       10 * time.Second,
+			DualStack:     true,
+			SASLMechanism: mechanism,
+		}
+		log.Printf("kafka: SASL/PLAIN enabled for user %s", saslUser)
+	}
+
 	writer := &kafka.Writer{
 		Addr:                   kafka.TCP(brokers...),
 		Balancer:               &kafka.LeastBytes{},
-		AllowAutoTopicCreation: true,
+		AllowAutoTopicCreation: false,
+		Transport:              transport,
 	}
 
-	return &Kafka{brokers: brokers, writer: writer}
+	return &Kafka{brokers: brokers, writer: writer, dialer: dialer}
 }
 
 func (k *Kafka) EnsureTopics(topics ...string) error {
@@ -38,7 +58,7 @@ func (k *Kafka) EnsureTopics(topics ...string) error {
 	}
 
 	return retry.WithBackoff(context.Background(), cfg, func() error {
-		conn, err := kafka.Dial("tcp", k.brokers[0])
+		conn, err := k.dialer.Dial("tcp", k.brokers[0])
 		if err != nil {
 			return fmt.Errorf("dial kafka: %w", err)
 		}
@@ -49,7 +69,7 @@ func (k *Kafka) EnsureTopics(topics ...string) error {
 			return fmt.Errorf("get controller: %w", err)
 		}
 
-		ctrlConn, err := kafka.Dial("tcp", fmt.Sprintf("%s:%d", controller.Host, controller.Port))
+		ctrlConn, err := k.dialer.Dial("tcp", fmt.Sprintf("%s:%d", controller.Host, controller.Port))
 		if err != nil {
 			return fmt.Errorf("dial controller: %w", err)
 		}
@@ -101,6 +121,7 @@ func (k *Kafka) ConsumeMessages(ctx context.Context, topic, groupID string, hand
 		Brokers: k.brokers,
 		Topic:   topic,
 		GroupID: groupID,
+		Dialer:  k.dialer,
 	})
 	defer reader.Close()
 
@@ -133,7 +154,8 @@ func (k *Kafka) ConsumeMessages(ctx context.Context, topic, groupID string, hand
 				retryCfg.MaxRetries, topic, handlerErr)
 
 			if dlqErr := k.publishToDLQ(ctx, msg, handlerErr, retryCfg.MaxRetries); dlqErr != nil {
-				log.Printf("failed to publish to DLQ: %v", dlqErr)
+				log.Printf("failed to publish to DLQ: %v — skipping commit to avoid message loss", dlqErr)
+				continue // do not commit: let Kafka redeliver so we can retry DLQ publish
 			}
 		}
 
@@ -159,6 +181,15 @@ func (k *Kafka) publishToDLQ(ctx context.Context, original kafka.Message, failur
 	}
 
 	return k.PublishMessage(ctx, TopicDeadLetterQueue, payload)
+}
+
+func (k *Kafka) Ping(ctx context.Context) error {
+	conn, err := k.dialer.DialContext(ctx, "tcp", k.brokers[0])
+	if err != nil {
+		return fmt.Errorf("kafka ping: %w", err)
+	}
+	conn.Close()
+	return nil
 }
 
 func (k *Kafka) Close() {
