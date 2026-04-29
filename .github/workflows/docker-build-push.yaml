@@ -67,23 +67,11 @@ jobs:
       tag: ${{ steps.tag.outputs.TAG }}
 
   trigger-gitops:
-    name: Deploy to Production
+    name: Update GitOps
     needs: build-and-push
-    if: success()
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Trigger GitOps update
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITOPS_PAT }}
-          script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'update-gitops.yaml',
-              ref: 'main',
-              inputs: {
-                tag: '${{ needs.build-and-push.outputs.tag }}'
-              }
-            })
+    if: always() && needs.build-and-push.result == 'success'
+    uses: ./.github/workflows/update-gitops.yaml
+    with:
+      tag: ${{ needs.build-and-push.outputs.tag }}
+    secrets:
+      GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
