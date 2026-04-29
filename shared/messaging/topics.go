@@ -11,6 +11,11 @@ const (
 
 	TopicDriverLocation        = "driver.cmd.location"
 
+	TopicTripCancelled      = "trip.event.cancelled"
+	TopicTripDriverArrived  = "trip.event.driver_arrived"
+	TopicTripInProgress     = "trip.event.in_progress"
+	TopicTripCompleted      = "trip.event.completed"
+
 	TopicPaymentCreateSession  = "payment.cmd.create_session"
 	TopicPaymentSessionCreated = "payment.event.session_created"
 	TopicPaymentSuccess        = "payment.event.success"

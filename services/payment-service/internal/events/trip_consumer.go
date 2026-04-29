@@ -4,19 +4,25 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"strconv"
+	"time"
 
 	"drova/services/payment-service/internal/domain"
+	"drova/services/payment-service/pkg/types"
 	"drova/shared/messaging"
+
+	"go.uber.org/zap"
 )
 
 type TripConsumer struct {
 	kafka   *messaging.Kafka
 	service domain.Service
+	store   domain.PaymentStore
+	log     *zap.SugaredLogger
 }
 
-func NewTripConsumer(kafka *messaging.Kafka, service domain.Service) *TripConsumer {
-	return &TripConsumer{kafka: kafka, service: service}
+func NewTripConsumer(kafka *messaging.Kafka, service domain.Service, store domain.PaymentStore, log *zap.SugaredLogger) *TripConsumer {
+	return &TripConsumer{kafka: kafka, service: service, store: store, log: log}
 }
 
 func (c *TripConsumer) Start(ctx context.Context) {
@@ -34,14 +40,29 @@ func (c *TripConsumer) handleCreateSession(ctx context.Context, raw []byte) erro
 		return fmt.Errorf("unmarshal payment trip data: %w", err)
 	}
 
-	log.Printf("Creating Stripe session for trip=%s user=%s amount=%d %s", data.TripID, data.UserID, data.Amount, data.Currency)
+	c.log.Infow("creating stripe session", "trip", data.TripID, "user", data.UserID, "amount", data.Amount, "currency", data.Currency)
 
 	intent, err := c.service.CreatePaymentSession(ctx, data.TripID, data.UserID, data.DriverID, data.Amount, data.Currency)
 	if err != nil {
 		return fmt.Errorf("create payment session: %w", err)
 	}
 
-	log.Printf("Stripe session created: %s", intent.StripeSessionID)
+	c.log.Infow("stripe session created", "session", intent.StripeSessionID, "trip", data.TripID)
+
+	userID, _ := strconv.ParseInt(data.UserID, 10, 64)
+	payment := &domain.Payment{
+		TripID:          intent.TripID,
+		UserID:          userID,
+		DriverID:        intent.DriverID,
+		AmountCents:     intent.Amount,
+		Currency:        intent.Currency,
+		Status:          types.PaymentStatusPending,
+		StripeSessionID: intent.StripeSessionID,
+		CreatedAt:       time.Now().UTC(),
+	}
+	if err := c.store.Save(ctx, payment); err != nil {
+		c.log.Warnw("failed to save pending payment", "trip", data.TripID, "error", err)
+	}
 
 	created := messaging.PaymentSessionCreated{
 		TripID:      intent.TripID,
@@ -57,7 +78,7 @@ func (c *TripConsumer) handleCreateSession(ctx context.Context, raw []byte) erro
 
 	notification := messaging.KafkaMessage{
 		Type:    messaging.TopicPaymentSessionCreated,
-		OwnerID: data.UserID, // Rider soll benachrichtigt werden
+		OwnerID: data.UserID,
 		Data:    createdBytes,
 	}
 	payload, err := json.Marshal(notification)

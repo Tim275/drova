@@ -22,7 +22,6 @@ func NewUserCache(rdb *redis.Client) *UserCache {
 	return &UserCache{rdb: rdb}
 }
 
-// cachedUser only stores safe, non-sensitive fields.
 type cachedUser struct {
 	ID          int64       `json:"id"`
 	Email       string      `json:"email"`

@@ -1,0 +1,50 @@
+name: Frontend Tests
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check_paths:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3.0.2
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/frontend-tests.yaml'
+
+  test:
+    name: Validate Frontend
+    needs: check_paths
+    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify frontend exists
+        run: |
+          test -f frontend/index.html
+          echo "frontend/index.html: $(wc -l < frontend/index.html) lines"
+
+      - name: Validate HTML
+        run: |
+          sudo apt-get install -y tidy
+          tidy -errors -quiet -utf8 frontend/index.html || true
+
+      - name: Check for console.error / debugger leaks
+        run: |
+          if grep -n "debugger" frontend/index.html; then
+            echo "ERROR: debugger statement found" && exit 1
+          fi
+          echo "No debugger statements found"

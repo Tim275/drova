@@ -1,0 +1,18 @@
+{
+  "type": "record",
+  "name": "TripCreatedEvent",
+  "namespace": "drova.events",
+  "fields": [
+    {"name": "trip_id",           "type": "string"},
+    {"name": "user_id",           "type": "string"},
+    {"name": "rider_name",        "type": "string"},
+    {"name": "rider_avatar",      "type": "string"},
+    {"name": "package_slug",      "type": "string"},
+    {"name": "fare_id",           "type": "string"},
+    {"name": "pickup_lat",        "type": "double"},
+    {"name": "pickup_lng",        "type": "double"},
+    {"name": "destination_lat",   "type": "double"},
+    {"name": "destination_lng",   "type": "double"},
+    {"name": "exclude_driver_ids","type": {"type": "array", "items": "string"}, "default": []}
+  ]
+}

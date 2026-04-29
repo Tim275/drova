@@ -17,13 +17,16 @@ type Coordinate struct {
 }
 
 type TripCreatedEvent struct {
-	TripID        string       `json:"trip_id"`
-	UserID        string       `json:"user_id"`
-	PackageSlug   string       `json:"package_slug"`
-	PickupGeohash string       `json:"pickup_geohash"`
-	Pickup        Coordinate   `json:"pickup"`
-	Destination   Coordinate   `json:"destination"`
-	Route         []Coordinate `json:"route"`
+	TripID           string       `json:"trip_id"`
+	UserID           string       `json:"user_id"`
+	RiderName        string       `json:"rider_name,omitempty"`
+	RiderAvatar      string       `json:"rider_avatar,omitempty"`
+	PackageSlug      string       `json:"package_slug"`
+	PickupGeohash    string       `json:"pickup_geohash"`
+	Pickup           Coordinate   `json:"pickup"`
+	Destination      Coordinate   `json:"destination"`
+	Route            []Coordinate `json:"route"`
+	ExcludeDriverIDs []string     `json:"exclude_driver_ids,omitempty"`
 }
 
 type DriverInfo struct {
@@ -61,15 +64,28 @@ type PaymentSessionCreated struct {
 }
 
 type PaymentStatusUpdate struct {
-	TripID   string `json:"trip_id"`
-	UserID   string `json:"user_id"`
-	DriverID string `json:"driver_id"`
+	TripID          string `json:"trip_id"`
+	UserID          string `json:"user_id"`
+	DriverID        string `json:"driver_id"`
+	StripeSessionID string `json:"stripe_session_id"`
 }
 
 type DriverLocationData struct {
 	Lat      float64 `json:"lat"`
 	Lng      float64 `json:"lng"`
 	RiderID  string  `json:"rider_id"`
+}
+
+type TripStatusEvent struct {
+	TripID   string `json:"trip_id"`
+	RiderID  string `json:"rider_id"`
+	DriverID string `json:"driver_id"`
+}
+
+type TripCancelledEvent struct {
+	TripID   string `json:"trip_id"`
+	RiderID  string `json:"rider_id"`
+	DriverID string `json:"driver_id"`
 }
 
 type DLQMessage struct {

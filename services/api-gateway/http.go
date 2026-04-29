@@ -1,27 +1,43 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
-	"log"
 	"net/http"
+	"time"
 
 	"drova/services/api-gateway/grpc_clients"
 	"drova/shared/contracts"
 	"drova/shared/env"
 	"drova/shared/messaging"
+	pb "drova/shared/proto/trip"
 
+	"github.com/sony/gobreaker"
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/webhook"
+	"go.uber.org/zap"
 )
 
 var (
-	mapboxPublicToken     = env.GetString("MAPBOX_PUBLIC_TOKEN", "")
+	mapboxPublicToken    = env.GetString("MAPBOX_PUBLIC_TOKEN", "")
 	stripePublishableKey = env.GetString("STRIPE_PUBLIC_KEY", "")
 )
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, contracts.APIResponse{Data: "i am alive"})
+}
+
+func handleReadyz(kafka interface{ Ping(ctx context.Context) error }) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := kafka.Ping(r.Context()); err != nil {
+			appLog.Warnw("readyz: kafka unreachable", "err", err)
+			http.Error(w, "kafka unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		writeJSON(w, http.StatusOK, contracts.APIResponse{Data: "ready"})
+	}
 }
 
 func handleConfig(w http.ResponseWriter, r *http.Request) {
@@ -32,7 +48,7 @@ func handleConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleTripStart(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 64<<10) // 64 KB
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	defer r.Body.Close()
 	var reqBody startTripRequest
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
@@ -40,26 +56,31 @@ func handleTripStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tripService, err := grpc_clients.NewTripServiceClient()
+	var tripID string
+	_, err := grpc_clients.TripBreaker.Execute(func() (interface{}, error) {
+		trip, err := grpc_clients.TripClient.CreateTrip(r.Context(), reqBody.toProto())
+		if err != nil {
+			return nil, err
+		}
+		tripID = trip.GetTripID()
+		return nil, nil
+	})
 	if err != nil {
-		log.Printf("failed to connect to trip service: %v", err)
-		http.Error(w, "failed to reach trip service", http.StatusInternalServerError)
-		return
-	}
-	defer tripService.Close()
-
-	trip, err := tripService.Client.CreateTrip(r.Context(), reqBody.toProto())
-	if err != nil {
-		log.Printf("failed to start trip: %v", err)
+		if err == gobreaker.ErrOpenState {
+			appLog.Warnw("trip service circuit open")
+			http.Error(w, "trip service temporarily unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		appLog.Errorw("create trip", zap.Error(err))
 		http.Error(w, "failed to start trip", http.StatusInternalServerError)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, contracts.APIResponse{Data: map[string]string{"tripID": trip.GetTripID()}})
+	writeJSON(w, http.StatusCreated, contracts.APIResponse{Data: map[string]string{"tripID": tripID}})
 }
 
 func handleTripPreview(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 64<<10) // 64 KB
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	defer r.Body.Close()
 	var reqBody previewTripRequest
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
@@ -67,26 +88,138 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tripService, err := grpc_clients.NewTripServiceClient()
+	var result interface{}
+	_, err := grpc_clients.TripBreaker.Execute(func() (interface{}, error) {
+		preview, err := grpc_clients.TripClient.PreviewTrip(r.Context(), reqBody.toProto())
+		if err != nil {
+			return nil, err
+		}
+		result = preview
+		return nil, nil
+	})
 	if err != nil {
-		log.Printf("failed to connect to trip service: %v", err)
-		http.Error(w, "failed to reach trip service", http.StatusInternalServerError)
-		return
-	}
-	defer tripService.Close()
-
-	tripPreview, err := tripService.Client.PreviewTrip(r.Context(), reqBody.toProto())
-	if err != nil {
-		log.Printf("failed to preview trip: %v", err)
+		if err == gobreaker.ErrOpenState {
+			appLog.Warnw("trip service circuit open")
+			http.Error(w, "trip service temporarily unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		appLog.Errorw("preview trip", zap.Error(err))
 		http.Error(w, "failed to preview trip", http.StatusInternalServerError)
 		return
 	}
 
-	writeJSON(w, http.StatusCreated, contracts.APIResponse{Data: tripPreview})
+	writeJSON(w, http.StatusCreated, contracts.APIResponse{Data: result})
+}
+
+func handleTripHistory(w http.ResponseWriter, r *http.Request) {
+	tokenStr := tokenFromRequest(r)
+	claims, err := parseGatewayToken(tokenStr)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	userID := fmt.Sprintf("%d", claims.UserID)
+
+	var resp interface{}
+	_, err = grpc_clients.TripBreaker.Execute(func() (interface{}, error) {
+		client, err := grpc_clients.NewTripServiceClient()
+		if err != nil {
+			return nil, err
+		}
+		defer client.Close()
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		res, err := client.Client.GetTripsByUser(ctx, &pb.GetTripsRequest{Id: userID})
+		if err != nil {
+			return nil, err
+		}
+		resp = res.GetTrips()
+		return nil, nil
+	})
+	if err != nil {
+		if err == gobreaker.ErrOpenState {
+			http.Error(w, "trip service temporarily unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		appLog.Errorw("trip history", zap.Error(err))
+		http.Error(w, "trip service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func handleDriverHistory(w http.ResponseWriter, r *http.Request) {
+	driverID := r.URL.Query().Get("driverID")
+	if driverID == "" {
+		http.Error(w, "driverID required", http.StatusBadRequest)
+		return
+	}
+
+	var resp interface{}
+	_, err := grpc_clients.TripBreaker.Execute(func() (interface{}, error) {
+		client, err := grpc_clients.NewTripServiceClient()
+		if err != nil {
+			return nil, err
+		}
+		defer client.Close()
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		res, err := client.Client.GetTripsByDriver(ctx, &pb.GetTripsRequest{Id: driverID})
+		if err != nil {
+			return nil, err
+		}
+		resp = res.GetTrips()
+		return nil, nil
+	})
+	if err != nil {
+		if err == gobreaker.ErrOpenState {
+			http.Error(w, "trip service temporarily unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		appLog.Errorw("driver history", zap.Error(err))
+		http.Error(w, "trip service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func handleTripRate(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	defer r.Body.Close()
+	var req struct {
+		TripID string `json:"trip_id"`
+		Rating int32  `json:"rating"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	_, err := grpc_clients.TripBreaker.Execute(func() (interface{}, error) {
+		client, err := grpc_clients.NewTripServiceClient()
+		if err != nil {
+			return nil, err
+		}
+		defer client.Close()
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		_, err = client.Client.RateTrip(ctx, &pb.RateTripRequest{TripID: req.TripID, Rating: req.Rating})
+		return nil, err
+	})
+	if err != nil {
+		if err == gobreaker.ErrOpenState {
+			http.Error(w, "trip service temporarily unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		appLog.Errorw("trip rate", zap.Error(err))
+		http.Error(w, "trip service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 256<<10) // 256 KB (Stripe payloads)
+	r.Body = http.MaxBytesReader(w, r.Body, 256<<10)
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "failed to read request body", http.StatusInternalServerError)
@@ -96,7 +229,7 @@ func handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 
 	webhookKey := env.GetString("STRIPE_WEBHOOK_KEY", "")
 	if webhookKey == "" {
-		log.Printf("STRIPE_WEBHOOK_KEY missing")
+		appLog.Errorw("STRIPE_WEBHOOK_KEY missing")
 		http.Error(w, "webhook key not configured", http.StatusInternalServerError)
 		return
 	}
@@ -108,12 +241,12 @@ func handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 		webhook.ConstructEventOptions{IgnoreAPIVersionMismatch: true},
 	)
 	if err != nil {
-		log.Printf("Invalid webhook signature: %v", err)
+		appLog.Warnw("invalid webhook signature", zap.Error(err))
 		http.Error(w, "invalid signature", http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("Stripe event received: %s", event.Type)
+	appLog.Infow("stripe event", "type", event.Type)
 
 	if event.Type != "checkout.session.completed" {
 		w.WriteHeader(http.StatusOK)
@@ -122,15 +255,16 @@ func handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 
 	var session stripe.CheckoutSession
 	if err := json.Unmarshal(event.Data.Raw, &session); err != nil {
-		log.Printf("Failed to parse session: %v", err)
+		appLog.Errorw("parse stripe session", zap.Error(err))
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
 	}
 
 	payload := messaging.PaymentStatusUpdate{
-		TripID:   session.Metadata["trip_id"],
-		UserID:   session.Metadata["user_id"],
-		DriverID: session.Metadata["driver_id"],
+		TripID:          session.Metadata["trip_id"],
+		UserID:          session.Metadata["user_id"],
+		DriverID:        session.Metadata["driver_id"],
+		StripeSessionID: session.ID,
 	}
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -150,11 +284,11 @@ func handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := kafkaClient.PublishMessage(r.Context(), messaging.TopicPaymentSuccess, msgBytes); err != nil {
-		log.Printf("Failed to publish payment.event.success: %v", err)
+		appLog.Errorw("publish payment success", zap.Error(err))
 		http.Error(w, "publish failed", http.StatusInternalServerError)
 		return
 	}
 
-	log.Printf("Published payment.event.success: trip=%s user=%s", payload.TripID, payload.UserID)
+	appLog.Infow("payment success published", "trip", payload.TripID, "user", payload.UserID)
 	w.WriteHeader(http.StatusOK)
 }
