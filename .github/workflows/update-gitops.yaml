@@ -25,10 +25,12 @@ jobs:
       pull-requests: write
 
     steps:
-      - name: Checkout drova repo
+      - name: Checkout drova-gitops repo
         uses: actions/checkout@v4
         with:
+          repository: Tim275/drova-gitops
           token: ${{ secrets.GITOPS_PAT }}
+          ref: main
 
       - name: Install yq
         run: |
@@ -39,7 +41,7 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
         run: |
-          FILE="infra/production/k8s/kustomization.yaml"
+          FILE="overlays/production/kustomization.yaml"
           yq e -i '(.images[] | select(.name | test("ghcr.io/tim275/drova/"))).newTag = strenv(TAG)' "$FILE"
 
       - name: Create Pull Request
@@ -53,7 +55,7 @@ jobs:
           delete-branch: true
           title: "chore: deploy ${{ inputs.tag }} to production"
           body: |
-            Updates all Drova service image tags to `${{ inputs.tag }}` in `infra/production/k8s/kustomization.yaml`.
+            Updates all Drova service image tags to `${{ inputs.tag }}` in `overlays/production/kustomization.yaml`.
 
             Release: https://github.com/Tim275/drova/releases/tag/${{ inputs.tag }}
           labels: |
