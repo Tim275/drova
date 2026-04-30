@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -46,7 +47,7 @@ func main() {
 	stopTracer, err := tracing.InitTracer(tracing.Config{
 		ServiceName:    "payment-service",
 		Environment:    env.GetString("ENVIRONMENT", "development"),
-		JaegerEndpoint: env.GetString("JAEGER_ENDPOINT", "jaeger:4318"),
+		OtelCollectorEndpoint: env.GetString("OTEL_COLLECTOR_ENDPOINT", ""),
 	})
 	if err != nil {
 		log.Warnw("tracing init failed", zap.Error(err))
@@ -97,7 +98,17 @@ func main() {
 	paymentConsumer := events.NewPaymentConsumer(kafkaClient, paymentStore, log)
 	paymentConsumer.Start(ctx)
 
-	log.Infow("payment-service ready")
+	healthAddr := env.GetString("HEALTH_ADDR", ":8085")
+	healthMux := http.NewServeMux()
+	healthMux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+	healthSrv := &http.Server{Addr: healthAddr, Handler: healthMux}
+	go func() {
+		if err := healthSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Warnw("health server error", "err", err)
+		}
+	}()
+
+	log.Infow("payment-service ready", "health", healthAddr)
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)

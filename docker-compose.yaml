@@ -97,13 +97,23 @@ services:
     restart: unless-stopped
 
   jaeger:
-    image: jaegertracing/all-in-one:1.49
+    image: jaegertracing/all-in-one:1.57
     ports:
-      - "127.0.0.1:16686:16686"
-      - "127.0.0.1:14268:14268"
-      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:16686:16686"   # UI
+      - "127.0.0.1:14268:14268"   # Thrift HTTP
+      - "127.0.0.1:4317:4317"     # OTLP gRPC (for otel-collector → jaeger)
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.150.1
+    ports:
+      - "127.0.0.1:4318:4318"   # OTLP HTTP — services connect here
+    volumes:
+      - ./infra/local/otel-collector.yaml:/etc/otelcol-contrib/config.yaml
+    depends_on:
+      - jaeger
     restart: unless-stopped
 
   # ── Application Services ──────────────────────────────────────────────────────
@@ -123,7 +133,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       APP_BASE_URL: ${APP_BASE_URL}
-      JAEGER_ENDPOINT: jaeger:4318
+      OTEL_COLLECTOR_ENDPOINT: otel-collector:4318
       ENVIRONMENT: development
       SMTP_HOST: ${SMTP_HOST}
       SMTP_PORT: ${SMTP_PORT}
@@ -149,7 +159,7 @@ services:
       MAPBOX_TOKEN: ${MAPBOX_TOKEN}
       SERVICE_REFERER: ${APP_BASE_URL:-http://localhost:8081}
       KAFKA_BROKERS: kafka:9092
-      JAEGER_ENDPOINT: jaeger:4318
+      OTEL_COLLECTOR_ENDPOINT: otel-collector:4318
       ENVIRONMENT: development
       DB_URL: postgres://drova:${POSTGRES_PASSWORD}@postgres:5432/drova?sslmode=disable&x-migrations-table=trip_schema_migrations
       MIGRATIONS_PATH: migrations
@@ -170,7 +180,9 @@ services:
     environment:
       GRPC_ADDR: ":9092"
       KAFKA_BROKERS: kafka:9092
-      JAEGER_ENDPOINT: jaeger:4318
+      REDIS_URL: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      OTEL_COLLECTOR_ENDPOINT: otel-collector:4318
       ENVIRONMENT: development
       DB_URL: postgres://drova:${POSTGRES_PASSWORD}@postgres:5432/drova?sslmode=disable&x-migrations-table=driver_schema_migrations
       MIGRATIONS_PATH: migrations
@@ -178,6 +190,8 @@ services:
       kafka:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: on-failure
 
@@ -187,7 +201,7 @@ services:
       dockerfile: services/payment-service/Dockerfile
     environment:
       KAFKA_BROKERS: kafka:9092
-      JAEGER_ENDPOINT: jaeger:4318
+      OTEL_COLLECTOR_ENDPOINT: otel-collector:4318
       ENVIRONMENT: development
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
       STRIPE_CURRENCY: ${STRIPE_CURRENCY}
@@ -210,10 +224,10 @@ services:
       - "8084:8084"
     environment:
       HTTP_ADDR: ":8084"
-      MONGO_URI: ${MONGO_URI}
+      MONGO_URI: mongodb://${MONGO_USERNAME}:${MONGO_PASSWORD}@mongodb:27017/drova?authSource=admin
       JWT_SECRET: ${JWT_SECRET}
       ENVIRONMENT: development
-      JAEGER_ENDPOINT: jaeger:4318
+      OTEL_COLLECTOR_ENDPOINT: otel-collector:4318
       REDIS_URL: redis:6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     depends_on:
@@ -239,7 +253,7 @@ services:
       KAFKA_BROKERS: kafka:9092
       STRIPE_WEBHOOK_KEY: ${STRIPE_WEBHOOK_KEY}
       STRIPE_PUBLIC_KEY: ${STRIPE_PUBLIC_KEY}
-      JAEGER_ENDPOINT: jaeger:4318
+      OTEL_COLLECTOR_ENDPOINT: otel-collector:4318
       ENVIRONMENT: development
       JWT_SECRET: ${JWT_SECRET}
       REDIS_URL: redis:6379

@@ -17,8 +17,10 @@ import (
 	"drova/shared/tracing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	grpcserver "google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 )
 
 var (
@@ -37,7 +39,7 @@ func main() {
 	stopTracer, err := tracing.InitTracer(tracing.Config{
 		ServiceName:    "driver-service",
 		Environment:    env.GetString("ENVIRONMENT", "development"),
-		JaegerEndpoint: env.GetString("JAEGER_ENDPOINT", "jaeger:4318"),
+		OtelCollectorEndpoint: env.GetString("OTEL_COLLECTOR_ENDPOINT", ""),
 	})
 	if err != nil {
 		appLog.Warnw("tracing init failed", zap.Error(err))
@@ -81,13 +83,23 @@ func main() {
 		appLog.Fatalw("migrations", zap.Error(err))
 	}
 
+	rdb := newRedisClient(
+		env.GetString("REDIS_URL", "redis:6379"),
+		env.GetString("REDIS_PASSWORD", ""),
+	)
+
 	pgStore := store.NewPostgresStore(db)
-	svc := NewService(pgStore)
+	svc := NewService(pgStore, rdb)
 
 	consumer := NewTripConsumer(kafka, svc)
 	consumer.Start(ctx)
 
-	grpcServer := grpcserver.NewServer(tracing.WithTracingInterceptors()...)
+	grpcServer := grpcserver.NewServer(append(tracing.WithTracingInterceptors(),
+		grpcserver.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime:             30 * time.Second,
+			PermitWithoutStream: true,
+		}),
+	)...)
 	NewGrpcHandler(grpcServer, svc, consumer)
 
 	appLog.Infow("driver-service ready", "addr", grpcAddr)
@@ -102,6 +114,19 @@ func main() {
 	<-ctx.Done()
 	appLog.Infow("driver-service shutting down")
 	grpcServer.GracefulStop()
+}
+
+func newRedisClient(addr, password string) *redis.Client {
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     addr,
+		Password: password,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		appLog.Fatalw("redis connect failed", "err", err)
+	}
+	return rdb
 }
 
 func pgxURL(dbURL string) string {
