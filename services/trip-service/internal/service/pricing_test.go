@@ -13,6 +13,10 @@ import (
 
 var errNotFound = errors.New("not found")
 
+type noopUsers struct{}
+
+func (n *noopUsers) GetRiderInfo(_ context.Context, _ string) (string, string) { return "", "" }
+
 type fakeRepo struct {
 	fares map[string]*domain.RideFareModel
 	trips map[string]*domain.TripModel
@@ -106,11 +110,11 @@ func route(distanceM, durationS float64) *tripTypes.MapboxRouteResponse {
 func TestEstimateFareRoute(t *testing.T) {
 	tests := []struct {
 		name      string
-		base      float64
+		base      int64
 		slug      string
 		distanceM float64
 		durationS float64
-		wantCents float64
+		wantCents int64
 	}{
 		{
 			name:      "economy 10km 10min",
@@ -144,7 +148,7 @@ func TestEstimateFareRoute(t *testing.T) {
 			got := estimateFareRoute(fare, route(tc.distanceM, tc.durationS))
 
 			if got.TotalPriceInCents != tc.wantCents {
-				t.Errorf("want %.0f cents, got %.0f cents", tc.wantCents, got.TotalPriceInCents)
+				t.Errorf("want %d cents, got %d cents", tc.wantCents, got.TotalPriceInCents)
 			}
 			if got.PackageSlug != tc.slug {
 				t.Errorf("want slug %q, got %q", tc.slug, got.PackageSlug)
@@ -154,7 +158,7 @@ func TestEstimateFareRoute(t *testing.T) {
 }
 
 func TestEstimatePackagesPriceWithRoute_AllPackages(t *testing.T) {
-	svc := NewService(newFakeRepo())
+	svc := NewService(newFakeRepo(), &noopUsers{})
 	fares := svc.EstimatePackagesPriceWithRoute(route(10_000, 600))
 
 	wantPackages := []string{"economy", "comfort", "van", "business"}
@@ -166,18 +170,18 @@ func TestEstimatePackagesPriceWithRoute_AllPackages(t *testing.T) {
 			t.Errorf("position %d: want %q, got %q", i, want, fares[i].PackageSlug)
 		}
 		if fares[i].TotalPriceInCents <= 0 {
-			t.Errorf("package %q: price must be positive, got %.0f", want, fares[i].TotalPriceInCents)
+			t.Errorf("package %q: price must be positive, got %d", want, fares[i].TotalPriceInCents)
 		}
 	}
 }
 
 func TestEstimatePackagesPriceWithRoute_PriceOrdering(t *testing.T) {
-	svc := NewService(newFakeRepo())
+	svc := NewService(newFakeRepo(), &noopUsers{})
 	fares := svc.EstimatePackagesPriceWithRoute(route(10_000, 600))
 
 	for i := 1; i < len(fares); i++ {
 		if fares[i].TotalPriceInCents <= fares[i-1].TotalPriceInCents {
-			t.Errorf("expected ascending prices: %s (%.0f) should cost more than %s (%.0f)",
+			t.Errorf("expected ascending prices: %s (%d) should cost more than %s (%d)",
 				fares[i].PackageSlug, fares[i].TotalPriceInCents,
 				fares[i-1].PackageSlug, fares[i-1].TotalPriceInCents,
 			)
@@ -187,7 +191,7 @@ func TestEstimatePackagesPriceWithRoute_PriceOrdering(t *testing.T) {
 
 func TestGetAndValidateFare(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo)
+	svc := NewService(repo, &noopUsers{})
 
 	validFare := &domain.RideFareModel{
 		ID:        "fare-1",

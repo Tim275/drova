@@ -25,8 +25,21 @@ import (
 )
 
 func main() {
-	log := logger.New(env.GetString("ENVIRONMENT", "development"))
+	envStr := env.GetString("ENVIRONMENT", "development")
+
+	stopTracer, tracerErr := tracing.InitTracer(tracing.Config{
+		ServiceName:           "payment-service",
+		Environment:           envStr,
+		OtelCollectorEndpoint: env.GetString("OTEL_COLLECTOR_ENDPOINT", ""),
+	})
+	defer stopTracer(context.Background())
+
+	log := logger.New(envStr, "payment-service")
 	defer log.Sync()
+
+	if tracerErr != nil {
+		log.Warnw("tracing init failed", zap.Error(tracerErr))
+	}
 
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
 		if err := runMigrations(
@@ -43,17 +56,6 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	stopTracer, err := tracing.InitTracer(tracing.Config{
-		ServiceName:    "payment-service",
-		Environment:    env.GetString("ENVIRONMENT", "development"),
-		OtelCollectorEndpoint: env.GetString("OTEL_COLLECTOR_ENDPOINT", ""),
-	})
-	if err != nil {
-		log.Warnw("tracing init failed", zap.Error(err))
-	} else {
-		defer stopTracer(ctx)
-	}
 
 	cfg := &types.PaymentConfig{
 		StripeSecretKey: env.GetString("STRIPE_SECRET_KEY", ""),
@@ -101,7 +103,7 @@ func main() {
 	healthAddr := env.GetString("HEALTH_ADDR", ":8085")
 	healthMux := http.NewServeMux()
 	healthMux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
-	healthSrv := &http.Server{Addr: healthAddr, Handler: healthMux}
+	healthSrv := &http.Server{Addr: healthAddr, Handler: healthMux, ReadHeaderTimeout: 10 * time.Second}
 	go func() {
 		if err := healthSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Warnw("health server error", "err", err)

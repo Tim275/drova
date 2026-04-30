@@ -29,7 +29,7 @@ var appLog *zap.SugaredLogger
 var gatewayRdb *redis.Client
 
 func main() {
-	appLog = logger.New(env.GetString("ENVIRONMENT", "development"))
+	appLog = logger.New(env.GetString("ENVIRONMENT", "development"), "api-gateway")
 	defer appLog.Sync()
 
 	appLog.Infow("api-gateway starting")
@@ -79,6 +79,7 @@ func main() {
 		defer gatewayRdb.Close()
 	}
 
+	grpc_clients.InitBreakers(appLog)
 	if err := grpc_clients.InitSharedClients(); err != nil {
 		appLog.Warnw("grpc clients init", zap.Error(err))
 	} else {
@@ -112,7 +113,7 @@ func main() {
 	mux.Handle("POST /trip/start", tracing.WrapHandlerFunc(enableCORS(requireAuth(handleTripStart)), "POST /trip/start"))
 	mux.HandleFunc("OPTIONS /trip/start", enableCORS(handleOptions))
 	mux.HandleFunc("GET /trips/history", enableCORS(requireAuth(handleTripHistory)))
-	mux.HandleFunc("GET /trips/driver-history", enableCORS(handleDriverHistory))
+	mux.HandleFunc("GET /trips/driver-history", enableCORS(requireAuth(handleDriverHistory)))
 	mux.Handle("POST /trip/rate", tracing.WrapHandlerFunc(enableCORS(requireAuth(handleTripRate)), "POST /trip/rate"))
 	mux.HandleFunc("OPTIONS /trip/rate", enableCORS(handleOptions))
 

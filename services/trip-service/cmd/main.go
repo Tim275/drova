@@ -11,17 +11,21 @@ import (
 	"time"
 
 	grpcHandler "drova/services/trip-service/internal/infrastructure/grpc"
+	"drova/services/trip-service/internal/domain"
 	"drova/services/trip-service/internal/infrastructure/events"
+	"drova/services/trip-service/internal/infrastructure/grpc/userinfo"
 	"drova/services/trip-service/internal/infrastructure/repository"
 	"drova/services/trip-service/internal/service"
 	"drova/shared/env"
 	"drova/shared/logger"
 	"drova/shared/messaging"
 	"drova/shared/tracing"
+	pbu "drova/shared/proto/user"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 	grpcserver "google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -30,14 +34,14 @@ var (
 )
 
 func main() {
-	log := logger.New(env.GetString("ENVIRONMENT", "development"))
+	log := logger.New(env.GetString("ENVIRONMENT", "development"), "trip-service")
 	defer log.Sync()
 
 	log.Infow("trip-service starting")
 
 	stopTracer, err := tracing.InitTracer(tracing.Config{
-		ServiceName:    "trip-service",
-		Environment:    env.GetString("ENVIRONMENT", "development"),
+		ServiceName:           "trip-service",
+		Environment:           env.GetString("ENVIRONMENT", "development"),
 		OtelCollectorEndpoint: env.GetString("OTEL_COLLECTOR_ENDPOINT", ""),
 	})
 	if err != nil {
@@ -70,10 +74,25 @@ func main() {
 		log.Fatalw("migrations", zap.Error(err))
 	}
 
+	userGRPCURL := env.GetString("USER_SERVICE_GRPC_URL", "user-service:9091")
+	userConn, err := grpcserver.NewClient(userGRPCURL,
+		grpcserver.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		log.Warnw("user service grpc dial failed, rider info will be empty", "err", err)
+	}
+	var userInfoProvider domain.UserInfoProvider
+	if userConn != nil {
+		defer userConn.Close()
+		userInfoProvider = userinfo.New(pbu.NewUserServiceClient(userConn))
+	} else {
+		userInfoProvider = &noopUserInfo{}
+	}
+
 	publisher := events.NewTripEventPublisher(kafka, log)
 
 	pgRepo := repository.NewPostgresRepository(db)
-	svc := service.NewService(pgRepo)
+	svc := service.NewService(pgRepo, userInfoProvider)
 
 	driverConsumer := events.NewDriverConsumer(kafka, svc, log)
 	paymentConsumer := events.NewPaymentConsumer(kafka, svc, log)
@@ -108,6 +127,11 @@ func main() {
 
 	grpcSrv.GracefulStop()
 }
+
+// noopUserInfo is used when user-service gRPC is unavailable at startup
+type noopUserInfo struct{}
+
+func (n *noopUserInfo) GetRiderInfo(_ context.Context, _ string) (string, string) { return "", "" }
 
 func pgxURL(dbURL string) string {
 	u, err := url.Parse(dbURL)

@@ -15,7 +15,7 @@ type RideFareModel struct {
 	RiderName         string
 	RiderAvatar       string
 	PackageSlug       string
-	TotalPriceInCents float64
+	TotalPriceInCents int64
 	Route             *tripTypes.MapboxRouteResponse
 	ExpiresAt         time.Time
 }

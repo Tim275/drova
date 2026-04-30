@@ -4,9 +4,12 @@ import (
 	"context"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -17,7 +20,7 @@ import (
 type Config struct {
 	ServiceName           string
 	Environment           string
-	OtelCollectorEndpoint string // OTLP/HTTP endpoint, e.g. otel-collector-collector.opentelemetry:4318
+	OtelCollectorEndpoint string
 }
 
 func InitTracer(cfg Config) (func(context.Context), error) {
@@ -61,10 +64,26 @@ func InitTracer(cfg Config) (func(context.Context), error) {
 		otel.SetMeterProvider(mp)
 	}
 
+	logExp, err := otlploghttp.New(context.Background(),
+		otlploghttp.WithEndpoint(cfg.OtelCollectorEndpoint),
+		otlploghttp.WithInsecure(),
+	)
+	var lp *log.LoggerProvider
+	if err == nil {
+		lp = log.NewLoggerProvider(
+			log.WithProcessor(log.NewBatchProcessor(logExp)),
+			log.WithResource(res),
+		)
+		global.SetLoggerProvider(lp)
+	}
+
 	return func(ctx context.Context) {
 		tp.Shutdown(ctx)
 		if mp != nil {
 			mp.Shutdown(ctx)
+		}
+		if lp != nil {
+			lp.Shutdown(ctx)
 		}
 	}, nil
 }

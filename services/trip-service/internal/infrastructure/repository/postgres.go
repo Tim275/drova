@@ -50,7 +50,7 @@ func (r *pgRepository) GetRideFareByID(ctx context.Context, id string) (*domain.
 		return nil, fmt.Errorf("fare %s not found", id)
 	}
 	if routeJSON != nil {
-		json.Unmarshal(routeJSON, &f.Route)
+		_ = json.Unmarshal(routeJSON, &f.Route)
 	}
 	return &f, nil
 }
@@ -58,7 +58,7 @@ func (r *pgRepository) GetRideFareByID(ctx context.Context, id string) (*domain.
 func (r *pgRepository) GetTripByID(ctx context.Context, id string) (*domain.TripModel, error) {
 	var t domain.TripModel
 	var fareID, fareUserID, farePackage pgtype.Text
-	var farePriceCents pgtype.Float8
+	var farePriceCents pgtype.Int8
 	var fareRouteJSON []byte
 	err := r.db.QueryRow(ctx, `
 		SELECT t.id, t.user_id, t.status,
@@ -66,7 +66,7 @@ func (r *pgRepository) GetTripByID(ctx context.Context, id string) (*domain.Trip
 		       COALESCE(t.driver_plate,''), COALESCE(t.driver_avatar,''),
 		       COALESCE(t.rating,0),
 		       EXTRACT(EPOCH FROM t.created_at)::BIGINT,
-		       f.id, f.user_id, f.package_slug, f.total_price_cents, f.route
+		       f.id, f.user_id, f.package_slug, f.total_price_cents::BIGINT, f.route
 		FROM trips t
 		LEFT JOIN ride_fares f ON f.id = t.fare_id
 		WHERE t.id = $1`, id,
@@ -75,17 +75,17 @@ func (r *pgRepository) GetTripByID(ctx context.Context, id string) (*domain.Trip
 		&t.Rating, &t.CreatedAt,
 		&fareID, &fareUserID, &farePackage, &farePriceCents, &fareRouteJSON)
 	if err != nil {
-		return nil, nil
+		return nil, domain.ErrNotFound
 	}
 	if fareID.Valid {
 		f := &domain.RideFareModel{
 			ID:                fareID.String,
 			UserID:            fareUserID.String,
 			PackageSlug:       farePackage.String,
-			TotalPriceInCents: farePriceCents.Float64,
+			TotalPriceInCents: farePriceCents.Int64,
 		}
 		if fareRouteJSON != nil {
-			json.Unmarshal(fareRouteJSON, &f.Route)
+			_ = json.Unmarshal(fareRouteJSON, &f.Route)
 		}
 		t.Fare = f
 	}
@@ -151,7 +151,7 @@ func (r *pgRepository) GetTripsByUser(ctx context.Context, userID string) ([]*do
 		       COALESCE(t.driver_plate,''), COALESCE(t.driver_avatar,''),
 		       COALESCE(t.rating,0),
 		       EXTRACT(EPOCH FROM t.created_at)::BIGINT,
-		       COALESCE(f.id,''), COALESCE(f.package_slug,''), COALESCE(f.total_price_cents,0)
+		       COALESCE(f.id,''), COALESCE(f.package_slug,''), COALESCE(f.total_price_cents,0)::BIGINT
 		FROM trips t
 		LEFT JOIN ride_fares f ON f.id = t.fare_id
 		WHERE t.user_id=$1 ORDER BY t.created_at DESC`, userID,
@@ -164,8 +164,8 @@ func (r *pgRepository) GetTripsByUser(ctx context.Context, userID string) ([]*do
 	for rows.Next() {
 		var t domain.TripModel
 		var fareID, farePackage string
-		var farePriceCents float64
-		rows.Scan(&t.ID, &t.UserID, &t.Status,
+		var farePriceCents int64
+		_ = rows.Scan(&t.ID, &t.UserID, &t.Status,
 			&t.DriverID, &t.DriverName, &t.DriverPlate, &t.DriverAvatar,
 			&t.Rating, &t.CreatedAt,
 			&fareID, &farePackage, &farePriceCents)
@@ -186,7 +186,7 @@ func (r *pgRepository) GetTripsByDriver(ctx context.Context, driverID string) ([
 		SELECT t.id, t.user_id, t.status,
 		       COALESCE(t.rider_name,''), COALESCE(t.rider_avatar,''),
 		       EXTRACT(EPOCH FROM t.created_at)::BIGINT,
-		       COALESCE(f.id,''), COALESCE(f.package_slug,''), COALESCE(f.total_price_cents,0)
+		       COALESCE(f.id,''), COALESCE(f.package_slug,''), COALESCE(f.total_price_cents,0)::BIGINT
 		FROM trips t
 		LEFT JOIN ride_fares f ON f.id = t.fare_id
 		WHERE t.driver_id=$1 ORDER BY t.created_at DESC`, driverID,
@@ -199,8 +199,8 @@ func (r *pgRepository) GetTripsByDriver(ctx context.Context, driverID string) ([
 	for rows.Next() {
 		var t domain.TripModel
 		var fareID, farePackage string
-		var farePriceCents float64
-		rows.Scan(&t.ID, &t.UserID, &t.Status,
+		var farePriceCents int64
+		_ = rows.Scan(&t.ID, &t.UserID, &t.Status,
 			&t.RiderName, &t.RiderAvatar,
 			&t.CreatedAt,
 			&fareID, &farePackage, &farePriceCents)

@@ -36,7 +36,7 @@ var upgrader = websocket.Upgrader{
 }
 
 func main() {
-	appLog = logger.New(env.GetString("ENVIRONMENT", "development"))
+	appLog = logger.New(env.GetString("ENVIRONMENT", "development"), "chat-service")
 	defer appLog.Sync()
 
 	stopTracer, tracerErr := tracing.InitTracer(tracing.Config{

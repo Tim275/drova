@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"time"
 
@@ -21,11 +22,12 @@ var mapboxToken = env.GetString("MAPBOX_TOKEN", "")
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 type service struct {
-	repo domain.TripRepository
+	repo  domain.TripRepository
+	users domain.UserInfoProvider
 }
 
-func NewService(repo domain.TripRepository) domain.TripService {
-	return &service{repo: repo}
+func NewService(repo domain.TripRepository, users domain.UserInfoProvider) domain.TripService {
+	return &service{repo: repo, users: users}
 }
 
 func (s *service) CreateTrip(ctx context.Context, fare *domain.RideFareModel) (*domain.TripModel, error) {
@@ -87,7 +89,7 @@ func (s *service) EstimatePackagesPriceWithRoute(route *tripTypes.MapboxRouteRes
 }
 
 func (s *service) GenerateTripFares(ctx context.Context, rideFares []*domain.RideFareModel, userID string, route *tripTypes.MapboxRouteResponse) ([]*domain.RideFareModel, error) {
-	riderName, riderAvatar := fetchRiderInfo(ctx, userID)
+	riderName, riderAvatar := s.users.GetRiderInfo(ctx, userID)
 	fares := make([]*domain.RideFareModel, len(rideFares))
 	for i, f := range rideFares {
 		fare := &domain.RideFareModel{
@@ -154,10 +156,10 @@ func estimateFareRoute(f *domain.RideFareModel, route *tripTypes.MapboxRouteResp
 	cfg := tripTypes.DefaultPricingConfig()
 	distanceKm := route.Routes[0].Distance / 1000
 	durationMin := route.Routes[0].Duration / 60
-	total := f.TotalPriceInCents + distanceKm*cfg.PricePerUnitOfDistance + durationMin*cfg.PricingPerMinute
+	total := float64(f.TotalPriceInCents) + distanceKm*cfg.PricePerUnitOfDistance + durationMin*cfg.PricingPerMinute
 	return &domain.RideFareModel{
 		PackageSlug:       f.PackageSlug,
-		TotalPriceInCents: total,
+		TotalPriceInCents: int64(math.Round(total)),
 	}
 }
 
@@ -170,23 +172,3 @@ func getBaseFares() []*domain.RideFareModel {
 	}
 }
 
-func fetchRiderInfo(ctx context.Context, userID string) (name, avatar string) {
-	userSvcURL := env.GetString("USER_SERVICE_URL", "http://user-service:8082")
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, userSvcURL+"/v1/internal/users/"+userID, nil)
-	if err != nil {
-		return "", ""
-	}
-	resp, err := httpClient.Do(req)
-	if err != nil || resp.StatusCode != http.StatusOK {
-		return "", ""
-	}
-	defer resp.Body.Close()
-	var body struct {
-		DisplayName string `json:"display_name"`
-		AvatarURL   string `json:"avatar_url"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return "", ""
-	}
-	return body.DisplayName, body.AvatarURL
-}

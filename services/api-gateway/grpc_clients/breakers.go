@@ -1,13 +1,25 @@
 package grpc_clients
 
 import (
-	"log"
 	"time"
 
 	"github.com/sony/gobreaker"
+	"go.uber.org/zap"
 )
 
-func newBreaker(name string) *gobreaker.CircuitBreaker {
+var (
+	TripBreaker   *gobreaker.CircuitBreaker
+	DriverBreaker *gobreaker.CircuitBreaker
+	UserBreaker   *gobreaker.CircuitBreaker
+)
+
+func InitBreakers(log *zap.SugaredLogger) {
+	TripBreaker = newBreaker("trip-service", log)
+	DriverBreaker = newBreaker("driver-service", log)
+	UserBreaker = newBreaker("user-service", log)
+}
+
+func newBreaker(name string, log *zap.SugaredLogger) *gobreaker.CircuitBreaker {
 	return gobreaker.NewCircuitBreaker(gobreaker.Settings{
 		Name:        name,
 		MaxRequests: 2,
@@ -17,11 +29,7 @@ func newBreaker(name string) *gobreaker.CircuitBreaker {
 			return counts.ConsecutiveFailures >= 3
 		},
 		OnStateChange: func(name string, from, to gobreaker.State) {
-			log.Printf("[circuit-breaker] %s: %s → %s", name, from, to)
+			log.Warnw("circuit breaker state changed", "service", name, "from", from, "to", to)
 		},
 	})
 }
-
-var TripBreaker = newBreaker("trip-service")
-var DriverBreaker = newBreaker("driver-service")
-var UserBreaker = newBreaker("user-service")
