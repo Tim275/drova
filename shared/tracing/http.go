@@ -9,3 +9,7 @@ import (
 func WrapHandlerFunc(handler http.HandlerFunc, operation string) http.Handler {
 	return otelhttp.NewHandler(handler, operation)
 }
+
+func WrapHandler(handler http.Handler, operation string) http.Handler {
+	return otelhttp.NewHandler(handler, operation)
+}

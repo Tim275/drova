@@ -1199,8 +1199,11 @@
       navigator.geolocation.getCurrentPosition(
         onLocationSuccess,
         () => {
+          // All GPS attempts failed — use demo location so desktop/testing still works.
+          // Matching is slug-based, not proximity-based, so this is fine.
           if (btn) { btn.textContent = 'Go Online'; btn.disabled = false; }
-          alert('Could not get your location.\n\nMake sure location is enabled in your browser and OS settings.');
+          driverCurrentGPS = { latitude: 53.5511, longitude: 10.0028, accuracy: 999 };
+          _doGoOnline();
         },
         { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
       );
@@ -1265,8 +1268,7 @@
     btn.textContent = 'Calculating...';
 
     try {
-      pickupCoords      = await geocode(pickup);
-      destinationCoords = await geocode(destination);
+      [pickupCoords, destinationCoords] = await Promise.all([geocode(pickup), geocode(destination)]);
 
       const resp = await fetch('/trip/preview', {
         method: 'POST',
@@ -1429,6 +1431,11 @@
   let riderDriverMarker = null;
   let previousDriverPos = null;
   let carAnimationId = null;
+  // Dead Reckoning state — predicts driver position between Kafka updates at 60fps
+  let drLastPos = null;        // last real {lat, lng} received from Kafka
+  let drLastTime = null;       // performance.now() when drLastPos arrived
+  let drVelLat = 0;            // degrees lat per ms (velocity vector)
+  let drVelLng = 0;            // degrees lng per ms
   let preTripLocationTimer = null;
 
   function createCarMarkerElement() {
@@ -1450,19 +1457,46 @@
   }
 
   function animateCarMarker(toLng, toLat) {
-    if (carAnimationId) cancelAnimationFrame(carAnimationId);
-    const from = riderDriverMarker.getLngLat();
-    const startLng = from.lng, startLat = from.lat;
-    const startTime = performance.now();
-    const duration = 380;
-    function step(now) {
-      const t = Math.min((now - startTime) / duration, 1);
-      const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
-      riderDriverMarker.setLngLat([startLng + (toLng - startLng) * ease, startLat + (toLat - startLat) * ease]);
-      if (t < 1) carAnimationId = requestAnimationFrame(step);
-      else carAnimationId = null;
+    const now = performance.now();
+    const newPos = { lat: toLat, lng: toLng };
+
+    if (drLastPos && drLastTime) {
+      const dt = now - drLastTime;
+      if (dt > 0) {
+        // Velocity vector from the last two real positions (degrees per ms)
+        drVelLat = (newPos.lat - drLastPos.lat) / dt;
+        drVelLng = (newPos.lng - drLastPos.lng) / dt;
+      }
+    } else {
+      // Very first update — snap marker to real position immediately
+      if (riderDriverMarker) riderDriverMarker.setLngLat([toLng, toLat]);
     }
-    carAnimationId = requestAnimationFrame(step);
+
+    drLastPos = newPos;
+    drLastTime = now;
+
+    // Start the 60fps extrapolation loop (idempotent — only one loop runs at a time)
+    if (!carAnimationId) {
+      const loop = () => {
+        if (!riderDriverMarker || !drLastPos) { carAnimationId = requestAnimationFrame(loop); return; }
+        const elapsed = performance.now() - drLastTime;
+        if (elapsed < 2500) {
+          // Project forward from last known real position using current velocity vector
+          riderDriverMarker.setLngLat([
+            drLastPos.lng + drVelLng * elapsed,
+            drLastPos.lat + drVelLat * elapsed,
+          ]);
+        }
+        // After 2.5s without a new update the car stops extrapolating (trip paused/ended)
+        carAnimationId = requestAnimationFrame(loop);
+      };
+      carAnimationId = requestAnimationFrame(loop);
+    }
+  }
+
+  function stopDRLoop() {
+    if (carAnimationId) { cancelAnimationFrame(carAnimationId); carAnimationId = null; }
+    drLastPos = null; drLastTime = null; drVelLat = 0; drVelLng = 0;
   }
 
   function animateDriverMarker(toLng, toLat) {
@@ -1515,6 +1549,8 @@
       ? route.map(c => [c.lat, c.lng])
       : SIM_ROUTE;
 
+    // Target ~90s demo duration regardless of how many route points Mapbox returns
+    const tickMs = Math.max(150, Math.min(600, Math.floor(90000 / coords.length)));
     setStatus('Simulating (no GPS) — driving along route');
     const tick = () => {
       if (simRouteIndex >= coords.length) {
@@ -1528,7 +1564,7 @@
       sendLocation(lat, lng, riderID);
     };
     tick();
-    simulationInterval = setInterval(tick, 400);
+    simulationInterval = setInterval(tick, tickMs);
   }
 
   function startLocationUpdates(riderID, route) {
@@ -1579,7 +1615,8 @@
             .setLngLat([lng, lat])
             .addTo(driverMap);
           driverMap.easeTo({ center: [lng, lat], zoom: 14, duration: 800 });
-          setStatus(`Online as ${d.packageSlug} driver · GPS active`);
+          const gpsLabel = driverCurrentGPS.accuracy > 500 ? 'Demo location' : 'GPS active';
+          setStatus(`Online as ${d.packageSlug} driver · ${gpsLabel}`);
           prevSendLat = lat; prevSendLng = lng;
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'driver.cmd.location', data: { lat, lng, rider_id: '' } }));
@@ -1822,6 +1859,7 @@
     infoBox.textContent = '';
 
     if (ws) { ws.close(); ws = null; }
+    stopDRLoop();
     if (riderDriverMarker) { riderDriverMarker.remove(); }
     riderDriverMarker = null;
     previousDriverPos = null;
@@ -1846,6 +1884,18 @@
         dicAvatar.onerror = () => { dicAvatar.src = defaultAvatar(driverName); };
         card.style.display = 'block';
         document.getElementById('chatBtnRider').style.display = 'block';
+        // Show driver's car immediately on the map (Bolt/Uber style)
+        if (d.lat && d.lng) {
+          if (!riderDriverMarker) {
+            riderDriverMarker = new mapboxgl.Marker({ element: createCarMarkerElement(), anchor: 'center' })
+              .setLngLat([d.lng, d.lat])
+              .addTo(map);
+          } else {
+            riderDriverMarker.setLngLat([d.lng, d.lat]);
+          }
+          previousDriverPos = { lat: d.lat, lng: d.lng };
+          map.flyTo({ center: [d.lng, d.lat], zoom: 13, duration: 1500 });
+        }
       } else if (msg.type === 'trip.event.no_drivers_found') {
         activeTripID = null;
         activeTripDriverID = null;

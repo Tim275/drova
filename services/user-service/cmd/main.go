@@ -111,16 +111,15 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/health", app.handleHealth)
-	mux.HandleFunc("POST /v1/users/register", app.handleRegister)
-	mux.HandleFunc("GET /v1/users/activate/{token}", app.handleActivate)
-	mux.HandleFunc("POST /v1/auth/token", app.handleCreateToken)
-
-	mux.HandleFunc("GET /v1/internal/users/{id}", app.handleInternalGetUser)
+	mux.Handle("POST /v1/users/register", tracing.WrapHandlerFunc(app.handleRegister, "POST /v1/users/register"))
+	mux.Handle("GET /v1/users/activate/{token}", tracing.WrapHandlerFunc(app.handleActivate, "GET /v1/users/activate"))
+	mux.Handle("POST /v1/auth/token", tracing.WrapHandlerFunc(app.handleCreateToken, "POST /v1/auth/token"))
+	mux.Handle("GET /v1/internal/users/{id}", tracing.WrapHandlerFunc(app.handleInternalGetUser, "GET /v1/internal/users"))
 
 	protected := middleware.Authenticate(authenticator, blacklist)
-	mux.Handle("GET /v1/users/me", protected(http.HandlerFunc(app.handleGetMe)))
-	mux.Handle("PATCH /v1/users/profile", protected(http.HandlerFunc(app.handleUpdateProfile)))
-	mux.Handle("POST /v1/auth/logout", protected(http.HandlerFunc(app.handleLogout)))
+	mux.Handle("GET /v1/users/me", tracing.WrapHandler(protected(http.HandlerFunc(app.handleGetMe)), "GET /v1/users/me"))
+	mux.Handle("PATCH /v1/users/profile", tracing.WrapHandler(protected(http.HandlerFunc(app.handleUpdateProfile)), "PATCH /v1/users/profile"))
+	mux.Handle("POST /v1/auth/logout", tracing.WrapHandler(protected(http.HandlerFunc(app.handleLogout)), "POST /v1/auth/logout"))
 
 	handler := middleware.Metrics(middleware.RateLimit(rdb)(mux))
 

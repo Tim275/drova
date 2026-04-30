@@ -74,7 +74,7 @@ func main() {
 	rooms = NewRoomManager(rdb)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/ws/chat", handleChat)
+	mux.Handle("/ws/chat", tracing.WrapHandlerFunc(handleChat, "WS /ws/chat"))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
 
 	addr := env.GetString("HTTP_ADDR", ":8084")
