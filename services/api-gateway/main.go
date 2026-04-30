@@ -39,7 +39,7 @@ func main() {
 	stopTracer, err := tracing.InitTracer(tracing.Config{
 		ServiceName:    "api-gateway",
 		Environment:    env.GetString("ENVIRONMENT", "development"),
-		JaegerEndpoint: env.GetString("JAEGER_ENDPOINT", "jaeger:4318"),
+		OtelCollectorEndpoint: env.GetString("OTEL_COLLECTOR_ENDPOINT", ""),
 	})
 	if err != nil {
 		appLog.Warnw("tracing init failed", zap.Error(err))

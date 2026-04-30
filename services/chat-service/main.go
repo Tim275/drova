@@ -42,7 +42,7 @@ func main() {
 	stopTracer, tracerErr := tracing.InitTracer(tracing.Config{
 		ServiceName:    "chat-service",
 		Environment:    env.GetString("ENVIRONMENT", "development"),
-		JaegerEndpoint: env.GetString("JAEGER_ENDPOINT", "jaeger:4318"),
+		OtelCollectorEndpoint: env.GetString("OTEL_COLLECTOR_ENDPOINT", ""),
 	})
 	if tracerErr != nil {
 		appLog.Warnw("tracing init failed", zap.Error(tracerErr))
