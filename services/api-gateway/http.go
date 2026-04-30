@@ -92,14 +92,24 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var result interface{}
+	var businessErr error
 	_, err := grpc_clients.TripBreaker.Execute(func() (interface{}, error) {
 		preview, err := grpc_clients.TripClient.PreviewTrip(r.Context(), reqBody.toProto())
 		if err != nil {
+			if !grpc_clients.IsBreakerError(err) {
+				businessErr = err
+				return nil, nil
+			}
 			return nil, err
 		}
 		result = preview
 		return nil, nil
 	})
+	if businessErr != nil {
+		appLog.Warnw("preview trip: no route", zap.Error(businessErr))
+		http.Error(w, "no route found for the given locations", http.StatusBadRequest)
+		return
+	}
 	if err != nil {
 		if err == gobreaker.ErrOpenState {
 			appLog.Warnw("trip service circuit open")
