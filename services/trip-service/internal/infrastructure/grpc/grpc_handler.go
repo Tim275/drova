@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"drova/services/trip-service/internal/domain"
@@ -149,6 +150,9 @@ func (h *gRPCHandler) PreviewTrip(ctx context.Context, req *pb.PreviewTripReques
 	route, err := h.service.GetRoute(ctx, pickup, destination)
 	if err != nil {
 		h.log.Warnw("get route failed", zap.Error(err))
+		if strings.Contains(err.Error(), "no route") {
+			return nil, status.Errorf(codes.InvalidArgument, "no route found between the given locations")
+		}
 		return nil, status.Errorf(codes.Internal, "failed to get route: %v", err)
 	}
 

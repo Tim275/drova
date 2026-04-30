@@ -5,7 +5,27 @@ import (
 
 	"github.com/sony/gobreaker"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
+
+// IsBreakerError returns true only for infrastructure failures (timeouts, unavailable).
+// Business errors like InvalidArgument or NotFound should not trip the breaker.
+func IsBreakerError(err error) bool {
+	if err == nil {
+		return false
+	}
+	st, ok := status.FromError(err)
+	if !ok {
+		return true
+	}
+	switch st.Code() {
+	case codes.InvalidArgument, codes.NotFound, codes.AlreadyExists,
+		codes.PermissionDenied, codes.Unauthenticated, codes.Canceled:
+		return false
+	}
+	return true
+}
 
 var (
 	TripBreaker   *gobreaker.CircuitBreaker
