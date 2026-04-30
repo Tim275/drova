@@ -224,6 +224,12 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 	driverConnManager.Add(userID, conn)
 	defer driverConnManager.Remove(userID)
 
+	var lastDriverLat, lastDriverLng float64
+	if driverData.Driver != nil && driverData.Driver.Location != nil {
+		lastDriverLat = driverData.Driver.Location.Latitude
+		lastDriverLng = driverData.Driver.Location.Longitude
+	}
+
 	if err := driverConnManager.SendMessage(userID, contracts.WSMessage{
 		Type: contracts.DriverCmdRegister,
 		Data: driverData.Driver,
@@ -254,6 +260,8 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 				appLog.Warnw("unmarshal location", zap.Error(err))
 				continue
 			}
+			lastDriverLat = locData.Lat
+			lastDriverLng = locData.Lng
 			appLog.Debugw("location update", "driver", userID, "lat", locData.Lat, "lng", locData.Lng, "rider", locData.RiderID)
 			if locationStream != nil {
 				if err := locationStream.Send(&pb.LocationUpdate{
@@ -297,6 +305,8 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 					Name:           driverData.Driver.Name,
 					ProfilePicture: driverData.Driver.ProfilePicture,
 					CarPlate:       driverData.Driver.CarPlate,
+					Lat:            lastDriverLat,
+					Lng:            lastDriverLng,
 				},
 				TripID:  acceptData.TripID,
 				RiderID: acceptData.RiderID,

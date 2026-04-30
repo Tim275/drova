@@ -30,10 +30,12 @@ type TripCreatedEvent struct {
 }
 
 type DriverInfo struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	ProfilePicture string `json:"profile_picture"`
-	CarPlate       string `json:"car_plate"`
+	ID             string  `json:"id"`
+	Name           string  `json:"name"`
+	ProfilePicture string  `json:"profile_picture"`
+	CarPlate       string  `json:"car_plate"`
+	Lat            float64 `json:"lat,omitempty"`
+	Lng            float64 `json:"lng,omitempty"`
 }
 
 type DriverTripAcceptData struct {
