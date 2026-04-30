@@ -2,11 +2,14 @@ package domain
 
 import (
 	"context"
+	"errors"
 
 	tripTypes "drova/services/trip-service/pkg/types"
 	pbd "drova/shared/proto/driver"
 	"drova/shared/types"
 )
+
+var ErrNotFound = errors.New("not found")
 
 type TripModel struct {
 	ID           string
@@ -34,6 +37,10 @@ type TripRepository interface {
 	GetTripsByUser(ctx context.Context, userID string) ([]*TripModel, error)
 	GetTripsByDriver(ctx context.Context, driverID string) ([]*TripModel, error)
 	RateTrip(ctx context.Context, tripID string, rating int) error
+}
+
+type UserInfoProvider interface {
+	GetRiderInfo(ctx context.Context, userID string) (name, avatar string)
 }
 
 type TripService interface {

@@ -36,7 +36,7 @@ type application struct {
 }
 
 func main() {
-	log := logger.New(env.GetString("ENVIRONMENT", "development"))
+	log := logger.New(env.GetString("ENVIRONMENT", "development"), "user-service")
 	defer log.Sync()
 
 	stopTracer, err := tracing.InitTracer(tracing.Config{
@@ -87,7 +87,7 @@ func main() {
 	}
 
 	if env.GetString("SEED", "") == "true" {
-		store.Seed(context.Background(), db)
+		store.Seed(context.Background(), db, log)
 	}
 
 	m := mailer.New(
@@ -118,8 +118,6 @@ func main() {
 	mux.Handle("POST /v1/users/register", tracing.WrapHandlerFunc(app.handleRegister, "POST /v1/users/register"))
 	mux.Handle("GET /v1/users/activate/{token}", tracing.WrapHandlerFunc(app.handleActivate, "GET /v1/users/activate"))
 	mux.Handle("POST /v1/auth/token", tracing.WrapHandlerFunc(app.handleCreateToken, "POST /v1/auth/token"))
-	mux.Handle("GET /v1/internal/users/{id}", tracing.WrapHandlerFunc(app.handleInternalGetUser, "GET /v1/internal/users"))
-
 	protected := middleware.Authenticate(authenticator, blacklist)
 	mux.Handle("GET /v1/users/me", tracing.WrapHandler(protected(http.HandlerFunc(app.handleGetMe)), "GET /v1/users/me"))
 	mux.Handle("PATCH /v1/users/profile", tracing.WrapHandler(protected(http.HandlerFunc(app.handleUpdateProfile)), "PATCH /v1/users/profile"))

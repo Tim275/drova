@@ -47,7 +47,7 @@ func (c *TripConsumer) handleFindAndNotifyDrivers(ctx context.Context, payload [
 
 	appLog.Infow("trip search", "tripID", event.TripID, "package", event.PackageSlug, "type", msg.Type)
 
-	drivers := c.service.FindAvailableDrivers(event.PackageSlug, event.Pickup.Lat, event.Pickup.Lng, event.ExcludeDriverIDs)
+	drivers := c.service.FindAvailableDrivers(ctx, event.PackageSlug, event.Pickup.Lat, event.Pickup.Lng, event.ExcludeDriverIDs)
 	if len(drivers) == 0 {
 		appLog.Infow("no drivers available, queuing trip", "package", event.PackageSlug, "rider", event.UserID, "trip", event.TripID)
 		c.waiting.Store(event.TripID, event)
@@ -61,7 +61,7 @@ func (c *TripConsumer) handleFindAndNotifyDrivers(ctx context.Context, payload [
 		return err
 	}
 
-	c.service.SetBusy(picked.Id, event.TripID)
+	c.service.SetBusy(ctx, picked.Id, event.TripID)
 	pi := pendingInfo{event: event, driverID: picked.Id}
 	c.pending.Store(event.TripID, pi)
 
@@ -85,7 +85,7 @@ func (c *TripConsumer) startResponseTimer(ctx context.Context, tripID, driverID 
 		return
 	}
 	appLog.Infow("driver timed out", "driver", driverID, "trip", tripID)
-	c.service.ClearBusy(driverID)
+	c.service.ClearBusy(ctx, driverID)
 	event.ExcludeDriverIDs = append(event.ExcludeDriverIDs, driverID)
 	_ = c.publishRetry(ctx, event)
 }
@@ -101,7 +101,7 @@ func (c *TripConsumer) handleDriverResponse(ctx context.Context, payload []byte)
 	}
 	c.pending.Delete(data.TripID) // stop the 15s response timer
 	if msg.Type == "driver.cmd.trip_decline" {
-		c.service.ClearBusy(data.Driver.ID)
+		c.service.ClearBusy(ctx, data.Driver.ID)
 	}
 	return nil
 }
@@ -118,12 +118,12 @@ func (c *TripConsumer) handleTripCancelled(ctx context.Context, payload []byte) 
 	c.waiting.Delete(data.TripID)
 	if val, loaded := c.pending.LoadAndDelete(data.TripID); loaded {
 		pi := val.(pendingInfo)
-		c.service.ClearBusy(pi.driverID)
+		c.service.ClearBusy(ctx, pi.driverID)
 		appLog.Infow("trip cancelled (pre-accept)", "trip", data.TripID, "driver", pi.driverID)
 		return nil
 	}
 	if data.DriverID != "" {
-		c.service.ClearBusy(data.DriverID)
+		c.service.ClearBusy(ctx, data.DriverID)
 		appLog.Infow("trip cancelled (post-accept)", "trip", data.TripID, "driver", data.DriverID)
 	}
 	return nil
@@ -139,7 +139,7 @@ func (c *TripConsumer) handleTripCompleted(ctx context.Context, payload []byte) 
 		return nil
 	}
 	if data.DriverID != "" {
-		c.service.ClearBusy(data.DriverID)
+		c.service.ClearBusy(ctx, data.DriverID)
 		appLog.Infow("trip completed, driver freed", "trip", data.TripID, "driver", data.DriverID)
 	}
 	return nil
@@ -151,7 +151,7 @@ func (c *TripConsumer) TryMatchWaiting(ctx context.Context, packageSlug string, 
 		if event.PackageSlug != packageSlug {
 			return true
 		}
-		drivers := c.service.FindAvailableDrivers(event.PackageSlug, event.Pickup.Lat, event.Pickup.Lng, event.ExcludeDriverIDs)
+		drivers := c.service.FindAvailableDrivers(ctx, event.PackageSlug, event.Pickup.Lat, event.Pickup.Lng, event.ExcludeDriverIDs)
 		if len(drivers) == 0 {
 			return true
 		}
@@ -163,7 +163,7 @@ func (c *TripConsumer) TryMatchWaiting(ctx context.Context, packageSlug string, 
 			c.waiting.Store(key, event)
 			return true
 		}
-		c.service.SetBusy(picked.Id, event.TripID)
+		c.service.SetBusy(ctx, picked.Id, event.TripID)
 		c.pending.Store(event.TripID, pendingInfo{event: event, driverID: picked.Id})
 		go c.startResponseTimer(ctx, event.TripID, picked.Id, event)
 		return true

@@ -1,11 +1,13 @@
 package main
 
 import (
-	math "math/rand/v2"
 	"context"
+	math "math/rand/v2"
 
 	"github.com/mmcloughlin/geohash"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
+
 	pb "drova/shared/proto/driver"
 	"drova/shared/util"
 )
@@ -17,10 +19,11 @@ type DriverStore interface {
 type Service struct {
 	store DriverStore
 	rdb   *redis.Client
+	log   *zap.SugaredLogger
 }
 
-func NewService(store DriverStore, rdb *redis.Client) *Service {
-	return &Service{store: store, rdb: rdb}
+func NewService(store DriverStore, rdb *redis.Client, log *zap.SugaredLogger) *Service {
+	return &Service{store: store, rdb: rdb, log: log}
 }
 
 const maxRadiusKm = 25.0
@@ -33,9 +36,7 @@ func driverKey(driverID string) string {
 	return "drova:driver:" + driverID
 }
 
-func (s *Service) RegisterDriver(driverID, packageSlug, name string) (*pb.Driver, error) {
-	ctx := context.Background()
-
+func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, name string) (*pb.Driver, error) {
 	randomIndex := math.IntN(len(PredefinedRoutes))
 	randomRoute := PredefinedRoutes[randomIndex]
 	randomPlate := GenerateRandomPlate()
@@ -57,21 +58,20 @@ func (s *Service) RegisterDriver(driverID, packageSlug, name string) (*pb.Driver
 		CarPlate:       randomPlate,
 	}
 
+	// Update driver metadata but preserve busy state (HSETNX only sets if key doesn't exist)
 	s.rdb.HSet(ctx, driverKey(driverID),
 		"name", name,
 		"plate", randomPlate,
 		"avatar", randomAvatar,
 		"packageSlug", packageSlug,
-		"busy", "",
 	)
+	s.rdb.HSetNX(ctx, driverKey(driverID), "busy", "")
 
 	s.store.Upsert(ctx, driver)
 	return driver, nil
 }
 
-func (s *Service) FindAvailableDrivers(packageSlug string, pickupLat, pickupLng float64, excludeIDs []string) []*pb.Driver {
-	ctx := context.Background()
-
+func (s *Service) FindAvailableDrivers(ctx context.Context, packageSlug string, pickupLat, pickupLng float64, excludeIDs []string) []*pb.Driver {
 	excluded := make(map[string]struct{}, len(excludeIDs))
 	for _, id := range excludeIDs {
 		excluded[id] = struct{}{}
@@ -115,16 +115,15 @@ func (s *Service) FindAvailableDrivers(packageSlug string, pickupLat, pickupLng 
 	return drivers
 }
 
-func (s *Service) SetBusy(driverID, tripID string) {
-	s.rdb.HSet(context.Background(), driverKey(driverID), "busy", tripID)
+func (s *Service) SetBusy(ctx context.Context, driverID, tripID string) {
+	s.rdb.HSet(ctx, driverKey(driverID), "busy", tripID)
 }
 
-func (s *Service) ClearBusy(driverID string) {
-	s.rdb.HSet(context.Background(), driverKey(driverID), "busy", "")
+func (s *Service) ClearBusy(ctx context.Context, driverID string) {
+	s.rdb.HSet(ctx, driverKey(driverID), "busy", "")
 }
 
-func (s *Service) UpdateLocation(driverID string, lat, lng float64) {
-	ctx := context.Background()
+func (s *Service) UpdateLocation(ctx context.Context, driverID string, lat, lng float64) {
 	packageSlug, err := s.rdb.HGet(ctx, driverKey(driverID), "packageSlug").Result()
 	if err != nil {
 		return
@@ -136,8 +135,7 @@ func (s *Service) UpdateLocation(driverID string, lat, lng float64) {
 	})
 }
 
-func (s *Service) UnregisterDriver(driverID string) {
-	ctx := context.Background()
+func (s *Service) UnregisterDriver(ctx context.Context, driverID string) {
 	packageSlug, err := s.rdb.HGet(ctx, driverKey(driverID), "packageSlug").Result()
 	if err == nil && packageSlug != "" {
 		s.rdb.ZRem(ctx, geoKey(packageSlug), driverID)

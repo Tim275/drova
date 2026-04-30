@@ -165,7 +165,7 @@ services:
       ENVIRONMENT: development
       DB_URL: postgres://drova:${POSTGRES_PASSWORD}@postgres:5432/drova?sslmode=disable&x-migrations-table=trip_schema_migrations
       MIGRATIONS_PATH: migrations
-      USER_SERVICE_URL: http://user-service:8082
+      USER_SERVICE_GRPC_URL: user-service:9091
     depends_on:
       kafka:
         condition: service_healthy

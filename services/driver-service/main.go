@@ -31,7 +31,7 @@ var (
 var appLog *zap.SugaredLogger
 
 func main() {
-	appLog = logger.New(env.GetString("ENVIRONMENT", "development"))
+	appLog = logger.New(env.GetString("ENVIRONMENT", "development"), "driver-service")
 	defer appLog.Sync()
 
 	appLog.Infow("driver-service starting")
@@ -89,7 +89,7 @@ func main() {
 	)
 
 	pgStore := store.NewPostgresStore(db)
-	svc := NewService(pgStore, rdb)
+	svc := NewService(pgStore, rdb, appLog)
 
 	consumer := NewTripConsumer(kafka, svc)
 	consumer.Start(ctx)

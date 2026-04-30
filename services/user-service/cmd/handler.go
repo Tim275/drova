@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/base64"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -151,25 +150,6 @@ func (app *application) handleUpdateProfile(w http.ResponseWriter, r *http.Reque
 		"avatar_url":   user.AvatarURL,
 		"phone":        user.Phone,
 		"address":      user.Address,
-	})
-}
-
-func (app *application) handleInternalGetUser(w http.ResponseWriter, r *http.Request) {
-	idStr := r.PathValue("id")
-	var id int64
-	if _, err := fmt.Sscanf(idStr, "%d", &id); err != nil {
-		middleware.WriteError(w, http.StatusBadRequest, "invalid id")
-		return
-	}
-	user, err := app.service.GetByID(r.Context(), id)
-	if err != nil {
-		middleware.WriteError(w, http.StatusNotFound, "user not found")
-		return
-	}
-	middleware.WriteJSON(w, http.StatusOK, map[string]any{
-		"id":           user.ID,
-		"display_name": user.DisplayName,
-		"avatar_url":   user.AvatarURL,
 	})
 }
 
