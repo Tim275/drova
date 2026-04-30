@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,6 +11,7 @@ import (
 
 	"drova/services/user-service/internal/auth"
 	"drova/services/user-service/internal/domain"
+	grpc_handler "drova/services/user-service/internal/grpc"
 	"drova/services/user-service/internal/mailer"
 	"drova/services/user-service/internal/middleware"
 	"drova/services/user-service/internal/service"
@@ -17,10 +19,12 @@ import (
 	"drova/shared/env"
 	"drova/shared/logger"
 	"drova/shared/tracing"
+	pb "drova/shared/proto/user"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 )
 
 type application struct {
@@ -134,8 +138,24 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
+	// gRPC server
+	grpcAddr := env.GetString("GRPC_ADDR", ":9091")
+	grpcLis, err := net.Listen("tcp", grpcAddr)
+	if err != nil {
+		log.Fatalw("grpc listen", zap.Error(err))
+	}
+	grpcSrv := grpc.NewServer()
+	pb.RegisterUserServiceServer(grpcSrv, grpc_handler.New(svc, authenticator, blacklist, log))
+
 	go func() {
-		log.Infow("user-service started", "addr", addr)
+		log.Infow("user-service gRPC started", "addr", grpcAddr)
+		if err := grpcSrv.Serve(grpcLis); err != nil {
+			log.Errorw("grpc serve", zap.Error(err))
+		}
+	}()
+
+	go func() {
+		log.Infow("user-service HTTP started", "addr", addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalw("server", zap.Error(err))
 		}
@@ -145,6 +165,7 @@ func main() {
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
+	grpcSrv.GracefulStop()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
