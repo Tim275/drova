@@ -50,7 +50,7 @@ func (r *pgRepository) GetRideFareByID(ctx context.Context, id string) (*domain.
 		return nil, fmt.Errorf("fare %s not found", id)
 	}
 	if routeJSON != nil {
-		json.Unmarshal(routeJSON, &f.Route)
+		_ = json.Unmarshal(routeJSON, &f.Route)
 	}
 	return &f, nil
 }
@@ -85,7 +85,7 @@ func (r *pgRepository) GetTripByID(ctx context.Context, id string) (*domain.Trip
 			TotalPriceInCents: farePriceCents.Int64,
 		}
 		if fareRouteJSON != nil {
-			json.Unmarshal(fareRouteJSON, &f.Route)
+			_ = json.Unmarshal(fareRouteJSON, &f.Route)
 		}
 		t.Fare = f
 	}
@@ -165,7 +165,7 @@ func (r *pgRepository) GetTripsByUser(ctx context.Context, userID string) ([]*do
 		var t domain.TripModel
 		var fareID, farePackage string
 		var farePriceCents int64
-		rows.Scan(&t.ID, &t.UserID, &t.Status,
+		_ = rows.Scan(&t.ID, &t.UserID, &t.Status,
 			&t.DriverID, &t.DriverName, &t.DriverPlate, &t.DriverAvatar,
 			&t.Rating, &t.CreatedAt,
 			&fareID, &farePackage, &farePriceCents)
@@ -200,7 +200,7 @@ func (r *pgRepository) GetTripsByDriver(ctx context.Context, driverID string) ([
 		var t domain.TripModel
 		var fareID, farePackage string
 		var farePriceCents int64
-		rows.Scan(&t.ID, &t.UserID, &t.Status,
+		_ = rows.Scan(&t.ID, &t.UserID, &t.Status,
 			&t.RiderName, &t.RiderAvatar,
 			&t.CreatedAt,
 			&fareID, &farePackage, &farePriceCents)

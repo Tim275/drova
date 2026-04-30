@@ -24,7 +24,7 @@ var seedUsers = []seedUser{
 func Seed(ctx context.Context, db *pgxpool.Pool, log *zap.SugaredLogger) {
 	for _, u := range seedUsers {
 		var exists bool
-		db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)", u.email).Scan(&exists)
+		_ = db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)", u.email).Scan(&exists)
 		if exists {
 			log.Infow("seed: already exists, skipping", "email", u.email)
 			continue

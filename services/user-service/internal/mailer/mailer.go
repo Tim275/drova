@@ -95,7 +95,7 @@ func (m *Mailer) SendActivation(toEmail, token string) error {
 	}
 	defer client.Close()
 
-	if err := client.StartTLS(&tls.Config{ServerName: m.host}); err != nil {
+	if err := client.StartTLS(&tls.Config{ServerName: m.host, MinVersion: tls.VersionTLS12}); err != nil {
 		fmt.Fprintf(os.Stderr, "smtp_starttls error: %v\n", err)
 		return err
 	}

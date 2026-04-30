@@ -5,7 +5,6 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/propagation"
 )
 
 type KafkaHeadersCarrier map[string][]byte
@@ -59,7 +58,3 @@ func StartKafkaConsumerSpan(ctx context.Context, topic, groupID string) (context
 	return ctx, func() { span.End() }
 }
 
-var propagator = propagation.NewCompositeTextMapPropagator(
-	propagation.TraceContext{},
-	propagation.Baggage{},
-)
