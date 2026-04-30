@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -31,7 +29,7 @@ var appLog *zap.SugaredLogger
 var gatewayRdb *redis.Client
 
 func main() {
-	appLog = logger.New(env.GetString("ENVIRONMENT", "development"))
+	appLog = logger.New(env.GetString("ENVIRONMENT", "development"), "api-gateway")
 	defer appLog.Sync()
 
 	appLog.Infow("api-gateway starting")
@@ -81,6 +79,7 @@ func main() {
 		defer gatewayRdb.Close()
 	}
 
+	grpc_clients.InitBreakers(appLog)
 	if err := grpc_clients.InitSharedClients(); err != nil {
 		appLog.Warnw("grpc clients init", zap.Error(err))
 	} else {
@@ -89,23 +88,36 @@ func main() {
 
 	startNotificationConsumers(ctx)
 
-	userServiceURL, _ := url.Parse(env.GetString("USER_SERVICE_URL", "http://localhost:8082"))
-	userProxy := httputil.NewSingleHostReverseProxy(userServiceURL)
-
 	mux := http.NewServeMux()
 
-	mux.Handle("/v1/", userProxy)
+	// Health / config
 	mux.HandleFunc("GET /health", enableCORS(handleHealth))
 	mux.HandleFunc("GET /readyz", enableCORS(handleReadyz(kafkaClient)))
 	mux.HandleFunc("GET /config", enableCORS(handleConfig))
+
+	// User endpoints (gRPC → HTTP translation)
+	mux.HandleFunc("POST /v1/users/register", enableCORS(handleRegister))
+	mux.HandleFunc("OPTIONS /v1/users/register", enableCORS(handleOptions))
+	mux.HandleFunc("POST /v1/auth/token", enableCORS(handleLogin))
+	mux.HandleFunc("OPTIONS /v1/auth/token", enableCORS(handleOptions))
+	mux.HandleFunc("GET /v1/users/activate/{token}", handleActivate)
+	mux.HandleFunc("GET /v1/users/me", enableCORS(requireAuth(handleGetMe)))
+	mux.HandleFunc("PATCH /v1/users/profile", enableCORS(requireAuth(handleUpdateProfile)))
+	mux.HandleFunc("OPTIONS /v1/users/profile", enableCORS(handleOptions))
+	mux.HandleFunc("POST /v1/auth/logout", enableCORS(requireAuth(handleLogout)))
+	mux.HandleFunc("OPTIONS /v1/auth/logout", enableCORS(handleOptions))
+
+	// Trip endpoints
 	mux.Handle("POST /trip/preview", tracing.WrapHandlerFunc(enableCORS(requireAuth(handleTripPreview)), "POST /trip/preview"))
 	mux.HandleFunc("OPTIONS /trip/preview", enableCORS(handleOptions))
 	mux.Handle("POST /trip/start", tracing.WrapHandlerFunc(enableCORS(requireAuth(handleTripStart)), "POST /trip/start"))
 	mux.HandleFunc("OPTIONS /trip/start", enableCORS(handleOptions))
 	mux.HandleFunc("GET /trips/history", enableCORS(requireAuth(handleTripHistory)))
-	mux.HandleFunc("GET /trips/driver-history", enableCORS(handleDriverHistory))
+	mux.HandleFunc("GET /trips/driver-history", enableCORS(requireAuth(handleDriverHistory)))
 	mux.Handle("POST /trip/rate", tracing.WrapHandlerFunc(enableCORS(requireAuth(handleTripRate)), "POST /trip/rate"))
 	mux.HandleFunc("OPTIONS /trip/rate", enableCORS(handleOptions))
+
+	// WebSocket + Stripe
 	mux.Handle("/ws/drivers", tracing.WrapHandlerFunc(handleDriversWebSocket, "/ws/drivers"))
 	mux.Handle("/ws/riders", tracing.WrapHandlerFunc(handleRidersWebSocket, "/ws/riders"))
 	mux.Handle("POST /webhook/stripe", tracing.WrapHandlerFunc(handleStripeWebhook, "POST /webhook/stripe"))

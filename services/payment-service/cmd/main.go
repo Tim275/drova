@@ -25,7 +25,7 @@ import (
 )
 
 func main() {
-	log := logger.New(env.GetString("ENVIRONMENT", "development"))
+	log := logger.New(env.GetString("ENVIRONMENT", "development"), "payment-service")
 	defer log.Sync()
 
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {

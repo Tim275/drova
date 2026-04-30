@@ -54,7 +54,7 @@ message RideFare {
   string id = 1;
   string userID = 2;
   string packageSlug = 3;
-  double totalPriceInCents = 4;
+  int64 totalPriceInCents = 4;
 }
 
 message Trip {
@@ -81,7 +81,7 @@ message TripHistoryItem {
   string id = 1;
   string status = 2;
   string packageSlug = 3;
-  double priceCents = 4;
+  int64  priceCents = 4;
   string driverName = 5;
   string driverPlate = 6;
   int32  rating = 7;
@@ -92,7 +92,7 @@ message DriverTripHistoryItem {
   string id = 1;
   string status = 2;
   string packageSlug = 3;
-  double priceCents = 4;
+  int64  priceCents = 4;
   string riderName = 5;
   string riderAvatar = 6;
   int64  createdAt = 7;

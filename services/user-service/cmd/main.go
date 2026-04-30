@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,6 +11,7 @@ import (
 
 	"drova/services/user-service/internal/auth"
 	"drova/services/user-service/internal/domain"
+	grpc_handler "drova/services/user-service/internal/grpc"
 	"drova/services/user-service/internal/mailer"
 	"drova/services/user-service/internal/middleware"
 	"drova/services/user-service/internal/service"
@@ -17,10 +19,12 @@ import (
 	"drova/shared/env"
 	"drova/shared/logger"
 	"drova/shared/tracing"
+	pb "drova/shared/proto/user"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 )
 
 type application struct {
@@ -32,7 +36,7 @@ type application struct {
 }
 
 func main() {
-	log := logger.New(env.GetString("ENVIRONMENT", "development"))
+	log := logger.New(env.GetString("ENVIRONMENT", "development"), "user-service")
 	defer log.Sync()
 
 	stopTracer, err := tracing.InitTracer(tracing.Config{
@@ -83,7 +87,7 @@ func main() {
 	}
 
 	if env.GetString("SEED", "") == "true" {
-		store.Seed(context.Background(), db)
+		store.Seed(context.Background(), db, log)
 	}
 
 	m := mailer.New(
@@ -114,8 +118,6 @@ func main() {
 	mux.Handle("POST /v1/users/register", tracing.WrapHandlerFunc(app.handleRegister, "POST /v1/users/register"))
 	mux.Handle("GET /v1/users/activate/{token}", tracing.WrapHandlerFunc(app.handleActivate, "GET /v1/users/activate"))
 	mux.Handle("POST /v1/auth/token", tracing.WrapHandlerFunc(app.handleCreateToken, "POST /v1/auth/token"))
-	mux.Handle("GET /v1/internal/users/{id}", tracing.WrapHandlerFunc(app.handleInternalGetUser, "GET /v1/internal/users"))
-
 	protected := middleware.Authenticate(authenticator, blacklist)
 	mux.Handle("GET /v1/users/me", tracing.WrapHandler(protected(http.HandlerFunc(app.handleGetMe)), "GET /v1/users/me"))
 	mux.Handle("PATCH /v1/users/profile", tracing.WrapHandler(protected(http.HandlerFunc(app.handleUpdateProfile)), "PATCH /v1/users/profile"))
@@ -134,8 +136,24 @@ func main() {
 		MaxHeaderBytes:    1 << 20,
 	}
 
+	// gRPC server
+	grpcAddr := env.GetString("GRPC_ADDR", ":9091")
+	grpcLis, err := net.Listen("tcp", grpcAddr)
+	if err != nil {
+		log.Fatalw("grpc listen", zap.Error(err))
+	}
+	grpcSrv := grpc.NewServer()
+	pb.RegisterUserServiceServer(grpcSrv, grpc_handler.New(svc, authenticator, blacklist, log))
+
 	go func() {
-		log.Infow("user-service started", "addr", addr)
+		log.Infow("user-service gRPC started", "addr", grpcAddr)
+		if err := grpcSrv.Serve(grpcLis); err != nil {
+			log.Errorw("grpc serve", zap.Error(err))
+		}
+	}()
+
+	go func() {
+		log.Infow("user-service HTTP started", "addr", addr)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalw("server", zap.Error(err))
 		}
@@ -145,6 +163,7 @@ func main() {
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 	<-quit
 
+	grpcSrv.GracefulStop()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
