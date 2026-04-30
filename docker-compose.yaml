@@ -180,6 +180,8 @@ services:
     environment:
       GRPC_ADDR: ":9092"
       KAFKA_BROKERS: kafka:9092
+      REDIS_URL: redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
       OTEL_COLLECTOR_ENDPOINT: otel-collector:4318
       ENVIRONMENT: development
       DB_URL: postgres://drova:${POSTGRES_PASSWORD}@postgres:5432/drova?sslmode=disable&x-migrations-table=driver_schema_migrations
@@ -188,6 +190,8 @@ services:
       kafka:
         condition: service_healthy
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: on-failure
 
