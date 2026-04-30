@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"drova/shared/retry"
@@ -75,12 +76,19 @@ func (k *Kafka) EnsureTopics(topics ...string) error {
 		}
 		defer ctrlConn.Close()
 
+		rf := 1
+		if v := os.Getenv("KAFKA_REPLICATION_FACTOR"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				rf = n
+			}
+		}
+
 		configs := make([]kafka.TopicConfig, 0, len(topics))
 		for _, t := range topics {
 			configs = append(configs, kafka.TopicConfig{
 				Topic:             t,
 				NumPartitions:     1,
-				ReplicationFactor: 1,
+				ReplicationFactor: rf,
 			})
 		}
 

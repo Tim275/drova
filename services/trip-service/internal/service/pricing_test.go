@@ -13,8 +13,6 @@ import (
 
 var errNotFound = errors.New("not found")
 
-// --- fake repo ---
-
 type fakeRepo struct {
 	fares map[string]*domain.RideFareModel
 	trips map[string]*domain.TripModel
@@ -91,8 +89,6 @@ func (f *fakeRepo) RateTrip(_ context.Context, tripID string, rating int) error 
 	return nil
 }
 
-// --- helpers ---
-
 func route(distanceM, durationS float64) *tripTypes.MapboxRouteResponse {
 	return &tripTypes.MapboxRouteResponse{
 		Routes: []struct {
@@ -107,10 +103,7 @@ func route(distanceM, durationS float64) *tripTypes.MapboxRouteResponse {
 	}
 }
 
-// --- pricing ---
-
 func TestEstimateFareRoute(t *testing.T) {
-	// formula: base + (distanceM/1000)*150 + (durationS/60)*30
 	tests := []struct {
 		name      string
 		base      float64
@@ -191,8 +184,6 @@ func TestEstimatePackagesPriceWithRoute_PriceOrdering(t *testing.T) {
 		}
 	}
 }
-
-// --- fare validation ---
 
 func TestGetAndValidateFare(t *testing.T) {
 	repo := newFakeRepo()

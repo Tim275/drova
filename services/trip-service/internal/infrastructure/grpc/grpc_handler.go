@@ -52,8 +52,6 @@ func (h *gRPCHandler) CreateTrip(ctx context.Context, req *pb.CreateTripRequest)
 	}, nil
 }
 
-// runSearchTimeout cancels the trip if no driver accepts within tripSearchTimeout.
-// Uses ExpireSearch (atomic conditional UPDATE) to avoid racing with driver acceptance.
 func (h *gRPCHandler) runSearchTimeout(tripID, riderID string) {
 	timer := time.NewTimer(tripSearchTimeout)
 	defer timer.Stop()

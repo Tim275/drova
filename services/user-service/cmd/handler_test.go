@@ -19,8 +19,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// --- Fakes ---
-
 type fakeUserStore struct {
 	users map[string]*domain.User
 	byID  map[int64]*domain.User
@@ -99,8 +97,6 @@ func (m *fakeMailer) SendActivation(email, token string) error {
 	return nil
 }
 
-// --- Helpers ---
-
 func newTestApp(t *testing.T) *application {
 	t.Helper()
 	log, _ := zap.NewDevelopment()
@@ -114,7 +110,6 @@ func newTestApp(t *testing.T) *application {
 
 	authenticator := auth.NewAuthenticator("testsecret123456789012345678901", "drova", "drova-users")
 
-	// We wire a real mailer stub that doesn't send emails
 	m := mailer.New("", "", "", "", "", "")
 	svc := service.New(userStore, invStore, cache, m)
 
@@ -124,8 +119,6 @@ func newTestApp(t *testing.T) *application {
 		log:     log.Sugar(),
 	}
 }
-
-// --- Tests ---
 
 func TestHandleRegister_Success(t *testing.T) {
 	app := newTestApp(t)

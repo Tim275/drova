@@ -650,6 +650,7 @@
         <div class="trip-status-text" id="tripStatusText">Searching for driver...</div>
         <div class="trip-status-sub" id="tripStatusSub"></div>
         <button id="cancelTripBtn" onclick="cancelTrip()">Cancel Trip</button>
+        <button id="retryTripBtn" style="display:none;" onclick="retryTrip()">Try Again</button>
         <button id="chatBtnRider" style="display:none;" onclick="openChat()">Message Driver</button>
       </div>
       <div id="driverInfoCard">
@@ -1814,8 +1815,14 @@
     document.getElementById('tripStatusText').textContent = text;
     document.getElementById('tripStatusSub').textContent = sub || '';
     document.getElementById('cancelTripBtn').style.display = showCancel ? 'block' : 'none';
+    document.getElementById('retryTripBtn').style.display = 'none';
     document.getElementById('confirmbtn').style.display = 'none';
     document.getElementById('backbtn').style.display = 'none';
+  }
+
+  function retryTrip() {
+    document.getElementById('retryTripBtn').style.display = 'none';
+    startTrip();
   }
 
   function hideDriverInfoCard() {
@@ -1900,6 +1907,7 @@
         activeTripID = null;
         activeTripDriverID = null;
         setTripStatus('No drivers available.', 'Please try again later.', false);
+        document.getElementById('retryTripBtn').style.display = 'block';
         if (pickupMarker) pickupMarker.setDraggable(true);
         if (destinationMarker) destinationMarker.setDraggable(true);
       } else if (msg.type === 'trip.event.driver_arrived') {

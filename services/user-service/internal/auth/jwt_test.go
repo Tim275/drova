@@ -27,7 +27,6 @@ func TestGenerateToken_ValidToken(t *testing.T) {
 	if token == "" {
 		t.Fatal("want non-empty token")
 	}
-	// JWT format: header.payload.signature
 	if len(strings.Split(token, ".")) != 3 {
 		t.Errorf("want 3-part JWT, got: %s", token)
 	}
@@ -119,7 +118,6 @@ func TestValidateToken_ExpiredToken(t *testing.T) {
 }
 
 func TestValidateToken_AlgorithmPinning(t *testing.T) {
-	// Attempt HS384 — must be rejected (only HS256 allowed)
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    testIssuer,

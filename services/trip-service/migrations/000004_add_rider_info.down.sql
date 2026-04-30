@@ -1,0 +1,2 @@
+ALTER TABLE trips DROP COLUMN IF EXISTS rider_name;
+ALTER TABLE trips DROP COLUMN IF EXISTS rider_avatar;

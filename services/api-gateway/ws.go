@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -22,6 +23,28 @@ const (
 
 var riderConnManager = messaging.NewConnectionManager()
 var driverConnManager = messaging.NewConnectionManager()
+
+func subscribeUserWS(ctx context.Context, channel string, conn *websocket.Conn) {
+	if gatewayRdb == nil {
+		return
+	}
+	sub := gatewayRdb.Subscribe(ctx, channel)
+	defer sub.Close()
+	ch := sub.Channel()
+	for {
+		select {
+		case msg, ok := <-ch:
+			if !ok {
+				return
+			}
+			if err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Payload)); err != nil {
+				return
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
 
 func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 	tokenStr := r.URL.Query().Get("token")
@@ -56,6 +79,8 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	riderConnManager.Add(userID, conn)
 	defer riderConnManager.Remove(userID)
+
+	go subscribeUserWS(r.Context(), "ws:rider:"+userID, conn)
 
 	go func() {
 		ticker := time.NewTicker(wsPingInterval)
@@ -205,8 +230,6 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		driverData.Driver.ProfilePicture = avatarURL
 	}
 
-	// Each WS connection needs its own bidirectional stream for location updates.
-	// The shared connection is reused; the stream itself is per-driver-session.
 	locationStream, err := grpc_clients.DriverClient.StreamLocation(ctx)
 	if err != nil {
 		appLog.Warnw("location stream open failed", "driver", userID, zap.Error(err))
@@ -237,6 +260,8 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		appLog.Errorw("send register message", zap.Error(err))
 		return
 	}
+
+	go subscribeUserWS(r.Context(), "ws:driver:"+userID, conn)
 
 	for {
 		_, message, err := conn.ReadMessage()
@@ -273,22 +298,29 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			if locData.RiderID != "" {
-				data, err := json.Marshal(locData)
-				if err != nil {
-					appLog.Warnw("marshal location", zap.Error(err))
-					continue
-				}
-				payload, err := json.Marshal(messaging.KafkaMessage{
-					Type:    contracts.DriverCmdLocation,
-					OwnerID: locData.RiderID,
-					Data:    data,
-				})
-				if err != nil {
-					appLog.Warnw("marshal location payload", zap.Error(err))
-					continue
-				}
-				if err := kafkaClient.PublishMessage(r.Context(), messaging.TopicDriverLocation, payload); err != nil {
-					appLog.Errorw("publish location", zap.Error(err))
+				if gatewayRdb != nil {
+					wsMsg, _ := json.Marshal(contracts.WSMessage{
+						Type: contracts.DriverCmdLocation,
+						Data: locData,
+					})
+					if err := gatewayRdb.Publish(r.Context(), "ws:rider:"+locData.RiderID, string(wsMsg)).Err(); err != nil {
+						appLog.Warnw("redis publish location", zap.Error(err))
+					}
+				} else {
+					if err := riderConnManager.SendMessage(locData.RiderID, contracts.WSMessage{
+						Type: contracts.DriverCmdLocation,
+						Data: locData,
+					}); err != nil {
+						data, _ := json.Marshal(locData)
+						payload, _ := json.Marshal(messaging.KafkaMessage{
+							Type:    contracts.DriverCmdLocation,
+							OwnerID: locData.RiderID,
+							Data:    data,
+						})
+						if err := kafkaClient.PublishMessage(r.Context(), messaging.TopicDriverLocation, payload); err != nil {
+							appLog.Errorw("publish location", zap.Error(err))
+						}
+					}
 				}
 			}
 

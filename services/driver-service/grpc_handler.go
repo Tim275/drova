@@ -29,7 +29,6 @@ func (h *driverGrpcHandler) RegisterDriver(ctx context.Context, req *pb.Register
 		return nil, status.Errorf(codes.Internal, "failed to register driver")
 	}
 
-	// Check if any passengers are already waiting for a driver with this package
 	loc := driver.GetLocation()
 	if loc != nil {
 		h.consumer.TryMatchWaiting(ctx, driver.GetPackageSlug(), loc.GetLatitude(), loc.GetLongitude())

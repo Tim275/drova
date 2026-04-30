@@ -31,7 +31,6 @@ func InitTracer(cfg Config) (func(context.Context), error) {
 		semconv.DeploymentEnvironmentKey.String(cfg.Environment),
 	)
 
-	// Traces → OTel Collector → Jaeger + Tempo
 	traceExp, err := otlptracehttp.New(context.Background(),
 		otlptracehttp.WithEndpoint(cfg.OtelCollectorEndpoint),
 		otlptracehttp.WithInsecure(),
@@ -49,7 +48,6 @@ func InitTracer(cfg Config) (func(context.Context), error) {
 		propagation.Baggage{},
 	))
 
-	// Metrics → OTel Collector → Prometheus
 	var mp *metric.MeterProvider
 	metricExp, err := otlpmetrichttp.New(context.Background(),
 		otlpmetrichttp.WithEndpoint(cfg.OtelCollectorEndpoint),
