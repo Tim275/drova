@@ -4,24 +4,27 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	pbd "drova/shared/proto/driver"
 	pbt "drova/shared/proto/trip"
+	pbu "drova/shared/proto/user"
 	"drova/shared/tracing"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/keepalive"
-	"time"
 )
 
 var (
 	tripConn   *grpc.ClientConn
 	driverConn *grpc.ClientConn
+	userConn   *grpc.ClientConn
 	once       sync.Once
 
 	TripClient   pbt.TripServiceClient
 	DriverClient pbd.DriverServiceClient
+	UserClient   pbu.UserServiceClient
 )
 
 func InitSharedClients() error {
@@ -60,6 +63,18 @@ func InitSharedClients() error {
 		}
 		driverConn = dc
 		DriverClient = pbd.NewDriverServiceClient(dc)
+
+		userURL := os.Getenv("USER_SERVICE_GRPC_URL")
+		if userURL == "" {
+			userURL = "user-service:9091"
+		}
+		uc, err := grpc.NewClient(userURL, opts...)
+		if err != nil {
+			initErr = fmt.Errorf("user service dial: %w", err)
+			return
+		}
+		userConn = uc
+		UserClient = pbu.NewUserServiceClient(uc)
 	})
 	return initErr
 }
@@ -70,5 +85,8 @@ func CloseSharedClients() {
 	}
 	if driverConn != nil {
 		driverConn.Close()
+	}
+	if userConn != nil {
+		userConn.Close()
 	}
 }

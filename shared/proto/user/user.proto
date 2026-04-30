@@ -1,0 +1,72 @@
+syntax = "proto3";
+package user;
+option go_package = "drova/shared/proto/user";
+
+service UserService {
+  rpc Register(RegisterRequest)         returns (RegisterResponse);
+  rpc Login(LoginRequest)               returns (LoginResponse);
+  rpc Activate(ActivateRequest)         returns (ActivateResponse);
+  rpc GetUser(GetUserRequest)           returns (UserResponse);
+  rpc UpdateProfile(UpdateProfileRequest) returns (UserResponse);
+  rpc Logout(LogoutRequest)             returns (LogoutResponse);
+}
+
+message RegisterRequest {
+  string display_name = 1;
+  string email        = 2;
+  string phone        = 3;
+  string password     = 4;
+  string role         = 5;
+}
+
+message RegisterResponse {
+  int64  id    = 1;
+  string email = 2;
+  string role  = 3;
+}
+
+message LoginRequest {
+  string email    = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  string token = 1;
+}
+
+message ActivateRequest {
+  string token = 1;
+}
+
+message ActivateResponse {}
+
+message GetUserRequest {
+  int64 user_id = 1;
+}
+
+message UserResponse {
+  int64  id           = 1;
+  string email        = 2;
+  string role         = 3;
+  bool   is_activated = 4;
+  int64  created_at   = 5;
+  string display_name = 6;
+  string avatar_url   = 7;
+  string phone        = 8;
+  string address      = 9;
+}
+
+message UpdateProfileRequest {
+  int64  user_id      = 1;
+  string display_name = 2;
+  string avatar_url   = 3;
+  string phone        = 4;
+  string address      = 5;
+}
+
+message LogoutRequest {
+  string jti        = 1;
+  int64  expires_at = 2;
+}
+
+message LogoutResponse {}

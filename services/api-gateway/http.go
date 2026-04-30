@@ -12,12 +12,15 @@ import (
 	"drova/shared/contracts"
 	"drova/shared/env"
 	"drova/shared/messaging"
-	pb "drova/shared/proto/trip"
+	pbt "drova/shared/proto/trip"
+	pbu "drova/shared/proto/user"
 
 	"github.com/sony/gobreaker"
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/webhook"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var (
@@ -129,7 +132,7 @@ func handleTripHistory(w http.ResponseWriter, r *http.Request) {
 		defer client.Close()
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
-		res, err := client.Client.GetTripsByUser(ctx, &pb.GetTripsRequest{Id: userID})
+		res, err := client.Client.GetTripsByUser(ctx, &pbt.GetTripsRequest{Id: userID})
 		if err != nil {
 			return nil, err
 		}
@@ -164,7 +167,7 @@ func handleDriverHistory(w http.ResponseWriter, r *http.Request) {
 		defer client.Close()
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
-		res, err := client.Client.GetTripsByDriver(ctx, &pb.GetTripsRequest{Id: driverID})
+		res, err := client.Client.GetTripsByDriver(ctx, &pbt.GetTripsRequest{Id: driverID})
 		if err != nil {
 			return nil, err
 		}
@@ -203,7 +206,7 @@ func handleTripRate(w http.ResponseWriter, r *http.Request) {
 		defer client.Close()
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
-		_, err = client.Client.RateTrip(ctx, &pb.RateTripRequest{TripID: req.TripID, Rating: req.Rating})
+		_, err = client.Client.RateTrip(ctx, &pbt.RateTripRequest{TripID: req.TripID, Rating: req.Rating})
 		return nil, err
 	})
 	if err != nil {
@@ -291,4 +294,196 @@ func handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 
 	appLog.Infow("payment success published", "trip", payload.TripID, "user", payload.UserID)
 	w.WriteHeader(http.StatusOK)
+}
+
+// ── User handlers (gRPC → HTTP translation) ──────────────────────────────────
+
+func handleRegister(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	defer r.Body.Close()
+
+	var req pbu.RegisterRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	var resp *pbu.RegisterResponse
+	_, err := grpc_clients.UserBreaker.Execute(func() (interface{}, error) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		res, err := grpc_clients.UserClient.Register(ctx, &req)
+		if err == nil {
+			resp = res
+		}
+		return nil, err
+	})
+	if err != nil {
+		grpcErrToHTTP(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"id": resp.Id, "email": resp.Email, "role": resp.Role,
+		"message": "check your email to activate your account",
+	})
+}
+
+func handleLogin(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	defer r.Body.Close()
+
+	var req struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	var token string
+	_, err := grpc_clients.UserBreaker.Execute(func() (interface{}, error) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		res, err := grpc_clients.UserClient.Login(ctx, &pbu.LoginRequest{Email: req.Email, Password: req.Password})
+		if err == nil {
+			token = res.Token
+		}
+		return nil, err
+	})
+	if err != nil {
+		grpcErrToHTTP(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"token": token})
+}
+
+func handleActivate(w http.ResponseWriter, r *http.Request) {
+	tok := r.PathValue("token")
+	_, err := grpc_clients.UserBreaker.Execute(func() (interface{}, error) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		_, err := grpc_clients.UserClient.Activate(ctx, &pbu.ActivateRequest{Token: tok})
+		return nil, err
+	})
+	if err != nil {
+		grpcErrToHTTP(w, err)
+		return
+	}
+	http.Redirect(w, r, "/?activated=true", http.StatusSeeOther)
+}
+
+func handleGetMe(w http.ResponseWriter, r *http.Request) {
+	tokenStr := tokenFromRequest(r)
+	claims, err := parseGatewayToken(tokenStr)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var u *pbu.UserResponse
+	_, err = grpc_clients.UserBreaker.Execute(func() (interface{}, error) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		res, err := grpc_clients.UserClient.GetUser(ctx, &pbu.GetUserRequest{UserId: claims.UserID})
+		if err == nil {
+			u = res
+		}
+		return nil, err
+	})
+	if err != nil {
+		grpcErrToHTTP(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, u)
+}
+
+func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
+	defer r.Body.Close()
+
+	tokenStr := tokenFromRequest(r)
+	claims, err := parseGatewayToken(tokenStr)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var body struct {
+		DisplayName string `json:"display_name"`
+		AvatarURL   string `json:"avatar_url"`
+		Phone       string `json:"phone"`
+		Address     string `json:"address"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	var u *pbu.UserResponse
+	_, err = grpc_clients.UserBreaker.Execute(func() (interface{}, error) {
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		res, err := grpc_clients.UserClient.UpdateProfile(ctx, &pbu.UpdateProfileRequest{
+			UserId:      claims.UserID,
+			DisplayName: body.DisplayName,
+			AvatarUrl:   body.AvatarURL,
+			Phone:       body.Phone,
+			Address:     body.Address,
+		})
+		if err == nil {
+			u = res
+		}
+		return nil, err
+	})
+	if err != nil {
+		grpcErrToHTTP(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, u)
+}
+
+func handleLogout(w http.ResponseWriter, r *http.Request) {
+	tokenStr := tokenFromRequest(r)
+	claims, err := parseGatewayToken(tokenStr)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var expiresAt int64
+	if claims.ExpiresAt != nil {
+		expiresAt = claims.ExpiresAt.Unix()
+	}
+
+	grpc_clients.UserBreaker.Execute(func() (interface{}, error) { //nolint:errcheck
+		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		defer cancel()
+		return grpc_clients.UserClient.Logout(ctx, &pbu.LogoutRequest{
+			Jti:       claims.ID,
+			ExpiresAt: expiresAt,
+		})
+	})
+	writeJSON(w, http.StatusOK, map[string]string{"message": "logged out"})
+}
+
+func grpcErrToHTTP(w http.ResponseWriter, err error) {
+	if err == gobreaker.ErrOpenState {
+		http.Error(w, "user service temporarily unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	st, _ := status.FromError(err)
+	switch st.Code() {
+	case codes.AlreadyExists:
+		http.Error(w, st.Message(), http.StatusConflict)
+	case codes.NotFound:
+		http.Error(w, st.Message(), http.StatusNotFound)
+	case codes.Unauthenticated:
+		http.Error(w, st.Message(), http.StatusUnauthorized)
+	case codes.InvalidArgument:
+		http.Error(w, st.Message(), http.StatusBadRequest)
+	default:
+		appLog.Errorw("user grpc error", "code", st.Code(), "msg", st.Message())
+		http.Error(w, "internal error", http.StatusInternalServerError)
+	}
 }

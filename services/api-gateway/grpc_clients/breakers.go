@@ -24,3 +24,4 @@ func newBreaker(name string) *gobreaker.CircuitBreaker {
 
 var TripBreaker = newBreaker("trip-service")
 var DriverBreaker = newBreaker("driver-service")
+var UserBreaker = newBreaker("user-service")
