@@ -9,7 +9,6 @@ import (
 	pbd "drova/shared/proto/driver"
 )
 
-// validTransitions defines the allowed state machine for a trip.
 var validTransitions = map[string][]string{
 	"searching":      {"accepted", "cancelled"},
 	"accepted":       {"driver_arrived", "cancelled"},

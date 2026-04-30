@@ -92,7 +92,6 @@ func (r *pgRepository) GetTripByID(ctx context.Context, id string) (*domain.Trip
 	return &t, nil
 }
 
-// allowedFrom maps each target status to the set of statuses it may be reached from.
 var allowedFrom = map[string][]string{
 	"accepted":       {"searching"},
 	"driver_arrived": {"accepted"},
@@ -137,8 +136,6 @@ func (r *pgRepository) CancelTrip(ctx context.Context, tripID string) error {
 	return err
 }
 
-// ExpireSearch atomically cancels a trip only if it is still in "searching" status.
-// Returns true if the trip was cancelled, false if it already moved to a later state.
 func (r *pgRepository) ExpireSearch(ctx context.Context, tripID string) (bool, error) {
 	tag, err := r.db.Exec(ctx, `UPDATE trips SET status='cancelled' WHERE id=$1 AND status='searching'`, tripID)
 	if err != nil {

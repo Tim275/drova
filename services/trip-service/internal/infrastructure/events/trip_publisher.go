@@ -12,8 +12,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// PublishSearchTimeout notifies the rider that no driver was found within the search window,
-// and publishes a cancellation event so driver-service cleans up its pending/waiting maps.
 func (p *TripEventPublisher) PublishSearchTimeout(ctx context.Context, tripID, riderID string) error {
 	noDriversData, err := json.Marshal(map[string]string{"trip_id": tripID})
 	if err != nil {
@@ -32,7 +30,6 @@ func (p *TripEventPublisher) PublishSearchTimeout(ctx context.Context, tripID, r
 		return fmt.Errorf("publish no-drivers-found: %w", err)
 	}
 
-	// Clean up driver-service search (clears pending/waiting maps)
 	cancelData, err := json.Marshal(messaging.TripCancelledEvent{TripID: tripID, RiderID: riderID})
 	if err != nil {
 		return fmt.Errorf("marshal cancel event: %w", err)

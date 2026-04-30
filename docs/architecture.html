@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Drova — Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #1a1a2e; display: flex; justify-content: center; padding: 24px 16px; }
+canvas { display: block; cursor: default; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script src="https://unpkg.com/roughjs@4.6.6/bundled/rough.js"></script>
+<script>
+const W = 1500, H = 1020;
+const C = { http:'#34d399',grpc:'#22d3ee',ws:'#a78bfa',kafka:'#fb923c',db:'#818cf8',text:'#e2e8f0',dim:'#6b7280',bg:'#1a1a2e' };
+const ICONS = {
+  go:'https://cdn.simpleicons.org/go/00ADD8',kafka:'https://cdn.simpleicons.org/apachekafka/ffffff',
+  postgres:'https://cdn.simpleicons.org/postgresql',redis:'https://cdn.simpleicons.org/redis',
+  mongodb:'https://cdn.simpleicons.org/mongodb',stripe:'https://cdn.simpleicons.org/stripe/7c3aed',
+  docker:'https://cdn.simpleicons.org/docker',kubernetes:'https://cdn.simpleicons.org/kubernetes',
+  github:'https://cdn.simpleicons.org/githubactions/2088FF',gmail:'https://cdn.simpleicons.org/gmail',
+  argocd:'https://cdn.simpleicons.org/argo/EF7B4D',
+};
+function loadIcons() {
+  return Promise.all(Object.entries(ICONS).map(([k,url])=>new Promise(res=>{
+    const img=new Image(); img.crossOrigin='anonymous';
+    img.onload=()=>res([k,img]); img.onerror=()=>res([k,null]); img.src=url;
+  }))).then(Object.fromEntries);
+}
+let rc,ctx;
+function box(x,y,w,h,stroke,bg='rgba(255,255,255,0.04)',rough=1.6){
+  rc.rectangle(x,y,w,h,{roughness:rough,stroke,strokeWidth:2,fill:bg,fillStyle:'solid'});
+}
+function arrow(x1,y1,x2,y2,color,dashed=false,label=''){
+  rc.line(x1,y1,x2,y2,{stroke:color,strokeWidth:2,roughness:0.9,strokeLineDash:dashed?[7,5]:[]});
+  const a=Math.atan2(y2-y1,x2-x1),s=10;
+  ctx.save(); ctx.fillStyle=color; ctx.globalAlpha=0.9;
+  ctx.beginPath(); ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-s*Math.cos(a-.42),y2-s*Math.sin(a-.42));
+  ctx.lineTo(x2-s*Math.cos(a+.42),y2-s*Math.sin(a+.42));
+  ctx.closePath(); ctx.fill(); ctx.restore();
+  if(label){
+    const mx=(x1+x2)/2,my=(y1+y2)/2;
+    ctx.save(); ctx.font='13px Caveat'; ctx.textAlign='center';
+    const tw=ctx.measureText(label).width;
+    ctx.fillStyle=C.bg; ctx.fillRect(mx-tw/2-3,my-14,tw+6,17);
+    ctx.fillStyle=color; ctx.fillText(label,mx,my); ctx.restore();
+  }
+}
+function txt(str,x,y,size=15,color=C.text,align='center',weight='600'){
+  ctx.save(); ctx.font=`${weight} ${size}px Caveat`; ctx.fillStyle=color; ctx.textAlign=align;
+  ctx.fillText(str,x,y); ctx.restore();
+}
+function ico(img,cx,cy,size=34){ if(img) ctx.drawImage(img,cx-size/2,cy-size/2,size,size); }
+function browser(cx,cy,color){
+  ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=1.8; ctx.globalAlpha=0.8;
+  const w=38,h=28;
+  ctx.strokeRect(cx-w/2,cy-h/2,w,h);
+  ctx.beginPath(); ctx.moveTo(cx-w/2,cy-h/2+8); ctx.lineTo(cx+w/2,cy-h/2+8); ctx.stroke();
+  [0,7,14].forEach(dx=>{ctx.beginPath();ctx.arc(cx-w/2+5+dx,cy-h/2+4,2,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();});
+  ctx.beginPath(); ctx.moveTo(cx-10,cy+h/2); ctx.lineTo(cx+10,cy+h/2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx,cy+h/2); ctx.lineTo(cx,cy+h/2+6); ctx.stroke();
+  ctx.restore();
+}
+function jaeger(cx,cy,color){
+  ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=1.6; ctx.globalAlpha=0.85;
+  ctx.beginPath(); ctx.arc(cx,cy-8,5,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx-11,cy+7,4,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx+11,cy+7,4,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx,cy-3); ctx.lineTo(cx-9,cy+3); ctx.moveTo(cx,cy-3); ctx.lineTo(cx+9,cy+3); ctx.stroke();
+  ctx.fillStyle=color; ctx.globalAlpha=0.5;
+  [[cx,cy-8,2.5],[cx-11,cy+7,2],[cx+11,cy+7,2]].forEach(([x,y,r])=>{ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();});
+  ctx.restore();
+}
+async function main(){
+  await document.fonts.ready;
+  const imgs=await loadIcons();
+  const canvas=document.getElementById('c');
+  canvas.width=W; canvas.height=H;
+  ctx=canvas.getContext('2d'); rc=rough.canvas(canvas);
+  ctx.fillStyle=C.bg; ctx.fillRect(0,0,W,H);
+  const GX=555,GY=78,GW=280,GH=120;
+  const KX=545,KY=295,KW=300,KH=110;
+  const SY=500,SH=100,SW=170;
+  const DBY=710,DBH=85,DBW=185;
+  const RX=42,RY=88,RW=130,RH=88;
+  const DX=1318,DY=88,DW=130,DH=88;
+  const INX=1155,INW=185,INH=72;
+  const STX=428,STY=850,STW=160,STH=80;
+  const svcs=[
+    {label:'trip-service',sub:':9093 gRPC · :8083',x:48,ikey:'go',col:'#06b6d4'},
+    {label:'driver-service',sub:':9092 gRPC',x:245,ikey:'go',col:'#10b981'},
+    {label:'payment-service',sub:'Kafka-only',x:458,ikey:'stripe',col:'#8b5cf6'},
+    {label:'user-service',sub:':8082',x:672,ikey:'go',col:'#06b6d4'},
+    {label:'chat-service',sub:':8084 WS',x:886,ikey:'go',col:'#06b6d4'},
+  ];
+  const dbs=[
+    {label:'PostgreSQL',sub:'users · trips · payments',x:48,ikey:'postgres',col:'#336791'},
+    {label:'Redis',sub:'cache · blacklist · pub/sub',x:278,ikey:'redis',col:'#DC382D'},
+    {label:'MongoDB',sub:'chat · Atlas',x:508,ikey:'mongodb',col:'#47A248'},
+    {label:'Gmail SMTP',sub:'email verification',x:738,ikey:'gmail',col:'#EA4335'},
+  ];
+  const INfra=[
+    {label:'Docker · Tilt',sub:'dev environment',y:500,ikey:'docker',col:'#2496ED'},
+    {label:'Kubernetes',sub:'homelab · prod',y:590,ikey:'kubernetes',col:'#326CE5'},
+    {label:'ArgoCD',sub:'GitOps sync',y:680,ikey:'argocd',col:'#EF7B4D'},
+    {label:'GitHub Actions',sub:'CI/CD · GHCR',y:770,ikey:'github',col:'#2088FF'},
+    {label:'Jaeger',sub:'OTLP tracing',y:860,ikey:null,col:'#60D0F0'},
+  ];
+  // arrows
+  arrow(RX+RW,RY+RH/2,GX,GY+GH/2,C.http,false,'HTTP REST');
+  arrow(DX,DY+RH*.38,GX+GW,GY+GH*.38,C.ws,false,'WebSocket');
+  arrow(DX,DY+RH*.72,GX+GW,GY+GH*.72,C.grpc,false,'gRPC Stream');
+  arrow(GX+GW/2,GY+GH,KX+KW/2,KY,C.kafka,false,'publish / consume');
+  svcs.forEach(s=>arrow(KX+KW/2,KY+KH,s.x+SW/2,SY,C.kafka,true));
+  arrow(GX,GY+GH*.3,svcs[0].x+SW*.8,SY,C.grpc,false,'gRPC');
+  arrow(GX,GY+GH*.6,svcs[1].x+SW*.8,SY,C.grpc,false);
+  arrow(svcs[0].x+SW/2,SY+SH,dbs[0].x+DBW/2,DBY,C.db);
+  arrow(svcs[2].x+SW/2,SY+SH,dbs[0].x+DBW*.7,DBY,C.db);
+  arrow(svcs[3].x+SW/2,SY+SH,dbs[0].x+DBW*.9,DBY,C.db);
+  arrow(svcs[3].x+SW*.6,SY+SH,dbs[1].x+DBW/2,DBY,'#DC382D');
+  arrow(svcs[4].x+SW/2,SY+SH,dbs[2].x+DBW/2,DBY,'#47A248');
+  arrow(svcs[4].x+SW*.4,SY+SH,dbs[1].x+DBW*.7,DBY,'#DC382D');
+  arrow(svcs[3].x+SW*.8,SY+SH,dbs[3].x+DBW/2,DBY,'#EA4335');
+  arrow(svcs[2].x+SW/2,SY+SH,STX+STW/2,STY,'#7c3aed',false,'HTTPS');
+  // boxes
+  box(RX,RY,RW,RH,'#3b82f6','rgba(59,130,246,0.09)');
+  browser(RX+RW/2,RY+RH/2-8,'#3b82f6'); txt('Rider',RX+RW/2,RY+RH-10,16,'#93c5fd');
+  box(DX,DY,DW,DH,'#10b981','rgba(16,185,129,0.09)');
+  browser(DX+DW/2,DY+DH/2-8,'#10b981'); txt('Driver',DX+DW/2,DY+DH-10,16,'#6ee7b7');
+  box(GX,GY,GW,GH,'#f59e0b','rgba(245,158,11,0.09)');
+  ico(imgs.go,GX+36,GY+GH/2-4,38); ico(imgs.stripe,GX+GW-26,GY+26,22);
+  txt('api-gateway',GX+GW/2+12,GY+36,18,'#fde68a','center','700');
+  txt(':8081  ·  JWT  ·  REST  ·  WebSocket',GX+GW/2+12,GY+57,12,C.dim);
+  txt('Kafka Consumer  ·  Rate Limit  ·  Blacklist',GX+GW/2+12,GY+73,12,C.dim);
+  txt('Stripe Webhook  ·  gRPC Client',GX+GW/2+12,GY+89,12,C.dim);
+  box(KX,KY,KW,KH,'#f97316','rgba(249,115,22,0.09)');
+  ico(imgs.kafka,KX+42,KY+KH/2,42);
+  txt('Kafka',KX+KW/2+16,KY+38,18,'#fdba74','center','700');
+  txt('14 Topics  ·  KRaft',KX+KW/2+16,KY+60,13,C.dim);
+  txt('No Zookeeper',KX+KW/2+16,KY+78,13,C.dim);
+  svcs.forEach(s=>{
+    box(s.x,SY,SW,SH,s.col,s.col+'14');
+    ico(imgs[s.ikey],s.x+26,SY+36,30);
+    txt(s.label,s.x+SW/2+8,SY+30,12,C.text,'center','700');
+    txt(s.sub,s.x+SW/2+8,SY+50,10,C.dim);
+  });
+  dbs.forEach(d=>{
+    box(d.x,DBY,DBW,DBH,d.col+'bb',d.col+'16');
+    ico(imgs[d.ikey],d.x+27,DBY+DBH/2,32);
+    txt(d.label,d.x+DBW/2+8,DBY+26,13,C.text,'center','700');
+    txt(d.sub,d.x+DBW/2+8,DBY+46,10,C.dim);
+  });
+  box(STX,STY,STW,STH,'#7c3aedbb','#7c3aed16');
+  ico(imgs.stripe,STX+32,STY+STH/2,36);
+  txt('Stripe',STX+STW/2+8,STY+32,17,'#c4b5fd','center','700');
+  txt('Checkout · Webhook',STX+STW/2+8,STY+52,11,C.dim);
+  INfra.forEach(i=>{
+    box(INX,i.y,INW,INH,i.col+'aa',i.col+'10');
+    if(i.ikey) ico(imgs[i.ikey],INX+26,i.y+INH/2,30);
+    else jaeger(INX+26,i.y+INH/2,i.col);
+    txt(i.label,INX+INW/2+10,i.y+24,13,C.text,'center','700');
+    txt(i.sub,INX+INW/2+10,i.y+42,10,C.dim);
+  });
+  rc.line(INX-18,480,INX-18,950,{stroke:'rgba(255,255,255,0.07)',strokeWidth:1.2,roughness:2,strokeLineDash:[7,6]});
+  txt('Infrastructure',INX+INW/2,474,11,'#374151');
+  // legend
+  const LX=968,LY=500;
+  box(LX,LY,155,185,'rgba(255,255,255,0.12)','rgba(0,0,0,0.28)',1.2);
+  txt('Legend',LX+78,LY+22,15,'#9ca3af','center','700');
+  [{col:C.http,label:'HTTP REST',dashed:false},{col:C.grpc,label:'gRPC',dashed:false},
+   {col:C.ws,label:'WebSocket',dashed:false},{col:C.kafka,label:'Kafka Event',dashed:true},
+   {col:C.db,label:'Database',dashed:false}].forEach((item,i)=>{
+    const ly=LY+48+i*28;
+    rc.line(LX+14,ly,LX+52,ly,{stroke:item.col,strokeWidth:2.5,roughness:0.6,strokeLineDash:item.dashed?[5,4]:[]});
+    ctx.save(); ctx.fillStyle=item.col;
+    ctx.beginPath(); ctx.moveTo(LX+52,ly); ctx.lineTo(LX+44,ly-4); ctx.lineTo(LX+44,ly+4); ctx.closePath(); ctx.fill(); ctx.restore();
+    txt(item.label,LX+62,ly+5,13,'#d1d5db','left');
+  });
+  // title
+  ctx.save(); ctx.font='bold 30px Caveat'; ctx.textAlign='center';
+  const grad=ctx.createLinearGradient(400,0,900,0);
+  grad.addColorStop(0,'#60a5fa'); grad.addColorStop(0.5,'#a78bfa'); grad.addColorStop(1,'#34d399');
+  ctx.fillStyle=grad; ctx.fillText('Drova — Microservices Architecture',W/2-80,46); ctx.restore();
+}
+main();
+</script>
+</body>
+</html>

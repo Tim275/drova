@@ -118,8 +118,6 @@ func main() {
 	cancel()
 }
 
-// stripMigrateParams removes golang-migrate specific query parameters (x-* prefix)
-// that pgxpool would forward as server parameters, causing a PostgreSQL FATAL error.
 func stripMigrateParams(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil {

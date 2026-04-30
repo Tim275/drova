@@ -81,7 +81,6 @@ func (c *TripConsumer) startResponseTimer(ctx context.Context, tripID, driverID 
 	}
 	pi := val.(pendingInfo)
 	if pi.driverID != driverID {
-		// A later driver was assigned before our timer fired — restore their entry
 		c.pending.Store(tripID, pi)
 		return
 	}
@@ -102,7 +101,6 @@ func (c *TripConsumer) handleDriverResponse(ctx context.Context, payload []byte)
 	}
 	c.pending.Delete(data.TripID) // stop the 15s response timer
 	if msg.Type == "driver.cmd.trip_decline" {
-		// only free the driver on decline — on accept they stay busy until trip ends/cancels
 		c.service.ClearBusy(data.Driver.ID)
 	}
 	return nil
@@ -118,14 +116,12 @@ func (c *TripConsumer) handleTripCancelled(ctx context.Context, payload []byte) 
 		return nil
 	}
 	c.waiting.Delete(data.TripID)
-	// Driver still in pending (hasn't responded yet) → stop timer + free driver
 	if val, loaded := c.pending.LoadAndDelete(data.TripID); loaded {
 		pi := val.(pendingInfo)
 		c.service.ClearBusy(pi.driverID)
 		appLog.Infow("trip cancelled (pre-accept)", "trip", data.TripID, "driver", pi.driverID)
 		return nil
 	}
-	// Driver already accepted (not in pending) → free them from the active trip
 	if data.DriverID != "" {
 		c.service.ClearBusy(data.DriverID)
 		appLog.Infow("trip cancelled (post-accept)", "trip", data.TripID, "driver", data.DriverID)
@@ -149,8 +145,6 @@ func (c *TripConsumer) handleTripCompleted(ctx context.Context, payload []byte) 
 	return nil
 }
 
-// TryMatchWaiting checks if a newly active driver matches any waiting trips.
-// Called when a driver registers or updates location.
 func (c *TripConsumer) TryMatchWaiting(ctx context.Context, packageSlug string, lat, lng float64) {
 	c.waiting.Range(func(key, val any) bool {
 		event := val.(messaging.TripCreatedEvent)

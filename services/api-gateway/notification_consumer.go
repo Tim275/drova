@@ -28,11 +28,32 @@ func handleNotification(ctx context.Context, payload []byte) error {
 
 	appLog.Infow("notification", "type", msg.Type, "owner", msg.OwnerID)
 
+	wsMsg, err := json.Marshal(contracts.WSMessage{
+		Type: msg.Type,
+		Data: json.RawMessage(msg.Data),
+	})
+	if err != nil {
+		return err
+	}
+
+	channel := "ws:rider:" + msg.OwnerID
+	if msg.Type == messaging.TopicDriverTripRequest || msg.Type == messaging.TopicTripCancelled {
+		channel = "ws:driver:" + msg.OwnerID
+	}
+
+	if gatewayRdb != nil {
+		if err := gatewayRdb.Publish(ctx, channel, string(wsMsg)).Err(); err != nil {
+			appLog.Warnw("redis publish notification", "channel", channel, "error", err)
+		} else {
+			appLog.Infow("ws dispatched", "type", msg.Type, "owner", msg.OwnerID)
+		}
+		return nil
+	}
+
 	cm := riderConnManager
 	if msg.Type == messaging.TopicDriverTripRequest || msg.Type == messaging.TopicTripCancelled {
 		cm = driverConnManager
 	}
-
 	if err := cm.SendMessage(msg.OwnerID, contracts.WSMessage{
 		Type: msg.Type,
 		Data: json.RawMessage(msg.Data),

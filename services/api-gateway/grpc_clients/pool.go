@@ -15,8 +15,6 @@ import (
 	"time"
 )
 
-// Shared long-lived gRPC connections — created once at startup, reused for every request.
-// gRPC connections are multiplexed (HTTP/2): one conn handles thousands of concurrent RPCs.
 var (
 	tripConn   *grpc.ClientConn
 	driverConn *grpc.ClientConn
@@ -33,9 +31,9 @@ func InitSharedClients() error {
 			tracing.DialOptionsWithTracing(),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 			grpc.WithKeepaliveParams(keepalive.ClientParameters{
-				Time:                30 * time.Second,
-				Timeout:             10 * time.Second,
-				PermitWithoutStream: true,
+				Time:                5 * time.Minute,
+				Timeout:             20 * time.Second,
+				PermitWithoutStream: false,
 			}),
 		)
 

@@ -1,15 +1,3 @@
-// Package schema provides a Confluent-compatible Schema Registry client and
-// Avro codec for encoding/decoding Kafka messages with schema validation.
-//
-// Wire format (Confluent Schema Registry protocol):
-//   [0x00][4-byte big-endian schema ID][avro bytes]
-//
-// Usage:
-//
-//	client := schema.NewRegistryClient("http://schema-registry:8081")
-//	id, err := client.Register("trip.event.created-value", schema)
-//	encoded, err := schema.Encode(id, schema, &myEvent)
-//	err = schema.Decode(encoded, schema, &myEvent)
 package schema
 
 import (
@@ -24,8 +12,6 @@ import (
 	"github.com/hamba/avro/v2"
 )
 
-// RegistryClient is a thread-safe Confluent Schema Registry HTTP client
-// with in-memory caching of schema IDs to avoid repeated round-trips.
 type RegistryClient struct {
 	baseURL    string
 	httpClient *http.Client
@@ -56,8 +42,6 @@ type schemaResponse struct {
 	Schema string `json:"schema"`
 }
 
-// Register registers a schema under the given subject and returns its schema ID.
-// Subsequent calls with the same subject are cached locally (idempotent on the registry side).
 func (c *RegistryClient) Register(subject string, schema avro.Schema) (int, error) {
 	c.mu.RLock()
 	if id, ok := c.bySubject[subject]; ok {
@@ -96,7 +80,6 @@ func (c *RegistryClient) Register(subject string, schema avro.Schema) (int, erro
 	return reg.ID, nil
 }
 
-// GetByID fetches a schema by its numeric ID. Results are cached after first fetch.
 func (c *RegistryClient) GetByID(id int) (avro.Schema, error) {
 	c.mu.RLock()
 	if s, ok := c.byID[id]; ok {
