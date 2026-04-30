@@ -336,9 +336,16 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
-		return
+
+	// Support both Basic Auth (frontend) and JSON body
+	if email, password, ok := r.BasicAuth(); ok {
+		req.Email = email
+		req.Password = password
+	} else {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid json", http.StatusBadRequest)
+			return
+		}
 	}
 
 	var token string
