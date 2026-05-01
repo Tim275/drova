@@ -33,7 +33,7 @@ func (r *Room) broadcast(data []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for _, conn := range r.conns {
-		conn.WriteMessage(websocket.TextMessage, data)
+		_ = conn.WriteMessage(websocket.TextMessage, data)
 	}
 }
 

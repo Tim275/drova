@@ -39,7 +39,7 @@ func (s *UserService) Register(ctx context.Context, email, plainPassword string,
 		return nil, err
 	}
 
-	go s.mailer.SendActivation(user.Email, token)
+	go func() { _ = s.mailer.SendActivation(user.Email, token) }()
 	return user, nil
 }
 

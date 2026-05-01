@@ -19,7 +19,7 @@ type Hub struct {
 	pairs   map[string]string  // clientID → paired clientID
 }
 
-var globalHub = &Hub{
+var _ = &Hub{
 	drivers: make(map[string]*Client),
 	riders:  make(map[string]*Client),
 	pairs:   make(map[string]string),

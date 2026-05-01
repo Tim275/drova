@@ -34,7 +34,7 @@ func NewMessageStore(ctx context.Context, uri string) (*MessageStore, error) {
 	}
 
 	coll := client.Database("drova").Collection("messages")
-	coll.Indexes().CreateOne(ctx, mongo.IndexModel{
+	_, _ = coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{{Key: "trip_id", Value: 1}, {Key: "sent_at", Value: 1}},
 	})
 
@@ -73,5 +73,5 @@ func (s *MessageStore) GetMessages(ctx context.Context, tripID string, limit int
 }
 
 func (s *MessageStore) Close() {
-	s.client.Disconnect(context.Background())
+	_ = s.client.Disconnect(context.Background())
 }

@@ -11,27 +11,34 @@ processors:
     timeout: 5s
 
 exporters:
-  # Traces → Jaeger UI
-  otlp/jaeger:
+  # Traces → Jaeger
+  otlp_grpc/jaeger:
     endpoint: jaeger:4317
     tls:
       insecure: true
 
-  # Metrics + Logs → debug output (visible in collector logs)
-  debug:
-    verbosity: basic
+  # Metrics → Prometheus scrape endpoint
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: drova
+
+  # Logs → Loki via OTLP (Loki 3.x supports OTLP natively)
+  otlp_http/loki:
+    endpoint: http://loki:3100/otlp
+    tls:
+      insecure: true
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlp/jaeger, debug]
+      exporters: [otlp_grpc/jaeger]
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [prometheus]
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [otlp_http/loki]

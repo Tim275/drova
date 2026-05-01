@@ -36,18 +36,20 @@ var upgrader = websocket.Upgrader{
 }
 
 func main() {
-	appLog = logger.New(env.GetString("ENVIRONMENT", "development"), "chat-service")
-	defer appLog.Sync()
+	envStr := env.GetString("ENVIRONMENT", "development")
 
 	stopTracer, tracerErr := tracing.InitTracer(tracing.Config{
-		ServiceName:    "chat-service",
-		Environment:    env.GetString("ENVIRONMENT", "development"),
+		ServiceName:           "chat-service",
+		Environment:           envStr,
 		OtelCollectorEndpoint: env.GetString("OTEL_COLLECTOR_ENDPOINT", ""),
 	})
+	defer stopTracer(context.Background())
+
+	appLog = logger.New(envStr, "chat-service")
+	defer appLog.Sync()
+
 	if tracerErr != nil {
 		appLog.Warnw("tracing init failed", zap.Error(tracerErr))
-	} else {
-		defer stopTracer(context.Background())
 	}
 
 	jwtSecret = []byte(env.GetString("JWT_SECRET", ""))
@@ -160,7 +162,7 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 	history, err := store.GetMessages(r.Context(), tripID, 50)
 	if err == nil && len(history) > 0 {
 		data, _ := json.Marshal(map[string]any{"type": "history", "messages": history})
-		conn.WriteMessage(websocket.TextMessage, data)
+		_ = conn.WriteMessage(websocket.TextMessage, data)
 	}
 
 	go func() {

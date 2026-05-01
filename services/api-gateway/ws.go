@@ -202,7 +202,7 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	defer func() {
-		grpc_clients.DriverClient.UnregisterDriver(ctx, &pb.RegisterDriverRequest{
+		_, _ = grpc_clients.DriverClient.UnregisterDriver(ctx, &pb.RegisterDriverRequest{
 			DriverID:    userID,
 			PackageSlug: packageSlug,
 		})
@@ -239,7 +239,7 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() {
 		if locationStream != nil {
-			locationStream.CloseSend()
+			_ = locationStream.CloseSend()
 			appLog.Infow("location stream closed", "driver", userID)
 		}
 	}()

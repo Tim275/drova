@@ -67,7 +67,7 @@ func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, nam
 	)
 	s.rdb.HSetNX(ctx, driverKey(driverID), "busy", "")
 
-	s.store.Upsert(ctx, driver)
+	_ = s.store.Upsert(ctx, driver)
 	return driver, nil
 }
 

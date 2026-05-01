@@ -29,21 +29,23 @@ var appLog *zap.SugaredLogger
 var gatewayRdb *redis.Client
 
 func main() {
-	appLog = logger.New(env.GetString("ENVIRONMENT", "development"), "api-gateway")
-	defer appLog.Sync()
-
-	appLog.Infow("api-gateway starting")
+	envStr := env.GetString("ENVIRONMENT", "development")
 
 	stopTracer, err := tracing.InitTracer(tracing.Config{
-		ServiceName:    "api-gateway",
-		Environment:    env.GetString("ENVIRONMENT", "development"),
+		ServiceName:           "api-gateway",
+		Environment:           envStr,
 		OtelCollectorEndpoint: env.GetString("OTEL_COLLECTOR_ENDPOINT", ""),
 	})
+	defer stopTracer(context.Background())
+
+	appLog = logger.New(envStr, "api-gateway")
+	defer appLog.Sync()
+
 	if err != nil {
 		appLog.Warnw("tracing init failed", zap.Error(err))
-	} else {
-		defer stopTracer(context.Background())
 	}
+
+	appLog.Infow("api-gateway starting")
 
 	kafkaClient = messaging.NewKafka(strings.Split(kafkaBrokers, ","))
 	defer kafkaClient.Close()
