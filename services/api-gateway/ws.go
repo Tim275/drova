@@ -391,8 +391,10 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 
 		case contracts.DriverCmdArrived, contracts.DriverCmdTripStart, contracts.DriverCmdTripEnd:
 			var statusData struct {
-				TripID  string `json:"trip_id"`
-				RiderID string `json:"rider_id"`
+				TripID  string  `json:"trip_id"`
+				RiderID string  `json:"rider_id"`
+				Lat     float64 `json:"lat"`
+				Lng     float64 `json:"lng"`
 			}
 			if err := json.Unmarshal(driverMsg.Data, &statusData); err != nil {
 				appLog.Warnw("unmarshal driver status", zap.Error(err))
@@ -416,6 +418,10 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 				TripID:   statusData.TripID,
 				RiderID:  statusData.RiderID,
 				DriverID: userID,
+			}
+			if driverMsg.Type == contracts.DriverCmdTripEnd && statusData.Lat != 0 {
+				statusEvent.ActualLat = statusData.Lat
+				statusEvent.ActualLng = statusData.Lng
 			}
 			data, err := json.Marshal(statusEvent)
 			if err != nil {

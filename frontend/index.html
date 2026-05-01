@@ -1088,6 +1088,7 @@
   let map, selectedRide = null, selectedFareID = null;
   let pickupCoords = null, destinationCoords = null;
   let pickupMarker = null, destinationMarker = null;
+  let currentTripPhase = null;
 
   async function reverseGeocode(lng, lat) {
     const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}&limit=1&language=en`;
@@ -1384,6 +1385,18 @@
     try {
       [pickupCoords, destinationCoords] = await Promise.all([geocode(pickup), geocode(destination)]);
 
+      const dist = haversineKm(
+        { lat: pickupCoords.latitude, lng: pickupCoords.longitude },
+        { lat: destinationCoords.latitude, lng: destinationCoords.longitude }
+      );
+      if (dist < 0.1) {
+        errbox.textContent = 'Pickup and destination must be different locations';
+        errbox.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Calculate Route';
+        return;
+      }
+
       const resp = await fetch('/trip/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken() },
@@ -1454,6 +1467,7 @@
 
   function drawRoute(route, fitBounds = true) {
     const coords = route.geometry[0].coordinates.map(c => [c.longitude, c.latitude]);
+    plannedRouteCoords = coords;
     if (map.getSource('route')) {
       map.getSource('route').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } });
     } else {
@@ -1527,6 +1541,8 @@
   let activeTripDriverID = null;
   let activeTripRiderID = null;
   let selectedRating = 0;
+  let plannedRouteCoords = null;
+  let lastRouteUpdateTime = 0;
   let driverMap = null;
   let driverMarker = null;
   let driverMarkerAnimId = null;
@@ -1801,9 +1817,11 @@
           if (tripEndPending) {
             setTimeout(() => {
               if (ws && ws.readyState === WebSocket.OPEN && currentTripRequest) {
+                const lat = driverCurrentGPS ? driverCurrentGPS.latitude : 0;
+                const lng = driverCurrentGPS ? driverCurrentGPS.longitude : 0;
                 ws.send(JSON.stringify({
                   type: 'driver.cmd.trip_end',
-                  data: { trip_id: currentTripRequest.trip_id, rider_id: currentTripRequest.user_id }
+                  data: { trip_id: currentTripRequest.trip_id, rider_id: currentTripRequest.user_id, lat, lng }
                 }));
                 tripEndPending = false;
                 setStatus('Trip ended. Triggering payment...');
@@ -1885,6 +1903,34 @@
     const dLat = toRad(b.lat - a.lat), dLng = toRad(b.lng - a.lng);
     const x = Math.sin(dLat/2)**2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng/2)**2;
     return 2 * R * Math.asin(Math.sqrt(x));
+  }
+
+  function updateRiderETA(driverLat, driverLng) {
+    if (!currentTripPhase || currentTripPhase === 'driver_arrived') return;
+    const target = currentTripPhase === 'in_progress' ? destinationCoords : pickupCoords;
+    if (!target) return;
+    const distKm = haversineKm({ lat: driverLat, lng: driverLng }, { lat: target.latitude, lng: target.longitude });
+    const etaMin = Math.max(1, Math.round((distKm / 40) * 60));
+    const label = currentTripPhase === 'in_progress' ? 'Destination in' : 'Driver in';
+    document.getElementById('arrivalinfo').innerHTML =
+      `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> ${label}: ${etaMin} min`;
+  }
+
+  async function updateLiveRoute(driverLat, driverLng) {
+    if (!currentTripPhase || currentTripPhase === 'driver_arrived') return;
+    const now = Date.now();
+    if (now - lastRouteUpdateTime < 15000) return;
+    lastRouteUpdateTime = now;
+    const target = currentTripPhase === 'in_progress' ? destinationCoords : pickupCoords;
+    if (!target || !map.getSource('route')) return;
+    try {
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${driverLng},${driverLat};${target.longitude},${target.latitude}?geometries=geojson&access_token=${mapboxgl.accessToken}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.routes && data.routes[0]) {
+        map.getSource('route').setData({ type: 'Feature', geometry: data.routes[0].geometry });
+      }
+    } catch (_) {}
   }
 
   function acceptTrip() {
@@ -1997,6 +2043,7 @@
     activeTripID = data.data?.tripID || null;
     activeTripDriverID = null;
 
+    currentTripPhase = null;
     setTripStatus('Searching for driver...', '', true);
     const infoBox = document.getElementById('routeinfo');
     infoBox.textContent = '';
@@ -2015,9 +2062,11 @@
         const d = msg.data;
         window.lastAssignedDriver = d;
         activeTripDriverID = d.id || '';
+        currentTripPhase = 'accepted';
         if (pickupMarker) pickupMarker.setDraggable(false);
         if (destinationMarker) destinationMarker.setDraggable(false);
         setTripStatus('Driver found', 'On the way to you', true);
+        if (d.lat && d.lng) { updateRiderETA(d.lat, d.lng); updateLiveRoute(d.lat, d.lng); }
         const card = document.getElementById('driverInfoCard');
         const driverName = d.name || 'Driver';
         document.getElementById('dicName').textContent = driverName;
@@ -2047,10 +2096,21 @@
         if (pickupMarker) pickupMarker.setDraggable(true);
         if (destinationMarker) destinationMarker.setDraggable(true);
       } else if (msg.type === 'trip.event.driver_arrived') {
+        currentTripPhase = 'driver_arrived';
+        document.getElementById('arrivalinfo').innerHTML = '';
         setTripStatus('Driver has arrived!', 'Please go to the vehicle.', false);
       } else if (msg.type === 'trip.event.in_progress') {
+        currentTripPhase = 'in_progress';
+        lastRouteUpdateTime = 0;
+        if (previousDriverPos) updateLiveRoute(previousDriverPos.lat, previousDriverPos.lng);
         setTripStatus('Trip in progress...', 'Enjoy the ride!', false);
       } else if (msg.type === 'trip.event.completed') {
+        currentTripPhase = null;
+        lastRouteUpdateTime = 0;
+        if (plannedRouteCoords && map.getSource('route')) {
+          map.getSource('route').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: plannedRouteCoords } });
+        }
+        document.getElementById('arrivalinfo').innerHTML = '';
         setTripStatus('Trip completed.', 'Please complete payment.', false);
         hideDriverInfoCard();
         document.getElementById('chatBtnRider').style.display = 'none';
@@ -2085,6 +2145,8 @@
           animateCarMarker(d.lng, d.lat);
         }
         previousDriverPos = d;
+        updateRiderETA(d.lat, d.lng);
+        updateLiveRoute(d.lat, d.lng);
       } else if (msg.type === 'payment.event.session_created') {
         const d = msg.data;
         const drv = window.lastAssignedDriver || {};
@@ -2343,9 +2405,11 @@
     closeChatWs();
 
     if (ws && ws.readyState === WebSocket.OPEN) {
+      const endLat = driverCurrentGPS ? driverCurrentGPS.latitude : (prevSendLat || 0);
+      const endLng = driverCurrentGPS ? driverCurrentGPS.longitude : (prevSendLng || 0);
       ws.send(JSON.stringify({
         type: 'driver.cmd.trip_end',
-        data: { trip_id: currentTripRequest.trip_id, rider_id: currentTripRequest.user_id }
+        data: { trip_id: currentTripRequest.trip_id, rider_id: currentTripRequest.user_id, lat: endLat, lng: endLng }
       }));
       setStatus('Trip ended. Triggering payment...');
       window._currentTripRoute = null;

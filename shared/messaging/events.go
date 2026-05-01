@@ -79,9 +79,11 @@ type DriverLocationData struct {
 }
 
 type TripStatusEvent struct {
-	TripID   string `json:"trip_id"`
-	RiderID  string `json:"rider_id"`
-	DriverID string `json:"driver_id"`
+	TripID    string  `json:"trip_id"`
+	RiderID   string  `json:"rider_id"`
+	DriverID  string  `json:"driver_id"`
+	ActualLat float64 `json:"actual_lat,omitempty"`
+	ActualLng float64 `json:"actual_lng,omitempty"`
 }
 
 type TripCancelledEvent struct {
