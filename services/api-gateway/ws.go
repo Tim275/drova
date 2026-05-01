@@ -295,6 +295,7 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 					Longitude: locData.Lng,
 				}); err != nil {
 					appLog.Warnw("location stream send", zap.Error(err))
+					locationStream = nil
 				}
 			}
 			if locData.RiderID != "" {

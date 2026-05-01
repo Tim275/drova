@@ -58,7 +58,6 @@ func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, nam
 		CarPlate:       randomPlate,
 	}
 
-	// Update driver metadata but preserve busy state (HSETNX only sets if key doesn't exist)
 	s.rdb.HSet(ctx, driverKey(driverID),
 		"name", name,
 		"plate", randomPlate,
@@ -66,6 +65,11 @@ func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, nam
 		"packageSlug", packageSlug,
 	)
 	s.rdb.HSetNX(ctx, driverKey(driverID), "busy", "")
+	s.rdb.GeoAdd(ctx, geoKey(packageSlug), &redis.GeoLocation{
+		Name:      driverID,
+		Longitude: randomRoute[0][1],
+		Latitude:  randomRoute[0][0],
+	})
 
 	_ = s.store.Upsert(ctx, driver)
 	return driver, nil

@@ -23,8 +23,9 @@ func (r *pgRepository) CreateTrip(ctx context.Context, trip *domain.TripModel) (
 		fareID = trip.Fare.ID
 	}
 	_, err := r.db.Exec(ctx,
-		`INSERT INTO trips (id, user_id, status, fare_id, created_at) VALUES ($1, $2, $3, $4, to_timestamp($5))`,
-		trip.ID, trip.UserID, trip.Status, fareID, trip.CreatedAt,
+		`INSERT INTO trips (id, user_id, status, fare_id, created_at, rider_name, rider_avatar)
+		 VALUES ($1, $2, $3, $4, to_timestamp($5), $6, $7)`,
+		trip.ID, trip.UserID, trip.Status, fareID, trip.CreatedAt, trip.RiderName, trip.RiderAvatar,
 	)
 	return trip, err
 }
@@ -32,9 +33,9 @@ func (r *pgRepository) CreateTrip(ctx context.Context, trip *domain.TripModel) (
 func (r *pgRepository) SaveRideFare(ctx context.Context, f *domain.RideFareModel) error {
 	routeJSON, _ := json.Marshal(f.Route)
 	_, err := r.db.Exec(ctx,
-		`INSERT INTO ride_fares (id, user_id, package_slug, total_price_cents, route, expires_at)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		f.ID, f.UserID, f.PackageSlug, f.TotalPriceInCents, routeJSON, f.ExpiresAt,
+		`INSERT INTO ride_fares (id, user_id, package_slug, total_price_cents, route, expires_at, rider_name, rider_avatar)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		f.ID, f.UserID, f.PackageSlug, f.TotalPriceInCents, routeJSON, f.ExpiresAt, f.RiderName, f.RiderAvatar,
 	)
 	return err
 }
@@ -43,9 +44,11 @@ func (r *pgRepository) GetRideFareByID(ctx context.Context, id string) (*domain.
 	var f domain.RideFareModel
 	var routeJSON []byte
 	err := r.db.QueryRow(ctx,
-		`SELECT id, user_id, package_slug, total_price_cents, route, expires_at
+		`SELECT id, user_id, package_slug, total_price_cents, route, expires_at,
+		        COALESCE(rider_name,''), COALESCE(rider_avatar,'')
 		 FROM ride_fares WHERE id = $1`, id,
-	).Scan(&f.ID, &f.UserID, &f.PackageSlug, &f.TotalPriceInCents, &routeJSON, &f.ExpiresAt)
+	).Scan(&f.ID, &f.UserID, &f.PackageSlug, &f.TotalPriceInCents, &routeJSON, &f.ExpiresAt,
+		&f.RiderName, &f.RiderAvatar)
 	if err != nil {
 		return nil, fmt.Errorf("fare %s not found", id)
 	}

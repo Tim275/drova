@@ -1,0 +1,2 @@
+ALTER TABLE ride_fares ADD COLUMN IF NOT EXISTS rider_name   TEXT;
+ALTER TABLE ride_fares ADD COLUMN IF NOT EXISTS rider_avatar TEXT;
