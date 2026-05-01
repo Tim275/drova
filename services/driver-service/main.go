@@ -31,20 +31,30 @@ var (
 var appLog *zap.SugaredLogger
 
 func main() {
-	appLog = logger.New(env.GetString("ENVIRONMENT", "development"), "driver-service")
+	envStr := env.GetString("ENVIRONMENT", "development")
+
+	stopTracer, err := tracing.InitTracer(tracing.Config{
+		ServiceName:           "driver-service",
+		Environment:           envStr,
+		OtelCollectorEndpoint: env.GetString("OTEL_COLLECTOR_ENDPOINT", ""),
+	})
+	defer stopTracer(context.Background())
+
+	appLog = logger.New(envStr, "driver-service")
 	defer appLog.Sync()
+
+	if err != nil {
+		appLog.Warnw("tracing init failed", zap.Error(err))
+	}
 
 	appLog.Infow("driver-service starting")
 
-	stopTracer, err := tracing.InitTracer(tracing.Config{
-		ServiceName:    "driver-service",
-		Environment:    env.GetString("ENVIRONMENT", "development"),
-		OtelCollectorEndpoint: env.GetString("OTEL_COLLECTOR_ENDPOINT", ""),
-	})
-	if err != nil {
-		appLog.Warnw("tracing init failed", zap.Error(err))
-	} else {
-		defer stopTracer(context.Background())
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		if err := runMigrations(env.GetString("DB_URL", ""), env.GetString("MIGRATIONS_PATH", "services/driver-service/migrations")); err != nil {
+			appLog.Fatalw("migrations failed", zap.Error(err))
+		}
+		appLog.Infow("migrations completed")
+		os.Exit(0)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -78,10 +88,6 @@ func main() {
 		appLog.Fatalw("db connect", zap.Error(err))
 	}
 	defer db.Close()
-
-	if err := runMigrations(env.GetString("DB_URL", ""), env.GetString("MIGRATIONS_PATH", "services/driver-service/migrations")); err != nil {
-		appLog.Fatalw("migrations", zap.Error(err))
-	}
 
 	rdb := newRedisClient(
 		env.GetString("REDIS_URL", "redis:6379"),

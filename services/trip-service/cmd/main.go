@@ -34,20 +34,30 @@ var (
 )
 
 func main() {
-	log := logger.New(env.GetString("ENVIRONMENT", "development"), "trip-service")
-	defer log.Sync()
-
-	log.Infow("trip-service starting")
+	envStr := env.GetString("ENVIRONMENT", "development")
 
 	stopTracer, err := tracing.InitTracer(tracing.Config{
 		ServiceName:           "trip-service",
-		Environment:           env.GetString("ENVIRONMENT", "development"),
+		Environment:           envStr,
 		OtelCollectorEndpoint: env.GetString("OTEL_COLLECTOR_ENDPOINT", ""),
 	})
+	defer stopTracer(context.Background())
+
+	log := logger.New(envStr, "trip-service")
+	defer log.Sync()
+
 	if err != nil {
 		log.Warnw("tracing init failed", zap.Error(err))
-	} else {
-		defer stopTracer(context.Background())
+	}
+
+	log.Infow("trip-service starting")
+
+	if len(os.Args) > 1 && os.Args[1] == "migrate" {
+		if err := runMigrations(env.GetString("DB_URL", ""), env.GetString("MIGRATIONS_PATH", "services/trip-service/migrations")); err != nil {
+			log.Fatalw("migrations failed", zap.Error(err))
+		}
+		log.Infow("migrations completed")
+		os.Exit(0)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -69,10 +79,6 @@ func main() {
 		log.Fatalw("db connect", zap.Error(err))
 	}
 	defer db.Close()
-
-	if err := runMigrations(env.GetString("DB_URL", ""), env.GetString("MIGRATIONS_PATH", "services/trip-service/migrations")); err != nil {
-		log.Fatalw("migrations", zap.Error(err))
-	}
 
 	userGRPCURL := env.GetString("USER_SERVICE_GRPC_URL", "user-service:9091")
 	userConn, err := grpcserver.NewClient(userGRPCURL,

@@ -36,7 +36,7 @@ func (s *PgStore) GetAll(ctx context.Context) ([]*pb.Driver, error) {
 	var drivers []*pb.Driver
 	for rows.Next() {
 		d := &pb.Driver{}
-		rows.Scan(&d.Id, &d.Name, &d.PackageSlug, &d.CarPlate, &d.ProfilePicture)
+		_ = rows.Scan(&d.Id, &d.Name, &d.PackageSlug, &d.CarPlate, &d.ProfilePicture)
 		drivers = append(drivers, d)
 	}
 	return drivers, nil

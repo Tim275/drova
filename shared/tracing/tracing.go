@@ -3,6 +3,7 @@ package tracing
 import (
 	"context"
 
+	"go.opentelemetry.io/contrib/instrumentation/runtime"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
@@ -24,8 +25,9 @@ type Config struct {
 }
 
 func InitTracer(cfg Config) (func(context.Context), error) {
+	noop := func(context.Context) {}
 	if cfg.OtelCollectorEndpoint == "" {
-		return func(context.Context) {}, nil
+		return noop, nil
 	}
 
 	res := resource.NewWithAttributes(
@@ -39,7 +41,7 @@ func InitTracer(cfg Config) (func(context.Context), error) {
 		otlptracehttp.WithInsecure(),
 	)
 	if err != nil {
-		return nil, err
+		return noop, err
 	}
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(traceExp),
@@ -62,6 +64,8 @@ func InitTracer(cfg Config) (func(context.Context), error) {
 			metric.WithResource(res),
 		)
 		otel.SetMeterProvider(mp)
+		// Auto-collect Go runtime metrics (goroutines, GC, memory, etc.)
+		_ = runtime.Start(runtime.WithMinimumReadMemStatsInterval(15))
 	}
 
 	logExp, err := otlploghttp.New(context.Background(),

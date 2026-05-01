@@ -36,18 +36,20 @@ type application struct {
 }
 
 func main() {
-	log := logger.New(env.GetString("ENVIRONMENT", "development"), "user-service")
-	defer log.Sync()
+	envStr := env.GetString("ENVIRONMENT", "development")
 
 	stopTracer, err := tracing.InitTracer(tracing.Config{
-		ServiceName:    "user-service",
-		Environment:    env.GetString("ENVIRONMENT", "development"),
+		ServiceName:           "user-service",
+		Environment:           envStr,
 		OtelCollectorEndpoint: env.GetString("OTEL_COLLECTOR_ENDPOINT", ""),
 	})
+	defer stopTracer(context.Background())
+
+	log := logger.New(envStr, "user-service")
+	defer log.Sync()
+
 	if err != nil {
 		log.Warnw("tracing init failed", zap.Error(err))
-	} else {
-		defer stopTracer(context.Background())
 	}
 
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
