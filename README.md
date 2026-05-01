@@ -4,6 +4,10 @@ Ridesharing backend built as Go microservices — Kafka, gRPC, Stripe, Mapbox, d
 
 **Live:** https://drova.timourhomelab.org
 
+## Architecture
+
+![Architecture](docs/pngdrovaarchitecture.png)
+
 ---
 
 ## Test Accounts
@@ -14,14 +18,6 @@ Ridesharing backend built as Go microservices — Kafka, gRPC, Stripe, Mapbox, d
 | Driver | `driver@drova.local`  | `Test1234!` |
 
 No email verification needed for these accounts.
-
----
-
-## Architecture
-
-![Architecture](docs/pngdrovaarchitecture.png)
-
-[docs/architecture.excalidraw](docs/architecture.excalidraw) — open in [Excalidraw](https://excalidraw.com)
 
 ---
 
