@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 
 	"drova/services/trip-service/internal/domain"
 	"drova/shared/contracts"
@@ -12,6 +13,16 @@ import (
 
 	"go.uber.org/zap"
 )
+
+func haversineKm(lat1, lng1, lat2, lng2 float64) float64 {
+	const R = 6371.0
+	toRad := func(d float64) float64 { return d * math.Pi / 180 }
+	dLat := toRad(lat2 - lat1)
+	dLng := toRad(lng2 - lng1)
+	a := math.Sin(dLat/2)*math.Sin(dLat/2) +
+		math.Cos(toRad(lat1))*math.Cos(toRad(lat2))*math.Sin(dLng/2)*math.Sin(dLng/2)
+	return 2 * R * math.Asin(math.Sqrt(a))
+}
 
 type DriverConsumer struct {
 	kafka   *messaging.Kafka
@@ -150,11 +161,28 @@ func (c *DriverConsumer) handleTripCompleted(ctx context.Context, payload []byte
 		return nil
 	}
 
+	amount := int64(trip.Fare.TotalPriceInCents)
+	if data.ActualLat != 0 && data.ActualLng != 0 && trip.Fare.Route != nil && len(trip.Fare.Route.Routes) > 0 {
+		r := trip.Fare.Route.Routes[0]
+		if len(r.Geometry.Coordinates) > 0 {
+			pickupLng, pickupLat := r.Geometry.Coordinates[0][0], r.Geometry.Coordinates[0][1]
+			actualKm := haversineKm(pickupLat, pickupLng, data.ActualLat, data.ActualLng)
+			plannedKm := r.Distance / 1000
+			if plannedKm > 0 && actualKm < plannedKm*0.95 {
+				ratio := actualKm / plannedKm
+				if ratio < 0.1 {
+					ratio = 0.1
+				}
+				amount = int64(float64(trip.Fare.TotalPriceInCents) * ratio)
+			}
+		}
+	}
+
 	paymentData := messaging.PaymentTripData{
 		TripID:   data.TripID,
 		UserID:   data.RiderID,
 		DriverID: data.DriverID,
-		Amount:   int64(trip.Fare.TotalPriceInCents),
+		Amount:   amount,
 		Currency: "eur",
 	}
 	paymentBytes, err := json.Marshal(paymentData)
