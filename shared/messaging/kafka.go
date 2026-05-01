@@ -12,8 +12,10 @@ import (
 	"time"
 
 	"drova/shared/retry"
+	"drova/shared/schema"
 	"drova/shared/tracing"
 
+	"github.com/hamba/avro/v2"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl/plain"
 	"github.com/segmentio/kafka-go/sasl/scram"
@@ -22,9 +24,10 @@ import (
 type MessageHandler func(ctx context.Context, msg []byte) error
 
 type Kafka struct {
-	brokers []string
-	writer  *kafka.Writer
-	dialer  *kafka.Dialer
+	brokers  []string
+	writer   *kafka.Writer
+	dialer   *kafka.Dialer
+	registry *schema.RegistryClient
 }
 
 func NewKafka(brokers []string) *Kafka {
@@ -72,7 +75,14 @@ func NewKafka(brokers []string) *Kafka {
 		Transport:              transport,
 	}
 
-	return &Kafka{brokers: brokers, writer: writer, dialer: dialer}
+	k := &Kafka{brokers: brokers, writer: writer, dialer: dialer}
+
+	if url := os.Getenv("SCHEMA_REGISTRY_URL"); url != "" {
+		k.registry = schema.NewRegistryClient(url)
+		log.Printf("schema registry: client initialised (%s)", url)
+	}
+
+	return k
 }
 
 func (k *Kafka) EnsureTopics(topics ...string) error {
@@ -123,6 +133,28 @@ func (k *Kafka) EnsureTopics(topics ...string) error {
 		log.Printf("ensured %d kafka topics exist", len(topics))
 		return nil
 	})
+}
+
+func (k *Kafka) RegisterSchemas(ctx context.Context, subjects map[string]avro.Schema) {
+	if k.registry == nil {
+		return
+	}
+	for subject, s := range subjects {
+		id, err := k.registry.Register(subject, s)
+		if err != nil {
+			log.Printf("schema registry: register %s: %v", subject, err)
+			continue
+		}
+		log.Printf("schema registry: %s registered (id=%d)", subject, id)
+	}
+}
+
+func (k *Kafka) PublishAvro(ctx context.Context, topic string, schemaID int, avroSchema avro.Schema, v any) error {
+	payload, err := schema.Encode(schemaID, avroSchema, v)
+	if err != nil {
+		return fmt.Errorf("avro encode: %w", err)
+	}
+	return k.PublishMessage(ctx, topic, payload)
 }
 
 func (k *Kafka) PublishMessage(ctx context.Context, topic string, message []byte) error {
