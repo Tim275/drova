@@ -26,7 +26,7 @@ func NewService(store DriverStore, rdb *redis.Client, log *zap.SugaredLogger) *S
 	return &Service{store: store, rdb: rdb, log: log}
 }
 
-const maxRadiusKm = 25.0
+var searchRadii = []float64{5, 25, 100, 500}
 
 func geoKey(packageSlug string) string {
 	return "drova:drivers:geo:" + packageSlug
@@ -81,42 +81,47 @@ func (s *Service) FindAvailableDrivers(ctx context.Context, packageSlug string, 
 		excluded[id] = struct{}{}
 	}
 
-	results, err := s.rdb.GeoSearchLocation(ctx, geoKey(packageSlug), &redis.GeoSearchLocationQuery{
-		GeoSearchQuery: redis.GeoSearchQuery{
-			Longitude:  pickupLng,
-			Latitude:   pickupLat,
-			Radius:     maxRadiusKm,
-			RadiusUnit: "km",
-			Sort:       "ASC",
-			Count:      100,
-		},
-		WithCoord: true,
-		WithDist:  true,
-	}).Result()
-	if err != nil {
-		return nil
-	}
+	for _, radius := range searchRadii {
+		results, err := s.rdb.GeoSearchLocation(ctx, geoKey(packageSlug), &redis.GeoSearchLocationQuery{
+			GeoSearchQuery: redis.GeoSearchQuery{
+				Longitude:  pickupLng,
+				Latitude:   pickupLat,
+				Radius:     radius,
+				RadiusUnit: "km",
+				Sort:       "ASC",
+				Count:      100,
+			},
+			WithCoord: true,
+			WithDist:  true,
+		}).Result()
+		if err != nil {
+			continue
+		}
 
-	var drivers []*pb.Driver
-	for _, r := range results {
-		if _, skip := excluded[r.Name]; skip {
-			continue
+		var drivers []*pb.Driver
+		for _, r := range results {
+			if _, skip := excluded[r.Name]; skip {
+				continue
+			}
+			hash, err := s.rdb.HGetAll(ctx, driverKey(r.Name)).Result()
+			if err != nil || hash["name"] == "" || hash["busy"] != "" {
+				continue
+			}
+			drivers = append(drivers, &pb.Driver{
+				Id:             r.Name,
+				Name:           hash["name"],
+				PackageSlug:    hash["packageSlug"],
+				ProfilePicture: hash["avatar"],
+				CarPlate:       hash["plate"],
+				Geohash:        geohash.Encode(r.Latitude, r.Longitude),
+				Location:       &pb.Location{Latitude: r.Latitude, Longitude: r.Longitude},
+			})
 		}
-		hash, err := s.rdb.HGetAll(ctx, driverKey(r.Name)).Result()
-		if err != nil || hash["name"] == "" || hash["busy"] != "" {
-			continue
+		if len(drivers) > 0 {
+			return drivers
 		}
-		drivers = append(drivers, &pb.Driver{
-			Id:             r.Name,
-			Name:           hash["name"],
-			PackageSlug:    hash["packageSlug"],
-			ProfilePicture: hash["avatar"],
-			CarPlate:       hash["plate"],
-			Geohash:        geohash.Encode(r.Latitude, r.Longitude),
-			Location:       &pb.Location{Latitude: r.Latitude, Longitude: r.Longitude},
-		})
 	}
-	return drivers
+	return nil
 }
 
 func (s *Service) SetBusy(ctx context.Context, driverID, tripID string) {
