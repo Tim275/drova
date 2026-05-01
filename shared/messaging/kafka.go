@@ -2,6 +2,8 @@ package messaging
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -29,6 +31,18 @@ func NewKafka(brokers []string) *Kafka {
 	dialer := kafka.DefaultDialer
 	var transport kafka.RoundTripper
 
+	var tlsCfg *tls.Config
+	if caPath := os.Getenv("KAFKA_TLS_CA_CERT"); caPath != "" {
+		ca, err := os.ReadFile(caPath)
+		if err != nil {
+			log.Fatalf("kafka: read CA cert %s: %v", caPath, err)
+		}
+		pool := x509.NewCertPool()
+		pool.AppendCertsFromPEM(ca)
+		tlsCfg = &tls.Config{RootCAs: pool}
+		log.Printf("kafka: TLS enabled (CA: %s)", caPath)
+	}
+
 	saslUser := os.Getenv("KAFKA_SASL_USERNAME")
 	saslPass := os.Getenv("KAFKA_SASL_PASSWORD")
 	if saslUser != "" && saslPass != "" {
@@ -37,15 +51,18 @@ func NewKafka(brokers []string) *Kafka {
 			if err != nil {
 				log.Fatalf("kafka: SCRAM-SHA-512 init: %v", err)
 			}
-			transport = &kafka.Transport{SASL: m}
-			dialer = &kafka.Dialer{Timeout: 10 * time.Second, DualStack: true, SASLMechanism: m}
+			transport = &kafka.Transport{SASL: m, TLS: tlsCfg}
+			dialer = &kafka.Dialer{Timeout: 10 * time.Second, DualStack: true, SASLMechanism: m, TLS: tlsCfg}
 			log.Printf("kafka: SASL/SCRAM-SHA-512 enabled for user %s", saslUser)
 		} else {
 			m := plain.Mechanism{Username: saslUser, Password: saslPass}
-			transport = &kafka.Transport{SASL: m}
-			dialer = &kafka.Dialer{Timeout: 10 * time.Second, DualStack: true, SASLMechanism: m}
+			transport = &kafka.Transport{SASL: m, TLS: tlsCfg}
+			dialer = &kafka.Dialer{Timeout: 10 * time.Second, DualStack: true, SASLMechanism: m, TLS: tlsCfg}
 			log.Printf("kafka: SASL/PLAIN enabled for user %s", saslUser)
 		}
+	} else if tlsCfg != nil {
+		transport = &kafka.Transport{TLS: tlsCfg}
+		dialer = &kafka.Dialer{Timeout: 10 * time.Second, DualStack: true, TLS: tlsCfg}
 	}
 
 	writer := &kafka.Writer{
