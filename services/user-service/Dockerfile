@@ -3,11 +3,15 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o user-service ./services/user-service/cmd
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -trimpath \
+    -ldflags="-w -s" \
+    -o /out/user-service ./services/user-service/cmd
 
-FROM alpine:3.19
+FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app
-COPY --from=builder /app/user-service .
-COPY --from=builder /app/services/user-service/migrations ./migrations
+COPY --from=builder --chown=nonroot:nonroot /out/user-service /app/user-service
+COPY --from=builder --chown=nonroot:nonroot /app/services/user-service/migrations /app/migrations
+USER nonroot:nonroot
 EXPOSE 8082
-CMD ["./user-service"]
+ENTRYPOINT ["/app/user-service"]
