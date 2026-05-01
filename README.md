@@ -19,6 +19,8 @@ No email verification needed for these accounts.
 
 ## Architecture
 
+![Architecture](docs/pngdrovaarchitecture.png)
+
 [docs/architecture.excalidraw](docs/architecture.excalidraw) — open in [Excalidraw](https://excalidraw.com)
 
 ---
