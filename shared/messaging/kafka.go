@@ -14,6 +14,7 @@ import (
 
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl/plain"
+	"github.com/segmentio/kafka-go/sasl/scram"
 )
 
 type MessageHandler func(ctx context.Context, msg []byte) error
@@ -31,14 +32,20 @@ func NewKafka(brokers []string) *Kafka {
 	saslUser := os.Getenv("KAFKA_SASL_USERNAME")
 	saslPass := os.Getenv("KAFKA_SASL_PASSWORD")
 	if saslUser != "" && saslPass != "" {
-		mechanism := plain.Mechanism{Username: saslUser, Password: saslPass}
-		transport = &kafka.Transport{SASL: mechanism}
-		dialer = &kafka.Dialer{
-			Timeout:       10 * time.Second,
-			DualStack:     true,
-			SASLMechanism: mechanism,
+		if os.Getenv("KAFKA_SASL_MECHANISM") == "SCRAM-SHA-512" {
+			m, err := scram.Mechanism(scram.SHA512, saslUser, saslPass)
+			if err != nil {
+				log.Fatalf("kafka: SCRAM-SHA-512 init: %v", err)
+			}
+			transport = &kafka.Transport{SASL: m}
+			dialer = &kafka.Dialer{Timeout: 10 * time.Second, DualStack: true, SASLMechanism: m}
+			log.Printf("kafka: SASL/SCRAM-SHA-512 enabled for user %s", saslUser)
+		} else {
+			m := plain.Mechanism{Username: saslUser, Password: saslPass}
+			transport = &kafka.Transport{SASL: m}
+			dialer = &kafka.Dialer{Timeout: 10 * time.Second, DualStack: true, SASLMechanism: m}
+			log.Printf("kafka: SASL/PLAIN enabled for user %s", saslUser)
 		}
-		log.Printf("kafka: SASL/PLAIN enabled for user %s", saslUser)
 	}
 
 	writer := &kafka.Writer{

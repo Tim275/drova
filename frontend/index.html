@@ -115,6 +115,16 @@
     .style-opt { padding: 10px 16px; font-size: 13px; color: #111827; cursor: pointer; }
     .style-opt:hover { background: #f3f4f6; }
 
+    /* Address autocomplete */
+    .ac-wrap { position: relative; }
+    .ac-dropdown { position: absolute; top: calc(100% - 2px); left: 0; right: 0; background: white; border: 1.5px solid #111827; border-top: none; border-radius: 0 0 8px 8px; z-index: 2000; max-height: 220px; overflow-y: auto; display: none; box-shadow: 0 6px 16px rgba(0,0,0,0.1); }
+    .ac-dropdown.open { display: block; }
+    .ac-item { padding: 9px 11px; cursor: pointer; border-bottom: 1px solid #f3f4f6; }
+    .ac-item:last-child { border-bottom: none; }
+    .ac-item:hover, .ac-item.focused { background: #f9fafb; }
+    .ac-item-main { font-size: 13px; font-weight: 500; color: #111827; }
+    .ac-item-sub { font-size: 11px; color: #6b7280; margin-top: 1px; }
+
     /* Rider sidebar user header */
     .sidebar-user-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #f3f4f6; }
     .sidebar-user-bar .uname { font-size: 13px; font-weight: 600; color: #374151; }
@@ -548,7 +558,7 @@
       <input class="field-input" id="regName" type="text" placeholder="Full Name">
       <input class="field-input" id="regEmail" type="email" placeholder="Email">
       <input class="field-input" id="regPhone" type="tel" placeholder="Phone number (e.g. +491234567890)" pattern="^\+?[0-9][\d\s\-\(\)]{5,18}$" title="Enter a valid phone number (digits, spaces, +, - allowed)">
-      <input class="field-input" id="regPassword" type="password" placeholder="Password (min. 8 characters)">
+      <input class="field-input" id="regPassword" type="password" placeholder="Password (8+ chars, A-Z, a-z, 0-9)">
       <div class="role-select">
         <label class="role-opt"><input type="radio" name="role" value="rider" checked> Rider</label>
         <label class="role-opt"><input type="radio" name="role" value="driver"> Driver</label>
@@ -606,13 +616,15 @@
         </div>
       </div>
       <h3>Plan a Ride</h3>
-      <div>
+      <div class="ac-wrap">
         <span class="field-label">Pickup</span>
-        <input class="field-input" id="pickup" placeholder="e.g. Berlin Central Station" style="margin-bottom:0;">
+        <input class="field-input" id="pickup" placeholder="e.g. Berliner Hauptbahnhof" style="margin-bottom:0;" autocomplete="off">
+        <div class="ac-dropdown" id="pickup-dropdown"></div>
       </div>
-      <div>
+      <div class="ac-wrap" style="margin-top:10px;">
         <span class="field-label">Destination</span>
-        <input class="field-input" id="destination" placeholder="e.g. Hamburg Central Station" style="margin-bottom:0;">
+        <input class="field-input" id="destination" placeholder="e.g. Hamburger Hauptbahnhof" style="margin-bottom:0;" autocomplete="off">
+        <div class="ac-dropdown" id="destination-dropdown"></div>
       </div>
       <button id="calcBtn" onclick="getRoute()">Get Route</button>
       <div id="errbox"></div>
@@ -911,8 +923,31 @@
     const phone        = document.getElementById('regPhone').value.trim();
     const password     = document.getElementById('regPassword').value;
     const role         = document.querySelector('input[name="role"]:checked')?.value ?? 'rider';
-    if (!display_name || !email || !phone || !password) { showAuthErr('Please fill in all fields.'); return; }
-    if (!/^\+?[0-9][\d\s\-\(\)]{5,18}$/.test(phone)) { showAuthErr('Please enter a valid phone number (e.g. +491234567890).'); return; }
+
+    if (!display_name || !email || !phone || !password) {
+      showAuthErr('Please fill in all fields.'); return;
+    }
+    if (display_name.length < 2 || display_name.length > 50) {
+      showAuthErr('Name must be 2–50 characters.'); return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      showAuthErr('Please enter a valid email address.'); return;
+    }
+    if (!/^\+?[0-9][\d\s\-\(\)]{5,18}$/.test(phone)) {
+      showAuthErr('Phone: use international format, e.g. +491234567890.'); return;
+    }
+    if (password.length < 8) {
+      showAuthErr('Password must be at least 8 characters.'); return;
+    }
+    if (!/[A-Z]/.test(password)) {
+      showAuthErr('Password must contain at least one uppercase letter.'); return;
+    }
+    if (!/[a-z]/.test(password)) {
+      showAuthErr('Password must contain at least one lowercase letter.'); return;
+    }
+    if (!/[0-9]/.test(password)) {
+      showAuthErr('Password must contain at least one number.'); return;
+    }
 
     try {
       const res = await fetch('/v1/users/register', {
@@ -964,6 +999,15 @@
     const phone       = document.getElementById('profilePhone').value.trim();
     const address     = document.getElementById('profileAddress').value.trim();
     const msgEl       = document.getElementById('profileMsg');
+
+    if (displayName && (displayName.length < 2 || displayName.length > 50)) {
+      msgEl.textContent = 'Name must be 2–50 characters.';
+      msgEl.style.cssText = 'display:block;background:#fef2f2;color:#dc2626;'; return;
+    }
+    if (phone && !/^\+?[0-9][\d\s\-\(\)]{5,18}$/.test(phone)) {
+      msgEl.textContent = 'Invalid phone format (e.g. +491234567890).';
+      msgEl.style.cssText = 'display:block;background:#fef2f2;color:#dc2626;'; return;
+    }
 
     try {
       const res = await fetch('/v1/users/profile', {
@@ -1053,12 +1097,77 @@
   }
 
   async function geocode(address) {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxgl.accessToken}&limit=1`;
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxgl.accessToken}&limit=1&proximity=10.4515,51.1657&language=de,en&types=place,address,poi,locality`;
     const res  = await fetch(url);
     const data = await res.json();
     if (!data.features?.length) throw new Error(`Address not found: ${address}`);
     const [lng, lat] = data.features[0].center;
     return { latitude: lat, longitude: lng };
+  }
+
+  function setupAutocomplete(inputId, dropdownId, onSelect) {
+    const input    = document.getElementById(inputId);
+    const dropdown = document.getElementById(dropdownId);
+    if (!input || !dropdown) return;
+    let timer = null;
+    let focused = -1;
+
+    input.addEventListener('input', () => {
+      clearTimeout(timer);
+      const q = input.value.trim();
+      if (q.length < 2) { dropdown.classList.remove('open'); dropdown.innerHTML = ''; return; }
+      timer = setTimeout(async () => {
+        try {
+          const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${mapboxgl.accessToken}&limit=5&proximity=10.4515,51.1657&language=de,en&types=place,address,poi,locality`;
+          const res  = await fetch(url);
+          const data = await res.json();
+          dropdown.innerHTML = '';
+          focused = -1;
+          if (!data.features?.length) { dropdown.classList.remove('open'); return; }
+          data.features.forEach((f, i) => {
+            const item = document.createElement('div');
+            item.className = 'ac-item';
+            item.dataset.idx = i;
+            const parts = f.place_name.split(',');
+            const main  = parts[0];
+            const sub   = parts.slice(1).join(',').trim();
+            item.innerHTML = `<div class="ac-item-main">${main}</div>${sub ? `<div class="ac-item-sub">${sub}</div>` : ''}`;
+            item.addEventListener('mousedown', (e) => {
+              e.preventDefault();
+              input.value = f.place_name;
+              const [lng, lat] = f.center;
+              onSelect({ latitude: lat, longitude: lng });
+              dropdown.classList.remove('open');
+            });
+            dropdown.appendChild(item);
+          });
+          dropdown.classList.add('open');
+        } catch (_) { dropdown.classList.remove('open'); }
+      }, 280);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      const items = dropdown.querySelectorAll('.ac-item');
+      if (!items.length) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        focused = Math.min(focused + 1, items.length - 1);
+        items.forEach((el, i) => el.classList.toggle('focused', i === focused));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        focused = Math.max(focused - 1, -1);
+        items.forEach((el, i) => el.classList.toggle('focused', i === focused));
+      } else if (e.key === 'Enter' && focused >= 0) {
+        e.preventDefault();
+        items[focused].dispatchEvent(new MouseEvent('mousedown'));
+      } else if (e.key === 'Escape') {
+        dropdown.classList.remove('open');
+      }
+    });
+
+    input.addEventListener('blur', () => {
+      setTimeout(() => { dropdown.classList.remove('open'); focused = -1; }, 160);
+    });
   }
 
   function defaultAvatar(name) {
@@ -1108,6 +1217,9 @@
     });
     map.addControl(riderGeolocate, 'bottom-right');
     map.on('load', () => riderGeolocate.trigger());
+
+    setupAutocomplete('pickup', 'pickup-dropdown', (coords) => { pickupCoords = coords; });
+    setupAutocomplete('destination', 'destination-dropdown', (coords) => { destinationCoords = coords; });
   }
 
   async function startDriverScreen() {
@@ -1304,7 +1416,7 @@
       .setLngLat([pickup.longitude, pickup.latitude])
       .addTo(map);
 
-    destinationMarker = new mapboxgl.Marker({ color: '#22c55e', draggable: true })
+    destinationMarker = new mapboxgl.Marker({ color: '#dc2626', draggable: true })
       .setLngLat([destination.longitude, destination.latitude])
       .addTo(map);
 
@@ -1433,12 +1545,36 @@
   let riderDriverMarker = null;
   let previousDriverPos = null;
   let carAnimationId = null;
-  // Dead Reckoning state — predicts driver position between Kafka updates at 60fps
-  let drLastPos = null;        // last real {lat, lng} received from Kafka
-  let drLastTime = null;       // performance.now() when drLastPos arrived
-  let drVelLat = 0;            // degrees lat per ms (velocity vector)
-  let drVelLng = 0;            // degrees lng per ms
+  let drLastPos = null;   // last real position received from Kafka
+  let drLastTime = null;  // timestamp of last real position
   let preTripLocationTimer = null;
+
+  function createFlagMarkerEl(type) {
+    const el = document.createElement('div');
+    el.style.cssText = 'width:22px;height:38px;cursor:pointer;';
+    if (type === 'pickup') {
+      // Green flag — "go here"
+      el.innerHTML = `<svg width="22" height="38" viewBox="0 0 22 38" xmlns="http://www.w3.org/2000/svg">
+        <rect x="0" y="0" width="2.5" height="38" fill="#374151" rx="1.25"/>
+        <path d="M2.5 2 L20 2 L15.5 9 L20 16 L2.5 16 Z" fill="#22c55e" stroke="#15803d" stroke-width="0.6"/>
+      </svg>`;
+    } else {
+      // Checkered flag — "finish line"
+      el.innerHTML = `<svg width="22" height="38" viewBox="0 0 22 38" xmlns="http://www.w3.org/2000/svg">
+        <rect x="0" y="0" width="2.5" height="38" fill="#374151" rx="1.25"/>
+        <rect x="2.5" y="2" width="17.5" height="14" fill="white" stroke="#374151" stroke-width="0.5"/>
+        <rect x="2.5"  y="2"   width="4.4" height="3.5" fill="#111827"/>
+        <rect x="11.3" y="2"   width="4.4" height="3.5" fill="#111827"/>
+        <rect x="6.9"  y="5.5" width="4.4" height="3.5" fill="#111827"/>
+        <rect x="15.7" y="5.5" width="4.4" height="3.5" fill="#111827"/>
+        <rect x="2.5"  y="9"   width="4.4" height="3.5" fill="#111827"/>
+        <rect x="11.3" y="9"   width="4.4" height="3.5" fill="#111827"/>
+        <rect x="6.9"  y="12.5" width="4.4" height="3.5" fill="#111827"/>
+        <rect x="15.7" y="12.5" width="4.4" height="3.5" fill="#111827"/>
+      </svg>`;
+    }
+    return el;
+  }
 
   function createCarMarkerElement() {
     const el = document.createElement('div');
@@ -1459,46 +1595,45 @@
   }
 
   function animateCarMarker(toLng, toLat) {
+    if (!riderDriverMarker) return;
     const now = performance.now();
-    const newPos = { lat: toLat, lng: toLng };
 
-    if (drLastPos && drLastTime) {
-      const dt = now - drLastTime;
-      if (dt > 0) {
-        // Velocity vector from the last two real positions (degrees per ms)
-        drVelLat = (newPos.lat - drLastPos.lat) / dt;
-        drVelLng = (newPos.lng - drLastPos.lng) / dt;
-      }
-    } else {
-      // Very first update — snap marker to real position immediately
-      if (riderDriverMarker) riderDriverMarker.setLngLat([toLng, toLat]);
+    // First update — snap immediately, no animation
+    if (!drLastTime) {
+      riderDriverMarker.setLngLat([toLng, toLat]);
+      drLastTime = now;
+      drLastPos = { lng: toLng, lat: toLat };
+      return;
     }
 
-    drLastPos = newPos;
+    // Lerp from current displayed position to new real position.
+    // Duration matches the actual GPS update interval so arrival is smooth and timely.
+    const duration = Math.max(600, Math.min(now - drLastTime, 2500));
     drLastTime = now;
+    drLastPos = { lng: toLng, lat: toLat };
 
-    // Start the 60fps extrapolation loop (idempotent — only one loop runs at a time)
-    if (!carAnimationId) {
-      const loop = () => {
-        if (!riderDriverMarker || !drLastPos) { carAnimationId = requestAnimationFrame(loop); return; }
-        const elapsed = performance.now() - drLastTime;
-        if (elapsed < 800) {
-          // Project forward from last known real position using current velocity vector
-          riderDriverMarker.setLngLat([
-            drLastPos.lng + drVelLng * elapsed,
-            drLastPos.lat + drVelLat * elapsed,
-          ]);
-        }
-        // After 2.5s without a new update the car stops extrapolating (trip paused/ended)
-        carAnimationId = requestAnimationFrame(loop);
-      };
-      carAnimationId = requestAnimationFrame(loop);
-    }
+    if (carAnimationId) { cancelAnimationFrame(carAnimationId); carAnimationId = null; }
+
+    const from = riderDriverMarker.getLngLat();
+    const fromLng = from.lng, fromLat = from.lat;
+    const startTime = performance.now();
+
+    const loop = (ts) => {
+      const t = Math.min((ts - startTime) / duration, 1);
+      const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      riderDriverMarker.setLngLat([
+        fromLng + (toLng - fromLng) * ease,
+        fromLat + (toLat - fromLat) * ease,
+      ]);
+      if (t < 1) carAnimationId = requestAnimationFrame(loop);
+      else carAnimationId = null;
+    };
+    carAnimationId = requestAnimationFrame(loop);
   }
 
   function stopDRLoop() {
     if (carAnimationId) { cancelAnimationFrame(carAnimationId); carAnimationId = null; }
-    drLastPos = null; drLastTime = null; drVelLat = 0; drVelLng = 0;
+    drLastPos = null; drLastTime = null;
   }
 
   function animateDriverMarker(toLng, toLat) {

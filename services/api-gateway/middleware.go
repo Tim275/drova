@@ -51,13 +51,13 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-XSS-Protection", "1; mode=block")
 		w.Header().Set("Content-Security-Policy",
 			"default-src 'self'; "+
-				"script-src 'self' 'unsafe-inline' blob: https://js.stripe.com https://api.mapbox.com https://events.mapbox.com; "+
-				"style-src 'self' 'unsafe-inline' https://api.mapbox.com; "+
+				"script-src 'self' 'unsafe-inline' blob: https://js.stripe.com https://api.mapbox.com https://events.mapbox.com https://m.stripe.network; "+
+				"style-src 'self' 'unsafe-inline' https://api.mapbox.com https://fonts.googleapis.com; "+
 				"img-src 'self' data: blob: https://api.mapbox.com https://api.dicebear.com; "+
-				"connect-src 'self' ws: wss: https://api.mapbox.com https://events.mapbox.com https://api.stripe.com; "+
+				"connect-src 'self' ws: wss: https://api.mapbox.com https://events.mapbox.com https://api.stripe.com https://m.stripe.network; "+
 				"frame-src https://js.stripe.com https://hooks.stripe.com; "+
 				"worker-src blob:; "+
-				"font-src 'self' data:;",
+				"font-src 'self' data: https://fonts.googleapis.com https://fonts.gstatic.com;",
 		)
 		next.ServeHTTP(w, r)
 	})

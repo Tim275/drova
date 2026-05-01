@@ -18,7 +18,7 @@ type registerRequest struct {
 	DisplayName string      `json:"display_name" validate:"required,min=2,max=50"`
 	Email       string      `json:"email"        validate:"required,email"`
 	Phone       string      `json:"phone"        validate:"required,min=7,max=20,phone"`
-	Password    string      `json:"password"     validate:"required,min=8"`
+	Password    string      `json:"password"     validate:"required,min=8,strongpassword"`
 	Role        domain.Role `json:"role"         validate:"required,oneof=rider driver"`
 }
 
@@ -126,10 +126,10 @@ func (app *application) handleGetMe(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateProfileRequest struct {
-	DisplayName string `json:"display_name"`
-	AvatarURL   string `json:"avatar_url"`
-	Phone       string `json:"phone"`
-	Address     string `json:"address"`
+	DisplayName string `json:"display_name" validate:"omitempty,min=2,max=50"`
+	AvatarURL   string `json:"avatar_url"   validate:"omitempty,max=500"`
+	Phone       string `json:"phone"        validate:"omitempty,min=7,max=20,phone"`
+	Address     string `json:"address"      validate:"omitempty,max=200"`
 }
 
 func (app *application) handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
@@ -137,6 +137,9 @@ func (app *application) handleUpdateProfile(w http.ResponseWriter, r *http.Reque
 	var req updateProfileRequest
 	if err := middleware.ReadJSON(r, &req); err != nil {
 		middleware.WriteError(w, http.StatusBadRequest, "invalid json")
+		return
+	}
+	if !middleware.Validate(w, req) {
 		return
 	}
 	if err := app.service.UpdateProfile(r.Context(), claims.UserID, req.DisplayName, req.AvatarURL, req.Phone, req.Address); err != nil {
