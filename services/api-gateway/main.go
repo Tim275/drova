@@ -13,8 +13,10 @@ import (
 	"drova/shared/env"
 	"drova/shared/logger"
 	"drova/shared/messaging"
+	"drova/shared/schema"
 	"drova/shared/tracing"
 
+	"github.com/hamba/avro/v2"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 )
@@ -69,6 +71,13 @@ func main() {
 	); err != nil {
 		appLog.Warnw("ensure topics", zap.Error(err))
 	}
+
+	kafkaClient.RegisterSchemas(context.Background(), map[string]avro.Schema{
+		"trip-created-value":           schema.SchemaTripCreated,
+		"trip-status-event-value":      schema.SchemaTripStatus,
+		"driver-trip-request-value":    schema.SchemaDriverTripRequest,
+		"payment-status-update-value":  schema.SchemaPaymentStatusUpdate,
+	})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
