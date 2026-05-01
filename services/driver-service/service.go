@@ -103,7 +103,7 @@ func (s *Service) FindAvailableDrivers(ctx context.Context, packageSlug string, 
 			continue
 		}
 		hash, err := s.rdb.HGetAll(ctx, driverKey(r.Name)).Result()
-		if err != nil || hash["busy"] != "" {
+		if err != nil || hash["name"] == "" || hash["busy"] != "" {
 			continue
 		}
 		drivers = append(drivers, &pb.Driver{
