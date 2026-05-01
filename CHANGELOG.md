@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.11.2](https://github.com/Tim275/drova/compare/v0.11.1...v0.11.2) (2026-05-01)
+
+
+### Bug Fixes
+
+* add trip→user gRPC arrow in diagram ([b8ee9f3](https://github.com/Tim275/drova/commit/b8ee9f373592356008f662c9f4b4137cdd64e449))
+* driver geo + rider history ([9d12e56](https://github.com/Tim275/drova/commit/9d12e56005b196a2c81d10ffa6211d60d9c314e2))
+* readme cleanup ([a7503e4](https://github.com/Tim275/drova/commit/a7503e41dfba1acfd76ce55b99eab064708c2c62))
+
 ## [0.11.1](https://github.com/Tim275/drova/compare/v0.11.0...v0.11.1) (2026-05-01)
 
 
