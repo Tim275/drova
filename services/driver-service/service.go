@@ -28,8 +28,6 @@ func NewService(store DriverStore, rdb *redis.Client, log *zap.SugaredLogger) *S
 
 const maxRadiusKm = 25.0
 
-var allPackages = []string{"economy", "comfort", "van", "business"}
-
 func geoKey(packageSlug string) string {
 	return "drova:drivers:geo:" + packageSlug
 }
@@ -67,13 +65,11 @@ func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, nam
 		"packageSlug", packageSlug,
 	)
 	s.rdb.HSetNX(ctx, driverKey(driverID), "busy", "")
-	for _, pkg := range allPackages {
-		s.rdb.GeoAdd(ctx, geoKey(pkg), &redis.GeoLocation{
-			Name:      driverID,
-			Longitude: randomRoute[0][1],
-			Latitude:  randomRoute[0][0],
-		})
-	}
+	s.rdb.GeoAdd(ctx, geoKey(packageSlug), &redis.GeoLocation{
+		Name:      driverID,
+		Longitude: randomRoute[0][1],
+		Latitude:  randomRoute[0][0],
+	})
 
 	_ = s.store.Upsert(ctx, driver)
 	return driver, nil
@@ -132,18 +128,21 @@ func (s *Service) ClearBusy(ctx context.Context, driverID string) {
 }
 
 func (s *Service) UpdateLocation(ctx context.Context, driverID string, lat, lng float64) {
-	for _, pkg := range allPackages {
-		s.rdb.GeoAdd(ctx, geoKey(pkg), &redis.GeoLocation{
-			Name:      driverID,
-			Longitude: lng,
-			Latitude:  lat,
-		})
+	packageSlug, err := s.rdb.HGet(ctx, driverKey(driverID), "packageSlug").Result()
+	if err != nil {
+		return
 	}
+	s.rdb.GeoAdd(ctx, geoKey(packageSlug), &redis.GeoLocation{
+		Name:      driverID,
+		Longitude: lng,
+		Latitude:  lat,
+	})
 }
 
 func (s *Service) UnregisterDriver(ctx context.Context, driverID string) {
-	for _, pkg := range allPackages {
-		s.rdb.ZRem(ctx, geoKey(pkg), driverID)
+	packageSlug, err := s.rdb.HGet(ctx, driverKey(driverID), "packageSlug").Result()
+	if err == nil && packageSlug != "" {
+		s.rdb.ZRem(ctx, geoKey(packageSlug), driverID)
 	}
 	s.rdb.Del(ctx, driverKey(driverID))
 }
