@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.1](https://github.com/Tim275/drova/compare/v0.11.0...v0.11.1) (2026-05-01)
+
+
+### Bug Fixes
+
+* driver geo + rider history ([9d12e56](https://github.com/Tim275/drova/commit/9d12e56005b196a2c81d10ffa6211d60d9c314e2))
+* password regex + kafka TLS support ([b0bb30b](https://github.com/Tim275/drova/commit/b0bb30b1ee1175350aae31c4963fdf7e30fac55d))
+
 ## [0.11.0](https://github.com/Tim275/drova/compare/v0.10.0...v0.11.0) (2026-05-01)
 
 
