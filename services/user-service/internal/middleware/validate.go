@@ -2,11 +2,20 @@ package middleware
 
 import (
 	"net/http"
+	"regexp"
 
 	"github.com/go-playground/validator/v10"
 )
 
-var validate = validator.New()
+var phoneRx = regexp.MustCompile(`^\+?[0-9][\d\s\-\(\)]{5,18}$`)
+
+var validate = func() *validator.Validate {
+	v := validator.New()
+	_ = v.RegisterValidation("phone", func(fl validator.FieldLevel) bool {
+		return phoneRx.MatchString(fl.Field().String())
+	})
+	return v
+}()
 
 func Validate(w http.ResponseWriter, v any) bool {
 	if err := validate.Struct(v); err != nil {

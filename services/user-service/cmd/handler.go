@@ -17,7 +17,7 @@ import (
 type registerRequest struct {
 	DisplayName string      `json:"display_name" validate:"required,min=2,max=50"`
 	Email       string      `json:"email"        validate:"required,email"`
-	Phone       string      `json:"phone"        validate:"required,min=6,max=20"`
+	Phone       string      `json:"phone"        validate:"required,min=7,max=20,phone"`
 	Password    string      `json:"password"     validate:"required,min=8"`
 	Role        domain.Role `json:"role"         validate:"required,oneof=rider driver"`
 }
@@ -60,7 +60,8 @@ func (app *application) handleActivate(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := app.service.Activate(r.Context(), token); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			middleware.WriteError(w, http.StatusNotFound, "invalid or expired token")
+			// Token already used or expired — redirect gracefully so user lands on login
+			http.Redirect(w, r, "/?activated=true", http.StatusSeeOther)
 			return
 		}
 		app.log.Errorw("activate", zap.Error(err))

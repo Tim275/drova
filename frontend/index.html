@@ -547,7 +547,7 @@
     <div id="registerform" style="display:none;">
       <input class="field-input" id="regName" type="text" placeholder="Full Name">
       <input class="field-input" id="regEmail" type="email" placeholder="Email">
-      <input class="field-input" id="regPhone" type="tel" placeholder="Phone number (e.g. +15551234567)">
+      <input class="field-input" id="regPhone" type="tel" placeholder="Phone number (e.g. +491234567890)" pattern="^\+?[0-9][\d\s\-\(\)]{5,18}$" title="Enter a valid phone number (digits, spaces, +, - allowed)">
       <input class="field-input" id="regPassword" type="password" placeholder="Password (min. 8 characters)">
       <div class="role-select">
         <label class="role-opt"><input type="radio" name="role" value="rider" checked> Rider</label>
@@ -912,6 +912,7 @@
     const password     = document.getElementById('regPassword').value;
     const role         = document.querySelector('input[name="role"]:checked')?.value ?? 'rider';
     if (!display_name || !email || !phone || !password) { showAuthErr('Please fill in all fields.'); return; }
+    if (!/^\+?[0-9][\d\s\-\(\)]{5,18}$/.test(phone)) { showAuthErr('Please enter a valid phone number (e.g. +491234567890).'); return; }
 
     try {
       const res = await fetch('/v1/users/register', {
@@ -1481,7 +1482,7 @@
       const loop = () => {
         if (!riderDriverMarker || !drLastPos) { carAnimationId = requestAnimationFrame(loop); return; }
         const elapsed = performance.now() - drLastTime;
-        if (elapsed < 2500) {
+        if (elapsed < 800) {
           // Project forward from last known real position using current velocity vector
           riderDriverMarker.setLngLat([
             drLastPos.lng + drVelLng * elapsed,
