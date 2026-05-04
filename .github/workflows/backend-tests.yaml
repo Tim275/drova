@@ -2,68 +2,66 @@ name: Backend Tests
 
 on:
   pull_request:
-    paths:
-      - "services/**"
-      - "shared/**"
-      - "proto/**"
-      - "go.mod"
-      - "go.sum"
-      - ".github/workflows/backend-tests.yaml"
 
 concurrency:
-  group: backend-tests-${{ github.event.pull_request.number }}
+  group: backend-tests-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
+  pull-requests: write
+  security-events: write
 
 jobs:
-  lint:
-    name: Lint
+  check_paths:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    outputs:
+      should_run: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3.0.2
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'services/**'
+              - 'shared/**'
+              - 'proto/**'
+              - 'go.mod'
+              - 'go.sum'
+              - '.github/workflows/backend-tests.yaml'
+
+  test:
+    name: Test Backend
+    needs: check_paths
+    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
+    runs-on: ubuntu-latest
     env:
       GOFLAGS: "-mod=readonly"
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: false
-      - uses: golangci/golangci-lint-action@v6
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.1.6
+          version: v2.12.1
           args: --timeout=5m
 
-  govulncheck:
-    name: Vulnerability Check
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: false
-      - name: govulncheck
+      - name: Vulnerability check
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
-  test-and-build:
-    name: Test & Build All Services
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      GOFLAGS: "-mod=readonly"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: false
-      - name: go test
-        run: go test -race -count=1 -timeout 3m ./...
+      - name: Run tests with coverage
+        run: go test -race -count=1 -timeout 3m -coverprofile=coverage.out ./...
+
       - name: Build all services
         run: |
           CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/api-gateway
@@ -72,3 +70,45 @@ jobs:
           CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/driver-service
           CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/payment-service/cmd
           CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/chat-service
+
+      - name: Build Docker image
+        run: docker build -t drova-api-gateway:latest -f services/api-gateway/Dockerfile .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: "drova-api-gateway:latest"
+          format: "table"
+          exit-code: "0"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+  codeql:
+    name: CodeQL Analysis
+    needs: check_paths
+    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+          queries: security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:go"

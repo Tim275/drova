@@ -1,5 +1,28 @@
 #!/bin/bash
 set -e
+
+if [ "$#" -ne 2 ]; then
+  echo "Usage: $0 <input-tag> <kustomization-file-path>"
+  exit 1
+fi
+
 INPUT_TAG=$1
 KUSTOMIZATION_FILE=$2
+
+echo "Tag:  $INPUT_TAG"
+echo "File: $KUSTOMIZATION_FILE"
+
+if ! command -v yq &>/dev/null; then
+  echo "Error: yq not found"
+  exit 1
+fi
+
+if [ ! -f "$KUSTOMIZATION_FILE" ]; then
+  echo "Error: $KUSTOMIZATION_FILE not found"
+  exit 1
+fi
+
 yq e -i '(.images[] | select(.name | test("ghcr.io/tim275/drova/"))).newTag = "'"$INPUT_TAG"'"' "$KUSTOMIZATION_FILE"
+
+echo "--- Updated $KUSTOMIZATION_FILE ---"
+cat "$KUSTOMIZATION_FILE"

@@ -51,7 +51,16 @@ docker_build_with_restart(
     entrypoint='/app/api-gateway',
     live_update=[
         sync('./build/api-gateway', '/app/api-gateway'),
-        sync('./frontend', '/app/frontend'),
+    ],
+)
+
+# --- Frontend (nginx serves index.html) ---
+docker_build(
+    'drova-frontend',
+    context='./frontend',
+    dockerfile='./frontend/Dockerfile',
+    live_update=[
+        sync('./frontend/index.html', '/usr/share/nginx/html/index.html'),
     ],
 )
 

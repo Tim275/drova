@@ -6,30 +6,31 @@ on:
       tag:
         required: true
         type: string
-        description: "Release tag (e.g. v0.9.0)"
+        description: "The tag name of the release"
     secrets:
       GITOPS_PAT:
         required: true
+        description: "PAT for drova-gitops repository"
   workflow_dispatch:
     inputs:
       tag:
         required: true
         type: string
-        description: "Release tag (e.g. v0.9.0)"
+        description: "Release tag to redeploy (e.g. v0.14.0)"
 
 jobs:
   update-gitops:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
 
     steps:
-      - name: Checkout drova (scripts)
+      - name: Checkout Actions Repo
         uses: actions/checkout@v4
         with:
           path: actions-repo
 
-      - name: Checkout drova-gitops
+      - name: Checkout GitOps repository
         uses: actions/checkout@v4
         with:
           repository: Tim275/drova-gitops
@@ -38,76 +39,48 @@ jobs:
           path: drova-gitops
 
       - name: Install yq
-        env:
-          YQ_VERSION: "v4.44.3"
-          YQ_SHA256: "4622a6cd9ef61bcd30e9f04ac30bef73bde64fe5c05b2fafde9a9bbcd9b48bdc"
         run: |
-          sudo wget -qO /usr/local/bin/yq \
-            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
-          echo "${YQ_SHA256}  /usr/local/bin/yq" | sha256sum --check
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
 
-      - name: Update staging image tags
+      - name: Update Image Tags Staging
         run: |
-          bash actions-repo/scripts/update_kustomize_tag \
-            "${{ inputs.tag }}" \
-            drova-gitops/overlays/staging/kustomization.yaml
+          KUSTOMIZATION_FILE="./drova-gitops/overlays/staging/kustomization.yaml"
+          SCRIPT_PATH="./actions-repo/scripts/update_kustomize_tag"
+          chmod +x "$SCRIPT_PATH"
+          echo "Calling update script with tag: ${{ inputs.tag }}, file: $KUSTOMIZATION_FILE"
+          "$SCRIPT_PATH" "${{ inputs.tag }}" "$KUSTOMIZATION_FILE"
 
-      - name: Commit staging update
-        uses: EndBug/add-and-commit@v9
+      - uses: EndBug/add-and-commit@v9
         with:
-          cwd: drova-gitops
-          add: overlays/staging/kustomization.yaml
-          message: "chore: deploy ${{ inputs.tag }} to staging"
-          default_author: github_actions
+          author_name: GitOps Bot
+          author_email: gitops-bot@github.com
+          cwd: ./drova-gitops
+          message: 'Update drova deployments to tag "${{ inputs.tag }}"'
           github_token: ${{ secrets.GITOPS_PAT }}
 
-      - name: Soak period
+      - name: Update Image Tags Production
         run: |
-          echo "Staging deployed. Soaking 3 minutes before opening production PR..."
-          sleep 180
+          KUSTOMIZATION_FILE="./drova-gitops/overlays/production/kustomization.yaml"
+          SCRIPT_PATH="./actions-repo/scripts/update_kustomize_tag"
+          echo "Calling update script with tag: ${{ inputs.tag }}, file: $KUSTOMIZATION_FILE"
+          "$SCRIPT_PATH" "${{ inputs.tag }}" "$KUSTOMIZATION_FILE"
 
-      - name: Update production image tags
-        run: |
-          bash actions-repo/scripts/update_kustomize_tag \
-            "${{ inputs.tag }}" \
-            drova-gitops/overlays/production/kustomization.yaml
-
-      - name: Create production pull request
+      - name: Create Pull Request
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITOPS_PAT }}
-          path: drova-gitops
-          commit-message: "chore: update drova images to ${{ inputs.tag }}"
+          path: ./drova-gitops
+          commit-message: "Update prod deployments to tag ${{ inputs.tag }}"
           committer: GitOps Bot <gitops-bot@github.com>
           author: GitOps Bot <gitops-bot@github.com>
-          branch: gitops/release-${{ inputs.tag }}
+          branch: gitops/update-tag-${{ inputs.tag }}
           delete-branch: true
-          title: "chore: deploy ${{ inputs.tag }} to production"
+          title: "Update prod image tags to ${{ inputs.tag }}"
           body: |
-            Updates all Drova service image tags to `${{ inputs.tag }}` in `overlays/production/kustomization.yaml`.
-
-            Staging has been running `${{ inputs.tag }}` for ~3 minutes (soak period passed).
+            Update all drova service image tags in the production environment kustomization to `${{ inputs.tag }}`.
 
             Release: https://github.com/Tim275/drova/releases/tag/${{ inputs.tag }}
           labels: |
             automated-pr
             gitops
-
-      - name: Write GitOps summary
-        run: |
-          cat >> $GITHUB_STEP_SUMMARY << EOF
-          ## GitOps Update — ${{ inputs.tag }}
-
-          | Environment | Status |
-          |---|---|
-          | Staging | deployed (auto-commit via EndBug) |
-          | Production | PR opened — awaiting review |
-
-          **Soak period:** 3 minutes passed before production PR was opened.
-          EOF
-
-      - name: Notify on failure
-        if: failure()
-        run: |
-          echo "::error::GitOps update failed for tag ${{ inputs.tag }} — staging or production may be out of sync"
