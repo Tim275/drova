@@ -26,7 +26,7 @@ jobs:
 
     steps:
       - name: Checkout drova-gitops repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: Tim275/drova-gitops
           token: ${{ secrets.GITOPS_PAT }}
@@ -90,7 +90,7 @@ jobs:
           sleep 180
 
       - name: Create Production Pull Request
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITOPS_PAT }}
           commit-message: "chore: update drova images to ${{ inputs.tag }}"
