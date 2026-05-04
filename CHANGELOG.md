@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.15.0](https://github.com/Tim275/drova/compare/v0.14.0...v0.15.0) (2026-05-04)
+
+
+### Features
+
+* ADJUST frontend setting ([74849e3](https://github.com/Tim275/drova/commit/74849e340b24670f1376cd127863dae68f5d1a84))
+* Redis GEOSEARCH + 12-Factor fixes ([5cbcbbc](https://github.com/Tim275/drova/commit/5cbcbbc1696de2724d74b8b1e2bb3e7b3de7c23b))
+
+
+### Bug Fixes
+
+* checkout main branch to avoid detached HEAD ([cdac389](https://github.com/Tim275/drova/commit/cdac38994704baca0956d8c714d7160baef8613f))
+* frontend error ([1763e09](https://github.com/Tim275/drova/commit/1763e09c0826c7ef73b1abb7e2acbab2aeb24518))
+* phone validation + map extrapolation + activation redirect ([e2d4602](https://github.com/Tim275/drova/commit/e2d46020f0e36a3be62fe05f07f4479b70379150))
+* restore working pipeline config ([5e86d52](https://github.com/Tim275/drova/commit/5e86d52293a8cb0a9221713029c0cdd3400674d6))
+* test password uppercase ([94d12b1](https://github.com/Tim275/drova/commit/94d12b1e86e041dd595bba724dfb652d11550bb6))
+* tidy exit code capture ([14fd40d](https://github.com/Tim275/drova/commit/14fd40d6d4669035d4c51e4a6c7229d7a00259b0))
+* trivy non-blocking, decouple deploy from scan ([c4a89c8](https://github.com/Tim275/drova/commit/c4a89c89f907e9e265a5746d2e37871289705dfe))
+
 ## [0.12.0](https://github.com/Tim275/drova/compare/v0.11.2...v0.12.0) (2026-05-04)
 
 
