@@ -33,48 +33,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GOFLAGS: "-mod=readonly"
-      DB_URL: postgres://drova:testpassword@localhost:5432/drova_test?sslmode=disable
-      REDIS_ADDR: localhost:6379
-      KAFKA_BROKERS: localhost:9092
-
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: drova
-          POSTGRES_PASSWORD: testpassword
-          POSTGRES_DB: drova_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-        ports:
-          - 5432:5432
-
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-        ports:
-          - 6379:6379
-
-      kafka:
-        image: confluentinc/cp-kafka:7.6.1
-        env:
-          KAFKA_NODE_ID: 1
-          KAFKA_PROCESS_ROLES: broker,controller
-          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
-          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-          CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
-        ports:
-          - 9092:9092
 
     steps:
       - name: Checkout code
