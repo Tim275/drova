@@ -25,12 +25,12 @@ jobs:
 
     steps:
       - name: Checkout drova (scripts)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: actions-repo
 
       - name: Checkout drova-gitops
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: Tim275/drova-gitops
           token: ${{ secrets.GITOPS_PAT }}
@@ -54,7 +54,7 @@ jobs:
             drova-gitops/overlays/staging/kustomization.yaml
 
       - name: Commit staging update
-        uses: EndBug/add-and-commit@v9
+        uses: EndBug/add-and-commit@v10
         with:
           cwd: drova-gitops
           add: overlays/staging/kustomization.yaml
@@ -74,7 +74,7 @@ jobs:
             drova-gitops/overlays/production/kustomization.yaml
 
       - name: Create production pull request
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITOPS_PAT }}
           path: drova-gitops
