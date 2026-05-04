@@ -1,5 +1,5 @@
 {
-  "release-type": "go",
+  "release-type": "simple",
   "packages": {
     ".": {}
   }
