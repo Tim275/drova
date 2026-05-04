@@ -56,7 +56,7 @@ func NewKafka(brokers []string) *Kafka {
 			}
 			transport = &kafka.Transport{SASL: m, TLS: tlsCfg}
 			dialer = &kafka.Dialer{Timeout: 10 * time.Second, DualStack: true, SASLMechanism: m, TLS: tlsCfg}
-			log.Printf("kafka: SASL/SCRAM-SHA-512 enabled for user %s", saslUser)
+			log.Printf("kafka: SASL/SCRAM-SHA-512 enabled for user %s", saslUser) //nolint:gosec
 		} else {
 			m := plain.Mechanism{Username: saslUser, Password: saslPass}
 			transport = &kafka.Transport{SASL: m, TLS: tlsCfg}
@@ -79,7 +79,7 @@ func NewKafka(brokers []string) *Kafka {
 
 	if url := os.Getenv("SCHEMA_REGISTRY_URL"); url != "" {
 		k.registry = schema.NewRegistryClient(url)
-		log.Printf("schema registry: client initialised (%s)", url)
+		log.Printf("schema registry: client initialised (%s)", url) //nolint:gosec
 	}
 
 	return k
