@@ -69,12 +69,10 @@ jobs:
       - name: Build Docker image
         run: docker build -t drova-api-gateway:latest -f services/api-gateway/Dockerfile .
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.36.0
+      - name: Scan image
+        uses: anchore/scan-action@v7
         with:
-          image-ref: "drova-api-gateway:latest"
-          format: "table"
-          exit-code: "0"
-          ignore-unfixed: true
-          vuln-type: "os,library"
-          severity: "CRITICAL,HIGH"
+          image: "drova-api-gateway:latest"
+          fail-build: false
+          severity-cutoff: high
+          output-format: table
