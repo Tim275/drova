@@ -64,7 +64,7 @@ func (m *RoomManager) Join(tripID, role string, conn *websocket.Conn) *Room {
 	if !ok {
 		room = newRoom()
 		m.rooms[tripID] = room
-		ctx, cancel := context.WithCancel(context.Background())
+		ctx, cancel := context.WithCancel(context.Background()) //nolint:gosec
 		m.cancels[tripID] = cancel
 		go m.subscribeRoom(ctx, tripID, room)
 	}

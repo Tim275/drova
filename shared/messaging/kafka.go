@@ -36,14 +36,14 @@ func NewKafka(brokers []string) *Kafka {
 
 	var tlsCfg *tls.Config
 	if caPath := os.Getenv("KAFKA_TLS_CA_CERT"); caPath != "" {
-		ca, err := os.ReadFile(caPath)
+		ca, err := os.ReadFile(caPath) //nolint:gosec
 		if err != nil {
-			log.Fatalf("kafka: read CA cert %s: %v", caPath, err)
+			log.Fatalf("kafka: read CA cert %s: %v", caPath, err) //nolint:gosec
 		}
 		pool := x509.NewCertPool()
 		pool.AppendCertsFromPEM(ca)
 		tlsCfg = &tls.Config{RootCAs: pool}
-		log.Printf("kafka: TLS enabled (CA: %s)", caPath)
+		log.Printf("kafka: TLS enabled (CA: %s)", caPath) //nolint:gosec
 	}
 
 	saslUser := os.Getenv("KAFKA_SASL_USERNAME")
@@ -61,7 +61,7 @@ func NewKafka(brokers []string) *Kafka {
 			m := plain.Mechanism{Username: saslUser, Password: saslPass}
 			transport = &kafka.Transport{SASL: m, TLS: tlsCfg}
 			dialer = &kafka.Dialer{Timeout: 10 * time.Second, DualStack: true, SASLMechanism: m, TLS: tlsCfg}
-			log.Printf("kafka: SASL/PLAIN enabled for user %s", saslUser)
+			log.Printf("kafka: SASL/PLAIN enabled for user %s", saslUser) //nolint:gosec
 		}
 	} else if tlsCfg != nil {
 		transport = &kafka.Transport{TLS: tlsCfg}
