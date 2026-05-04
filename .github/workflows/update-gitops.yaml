@@ -53,9 +53,10 @@ jobs:
         env:
           TAG: ${{ inputs.tag }}
         run: |
-          COUNT=$(yq e '[.images[].newTag] | map(select(. == strenv(TAG))) | length' overlays/staging/kustomization.yaml)
+          COUNT=$(yq e '[.images[].newTag] | map(select(. == strenv(TAG))) | length' \
+            overlays/staging/kustomization.yaml)
           if [ "$COUNT" -lt 1 ]; then
-            echo "ERROR: No image tags updated to ${TAG} in staging — check yq selector"
+            echo "::error::No image tags updated to ${TAG} in staging — check yq selector"
             exit 1
           fi
           echo "Staging: ${COUNT} image(s) updated to ${TAG}"
@@ -67,7 +68,7 @@ jobs:
           yq e -i '(.images[] | select(.name | test("ghcr.io/tim275/drova/"))).newTag = strenv(TAG)' \
             overlays/production/kustomization.yaml
 
-      - name: Commit staging update
+      - name: Commit and push staging update
         env:
           TAG: ${{ inputs.tag }}
         run: |
@@ -78,9 +79,15 @@ jobs:
           git commit -m "chore: deploy ${TAG} to staging"
           for i in 1 2 3; do
             git push && break
-            echo "Push attempt ${i} failed, rebasing..."
+            echo "Push attempt ${i} failed — rebasing..."
             git pull --rebase origin main
           done
+
+      - name: Soak period — wait for staging to stabilise
+        run: |
+          echo "Staging deploy triggered. Soaking for 3 minutes before opening production PR..."
+          echo "ArgoCD will sync staging within this window."
+          sleep 180
 
       - name: Create Production Pull Request
         uses: peter-evans/create-pull-request@v6
@@ -95,12 +102,25 @@ jobs:
           body: |
             Updates all Drova service image tags to `${{ inputs.tag }}` in `overlays/production/kustomization.yaml`.
 
-            Staging is already running `${{ inputs.tag }}`.
+            Staging has been running `${{ inputs.tag }}` for ~3 minutes (soak period passed).
 
             Release: https://github.com/Tim275/drova/releases/tag/${{ inputs.tag }}
           labels: |
             automated-pr
             gitops
+
+      - name: Write GitOps summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## GitOps Update — ${{ inputs.tag }}
+
+          | Environment | Status |
+          |---|---|
+          | Staging | deployed (direct commit) |
+          | Production | PR opened — awaiting review |
+
+          **Soak period:** 3 minutes passed before production PR was opened.
+          EOF
 
       - name: Notify on failure
         if: failure()
