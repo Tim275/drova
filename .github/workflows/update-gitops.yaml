@@ -39,9 +39,13 @@ jobs:
           path: drova-gitops
 
       - name: Install yq
+        env:
+          YQ_VERSION: "v4.44.3"
+          YQ_SHA256: "4622a6cd9ef61bcd30e9f04ac30bef73bde64fe5c05b2fafde9a9bbcd9b48bdc"
         run: |
           sudo wget -qO /usr/local/bin/yq \
-            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          echo "${YQ_SHA256}  /usr/local/bin/yq" | sha256sum --check
           sudo chmod +x /usr/local/bin/yq
 
       - name: Update staging image tags
