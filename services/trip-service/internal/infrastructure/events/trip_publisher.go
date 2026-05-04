@@ -36,7 +36,7 @@ func (p *TripEventPublisher) PublishSearchTimeout(ctx context.Context, tripID, r
 	}
 	cancelMsg := messaging.KafkaMessage{
 		Type:    messaging.TopicTripCancelled,
-		OwnerID: "",
+		OwnerID: riderID,
 		Data:    cancelData,
 	}
 	cancelPayload, err := json.Marshal(cancelMsg)

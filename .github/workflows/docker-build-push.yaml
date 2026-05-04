@@ -10,22 +10,33 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write
+  contents: read
   packages: write
-  pull-requests: write
 
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/tim275/drova
 
 jobs:
+  prepare:
+    name: Extract tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.TAG }}
+    steps:
+      - name: Extract tag
+        id: tag
+        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
   build-and-push:
     name: Build ${{ matrix.service }}
+    needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
       packages: write
+      id-token: write
 
     strategy:
       fail-fast: false
@@ -56,30 +67,28 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract tag
-        id: tag
-        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ matrix.dockerfile }}
           push: true
-          tags: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ steps.tag.outputs.TAG }}
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ needs.prepare.outputs.tag }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
           platforms: linux/amd64
-
-    outputs:
-      tag: ${{ steps.tag.outputs.TAG }}
+          provenance: mode=max
+          sbom: true
 
   trigger-gitops:
     name: Update GitOps
-    needs: build-and-push
+    needs: [prepare, build-and-push]
     if: needs.build-and-push.result == 'success'
+    permissions: {}
     uses: ./.github/workflows/update-gitops.yaml
     with:
-      tag: ${{ needs.build-and-push.outputs.tag }}
+      tag: ${{ needs.prepare.outputs.tag }}
     secrets:
       GITOPS_PAT: ${{ secrets.GITOPS_PAT }}

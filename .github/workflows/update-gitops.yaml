@@ -33,18 +33,34 @@ jobs:
           ref: main
 
       - name: Install yq
+        env:
+          YQ_VERSION: "v4.44.3"
+          YQ_SHA256: "4622a6cd9ef61bcd30e9f04ac30bef73bde64fe5c05b2fafde9a9bbcd9b48bdc"
         run: |
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          sudo wget -qO /usr/local/bin/yq \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          echo "${YQ_SHA256}  /usr/local/bin/yq" | sha256sum --check
           sudo chmod +x /usr/local/bin/yq
 
-      - name: Update staging image tags (direct commit)
+      - name: Update staging image tags
         env:
           TAG: ${{ inputs.tag }}
         run: |
           yq e -i '(.images[] | select(.name | test("ghcr.io/tim275/drova/"))).newTag = strenv(TAG)' \
             overlays/staging/kustomization.yaml
 
-      - name: Update production image tags (PR)
+      - name: Validate staging update
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          COUNT=$(yq e '[.images[].newTag] | map(select(. == strenv(TAG))) | length' overlays/staging/kustomization.yaml)
+          if [ "$COUNT" -lt 1 ]; then
+            echo "ERROR: No image tags updated to ${TAG} in staging — check yq selector"
+            exit 1
+          fi
+          echo "Staging: ${COUNT} image(s) updated to ${TAG}"
+
+      - name: Update production image tags
         env:
           TAG: ${{ inputs.tag }}
         run: |
@@ -58,8 +74,13 @@ jobs:
           git config user.name "GitOps Bot"
           git config user.email "gitops-bot@github.com"
           git add overlays/staging/kustomization.yaml
-          git diff --cached --quiet || git commit -m "chore: deploy ${TAG} to staging"
-          git push
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: deploy ${TAG} to staging"
+          for i in 1 2 3; do
+            git push && break
+            echo "Push attempt ${i} failed, rebasing..."
+            git pull --rebase origin main
+          done
 
       - name: Create Production Pull Request
         uses: peter-evans/create-pull-request@v6
@@ -80,3 +101,8 @@ jobs:
           labels: |
             automated-pr
             gitops
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::GitOps update failed for tag ${{ inputs.tag }} — staging or production may be out of sync"

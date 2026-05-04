@@ -16,13 +16,15 @@ concurrency:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   test:
     name: Test & Build All Services
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    env:
+      GOFLAGS: "-mod=readonly"
 
     steps:
       - name: Checkout code
@@ -32,7 +34,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: true
+          cache: false
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
@@ -41,7 +43,7 @@ jobs:
           args: --timeout=5m
 
       - name: go test
-        run: go test -race -count=1 ./...
+        run: go test -race -count=1 -timeout 3m ./...
 
       - name: Build all services
         run: |

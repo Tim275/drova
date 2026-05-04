@@ -21,7 +21,7 @@ func NewDriverServiceClient() (*driverServiceClient, error) {
 		driverServiceURL = "driver-service:9092"
 	}
 
-	dialOpts := append(tracing.DialOptionsWithTracing(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	dialOpts := append(tracing.DriverDialOptionsWithTracing(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	conn, err := grpc.NewClient(driverServiceURL, dialOpts...)
 	if err != nil {
 		return nil, err
