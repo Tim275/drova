@@ -8,12 +8,6 @@ on:
       - "go.mod"
       - "go.sum"
       - ".github/workflows/integration-tests.yaml"
-  push:
-    branches:
-      - main
-    paths:
-      - "services/**"
-      - "shared/**"
 
 concurrency:
   group: integration-${{ github.event.pull_request.number || github.sha }}
