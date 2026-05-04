@@ -144,7 +144,8 @@ func main() {
 	if err != nil {
 		log.Fatalw("grpc listen", zap.Error(err))
 	}
-	grpcSrv := grpc.NewServer()
+	// grpcSrv := grpc.NewServer()
+	grpcSrv := grpc.NewServer(tracing.WithTracingInterceptors()...)
 	pb.RegisterUserServiceServer(grpcSrv, grpc_handler.New(svc, authenticator, blacklist, log))
 
 	go func() {
