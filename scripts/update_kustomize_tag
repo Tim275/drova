@@ -1,0 +1,5 @@
+#!/bin/bash
+set -e
+INPUT_TAG=$1
+KUSTOMIZATION_FILE=$2
+yq e -i '(.images[] | select(.name | test("ghcr.io/tim275/drova/"))).newTag = "'"$INPUT_TAG"'"' "$KUSTOMIZATION_FILE"
