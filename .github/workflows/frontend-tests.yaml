@@ -2,33 +2,40 @@ name: Frontend Tests
 
 on:
   pull_request:
-    paths:
-      - "frontend/**"
-      - ".github/workflows/frontend-tests.yaml"
-
-concurrency:
-  group: frontend-tests-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
-  test:
-    name: Validate Frontend
+  check_paths:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-
+    outputs:
+      should_run: ${{ steps.filter.outputs.frontend }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3.0.2
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/frontend-tests.yaml'
+
+  test:
+    name: Test Frontend
+    needs: check_paths
+    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
       - name: Verify frontend exists
         run: |
           test -f frontend/index.html
           echo "frontend/index.html: $(wc -l < frontend/index.html) lines"
 
-      - name: Validate HTML (errors only)
+      - name: Validate HTML
         run: |
           sudo apt-get update -qq && sudo apt-get install -y tidy
           TIDY_EXIT=0
@@ -36,15 +43,11 @@ jobs:
           if [ $TIDY_EXIT -gt 1 ]; then
             echo "HTML has errors (tidy exit $TIDY_EXIT)" && exit 1
           fi
-          echo "HTML OK (warnings are expected for dynamic SPA)"
+          echo "HTML OK (warnings expected for dynamic SPA)"
 
       - name: Check for debug leaks
         run: |
           if grep -n "debugger" frontend/index.html; then
             echo "ERROR: debugger statement found" && exit 1
-          fi
-          if grep -n "console\.log" frontend/index.html; then
-            echo "WARNING: console.log statements found:"
-            grep -n "console\.log" frontend/index.html
           fi
           echo "No debugger statements found"

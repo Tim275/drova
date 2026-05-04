@@ -2,68 +2,59 @@ name: Backend Tests
 
 on:
   pull_request:
-    paths:
-      - "services/**"
-      - "shared/**"
-      - "proto/**"
-      - "go.mod"
-      - "go.sum"
-      - ".github/workflows/backend-tests.yaml"
-
-concurrency:
-  group: backend-tests-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
-  lint:
-    name: Lint
+  check_paths:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    outputs:
+      should_run: ${{ steps.filter.outputs.backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3.0.2
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'services/**'
+              - 'shared/**'
+              - 'proto/**'
+              - 'go.mod'
+              - 'go.sum'
+              - '.github/workflows/backend-tests.yaml'
+
+  test:
+    name: Test Backend
+    needs: check_paths
+    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
+    runs-on: ubuntu-latest
     env:
       GOFLAGS: "-mod=readonly"
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: false
-      - uses: golangci/golangci-lint-action@v6
+
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
         with:
           version: v2.1.6
           args: --timeout=5m
 
-  govulncheck:
-    name: Vulnerability Check
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: false
-      - name: govulncheck
+      - name: Vulnerability check
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
-  test-and-build:
-    name: Test & Build All Services
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      GOFLAGS: "-mod=readonly"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: false
-      - name: go test
+      - name: Run tests
         run: go test -race -count=1 -timeout 3m ./...
+
       - name: Build all services
         run: |
           CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/api-gateway
