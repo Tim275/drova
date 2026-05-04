@@ -54,8 +54,8 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
-      - name: Run tests
-        run: go test -race -count=1 -timeout 3m ./...
+      - name: Run tests with coverage
+        run: go test -race -count=1 -timeout 3m -coverprofile=coverage.out ./...
 
       - name: Build all services
         run: |
