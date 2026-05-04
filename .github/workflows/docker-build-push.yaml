@@ -5,6 +5,11 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/tim275/drova
@@ -66,4 +71,14 @@ jobs:
             ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  trigger_gitops:
+    name: Trigger GitOps
+    needs: build-and-push
+    if: needs.build-and-push.result == 'success'
+    uses: ./.github/workflows/update-gitops.yaml
+    with:
+      tag: ${{ github.ref_name }}
+    secrets:
+      GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
 
