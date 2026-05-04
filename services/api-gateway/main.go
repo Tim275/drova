@@ -132,15 +132,6 @@ func main() {
 	mux.Handle("/ws/drivers", tracing.WrapHandlerFunc(handleDriversWebSocket, "/ws/drivers"))
 	mux.Handle("/ws/riders", tracing.WrapHandlerFunc(handleRidersWebSocket, "/ws/riders"))
 	mux.Handle("POST /webhook/stripe", tracing.WrapHandlerFunc(handleStripeWebhook, "POST /webhook/stripe"))
-	fs := http.FileServer(http.Dir("./frontend"))
-	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" || strings.HasSuffix(r.URL.Path, ".html") {
-			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-			w.Header().Set("Pragma", "no-cache")
-			w.Header().Set("Expires", "0")
-		}
-		fs.ServeHTTP(w, r)
-	}))
 
 	server := &http.Server{
 		Addr: httpAddr,

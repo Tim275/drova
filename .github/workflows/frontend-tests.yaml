@@ -2,33 +2,54 @@ name: Frontend Tests
 
 on:
   pull_request:
-    paths:
-      - "frontend/**"
-      - ".github/workflows/frontend-tests.yaml"
 
 concurrency:
-  group: frontend-tests-${{ github.event.pull_request.number }}
+  group: frontend-tests-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
-  test:
-    name: Validate Frontend
+  check_paths:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    outputs:
+      should_run: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3.0.2
+        id: filter
+        with:
+          filters: |
+            frontend:
+              - 'frontend/**'
+              - '.github/workflows/frontend-tests.yaml'
+
+  test:
+    name: Test Frontend
+    needs: check_paths
+    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - name: Verify frontend exists
         run: |
           test -f frontend/index.html
           echo "frontend/index.html: $(wc -l < frontend/index.html) lines"
 
-      - name: Validate HTML (errors only)
+      - name: Lint HTML with HTMLHint
+        run: npx --yes htmlhint --config frontend/.htmlhintrc frontend/index.html
+
+      - name: Validate HTML with tidy
         run: |
           sudo apt-get update -qq && sudo apt-get install -y tidy
           TIDY_EXIT=0
@@ -36,15 +57,45 @@ jobs:
           if [ $TIDY_EXIT -gt 1 ]; then
             echo "HTML has errors (tidy exit $TIDY_EXIT)" && exit 1
           fi
-          echo "HTML OK (warnings are expected for dynamic SPA)"
+          echo "HTML OK (warnings expected for dynamic SPA)"
+
+      - name: Check JavaScript syntax
+        run: |
+          node -e "
+          const fs = require('fs');
+          const html = fs.readFileSync('frontend/index.html', 'utf8');
+          const re = /<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g;
+          let m, n = 0, errs = 0;
+          while ((m = re.exec(html)) !== null) {
+            const code = m[1].trim();
+            if (!code) continue;
+            n++;
+            try { new Function(code); }
+            catch (e) {
+              console.error('Script #' + n + ' syntax error:', e.message);
+              errs++;
+            }
+          }
+          console.log(n + ' inline scripts validated, ' + errs + ' errors');
+          process.exit(errs > 0 ? 1 : 0);
+          "
 
       - name: Check for debug leaks
         run: |
           if grep -n "debugger" frontend/index.html; then
             echo "ERROR: debugger statement found" && exit 1
           fi
-          if grep -n "console\.log" frontend/index.html; then
-            echo "WARNING: console.log statements found:"
-            grep -n "console\.log" frontend/index.html
-          fi
           echo "No debugger statements found"
+
+      - name: Build Docker image
+        run: docker build -t drova-frontend:latest frontend/
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: "drova-frontend:latest"
+          format: "table"
+          exit-code: "0"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"

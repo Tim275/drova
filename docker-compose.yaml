@@ -326,6 +326,19 @@ services:
         condition: service_started
     restart: on-failure
 
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      api-gateway:
+        condition: service_started
+      chat-service:
+        condition: service_started
+    restart: on-failure
+
 volumes:
   postgres_data:
   redis_data:

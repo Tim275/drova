@@ -1,92 +1,89 @@
-name: Build and Push Images
+name: Build and Push Docker Images
 
 on:
   push:
     tags:
       - "v*"
 
-concurrency:
-  group: release-pipeline
-  cancel-in-progress: false
-
-permissions: {}
-
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/tim275/drova
 
 jobs:
-  prepare:
-    name: Extract Tag
+  build-and-push:
+    name: Build and Push ${{ matrix.service }}
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      tag: ${{ steps.tag.outputs.TAG }}
-    steps:
-      - name: Extract tag
-        id: tag
-        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-  build-push:
-    name: Build ${{ matrix.service }}
-    needs: prepare
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
     permissions:
       contents: read
       packages: write
       id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
         include:
           - service: api-gateway
             dockerfile: services/api-gateway/Dockerfile
+            context: .
           - service: user-service
             dockerfile: services/user-service/Dockerfile
+            context: .
           - service: trip-service
             dockerfile: services/trip-service/Dockerfile
+            context: .
           - service: driver-service
             dockerfile: services/driver-service/Dockerfile
+            context: .
           - service: payment-service
             dockerfile: services/payment-service/Dockerfile
+            context: .
           - service: chat-service
             dockerfile: services/chat-service/Dockerfile
+            context: .
+          - service: frontend
+            dockerfile: frontend/Dockerfile
+            context: frontend
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Login to GHCR
+      - name: Login to Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Build and Push
         id: build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
           tags: |
-            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ needs.prepare.outputs.tag }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.ref_name }}
             ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
-          platforms: linux/amd64
           provenance: mode=max
           sbom: true
 
+      - name: Generate build provenance attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
   security-scan:
-    name: Scan ${{ matrix.service }}
-    needs: [prepare, build-push]
-    if: always() && needs.build-push.result == 'success'
+    name: Trivy Scan ${{ matrix.service }}
+    needs: build-and-push
+    if: always() && needs.build-and-push.result == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
     permissions:
       contents: read
       packages: read
@@ -94,9 +91,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [api-gateway, user-service, trip-service, driver-service, payment-service, chat-service]
+        service: [api-gateway, user-service, trip-service, driver-service, payment-service, chat-service, frontend]
+
     steps:
-      - name: Login to GHCR
+      - name: Login to Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -104,12 +102,13 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ needs.prepare.outputs.tag }}
+          image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.ref_name }}
           format: sarif
           output: trivy-${{ matrix.service }}.sarif
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
           exit-code: "0"
 
       - name: Upload Trivy results to GitHub Security
@@ -119,40 +118,12 @@ jobs:
           sarif_file: trivy-${{ matrix.service }}.sarif
           category: trivy-${{ matrix.service }}
 
-  deploy-staging:
-    name: Deploy to Staging
-    needs: [prepare, build-push]
-    if: needs.build-push.result == 'success'
-    permissions: {}
+  trigger_gitops:
+    name: Trigger GitOps
+    needs: build-and-push
+    if: needs.build-and-push.result == 'success'
     uses: ./.github/workflows/update-gitops.yaml
     with:
-      tag: ${{ needs.prepare.outputs.tag }}
+      tag: ${{ github.ref_name }}
     secrets:
       GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
-
-  deployment-summary:
-    name: Deployment Summary
-    needs: [prepare, build-push, security-scan, deploy-staging]
-    if: always()
-    runs-on: ubuntu-latest
-    permissions: {}
-    steps:
-      - name: Write deployment summary
-        run: |
-          TAG="${{ needs.prepare.outputs.tag }}"
-          BUILD="${{ needs.build-push.result }}"
-          SCAN="${{ needs.security-scan.result }}"
-          DEPLOY="${{ needs.deploy-staging.result }}"
-
-          cat >> $GITHUB_STEP_SUMMARY << EOF
-          # Release ${TAG}
-
-          | Stage | Status |
-          |---|---|
-          | Build & Push (6 services) | ${BUILD} |
-          | Security Scan (Trivy) | ${SCAN} (non-blocking — results in Security tab) |
-          | Deploy Staging | ${DEPLOY} |
-
-          **Images:** \`ghcr.io/tim275/drova/*:${TAG}\`
-          **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          EOF
