@@ -14,40 +14,139 @@ concurrency:
   group: backend-tests-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  pull-requests: write
+permissions: {}
 
 jobs:
-  test:
-    name: Test & Build All Services
+  detect-changes:
+    name: Detect Changed Services
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      api-gateway:     ${{ steps.filter.outputs.api-gateway }}
+      user-service:    ${{ steps.filter.outputs.user-service }}
+      trip-service:    ${{ steps.filter.outputs.trip-service }}
+      driver-service:  ${{ steps.filter.outputs.driver-service }}
+      payment-service: ${{ steps.filter.outputs.payment-service }}
+      chat-service:    ${{ steps.filter.outputs.chat-service }}
+      any-go:          ${{ steps.filter.outputs.any-go }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            api-gateway:
+              - 'services/api-gateway/**'
+              - 'shared/**'
+              - 'go.mod'
+              - 'go.sum'
+            user-service:
+              - 'services/user-service/**'
+              - 'shared/**'
+              - 'go.mod'
+              - 'go.sum'
+            trip-service:
+              - 'services/trip-service/**'
+              - 'shared/**'
+              - 'go.mod'
+              - 'go.sum'
+            driver-service:
+              - 'services/driver-service/**'
+              - 'shared/**'
+              - 'go.mod'
+              - 'go.sum'
+            payment-service:
+              - 'services/payment-service/**'
+              - 'shared/**'
+              - 'go.mod'
+              - 'go.sum'
+            chat-service:
+              - 'services/chat-service/**'
+              - 'shared/**'
+              - 'go.mod'
+              - 'go.sum'
+            any-go:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+  lint:
+    name: Lint
+    needs: detect-changes
+    if: needs.detect-changes.outputs.any-go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      GOFLAGS: "-mod=readonly"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: true
-
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+          cache: false
+      - uses: golangci/golangci-lint-action@v6
         with:
           version: v2.1.6
           args: --timeout=5m
 
-      - name: go test
-        run: go test -race -count=1 ./...
-
-      - name: Build all services
+  govulncheck:
+    name: Vulnerability Check
+    needs: detect-changes
+    if: needs.detect-changes.outputs.any-go == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: govulncheck
         run: |
-          CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/api-gateway
-          CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/user-service/cmd
-          CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/trip-service/cmd
-          CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/driver-service
-          CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/payment-service/cmd
-          CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/chat-service
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+  test-and-build:
+    name: Test & Build (${{ matrix.service }})
+    needs: detect-changes
+    if: needs.detect-changes.outputs[matrix.service] == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      GOFLAGS: "-mod=readonly"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: api-gateway
+            path: ./services/api-gateway
+          - service: user-service
+            path: ./services/user-service/cmd
+          - service: trip-service
+            path: ./services/trip-service/cmd
+          - service: driver-service
+            path: ./services/driver-service
+          - service: payment-service
+            path: ./services/payment-service/cmd
+          - service: chat-service
+            path: ./services/chat-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: go test
+        run: go test -race -count=1 -timeout 3m ./services/${{ matrix.service }}/...
+      - name: Build check
+        run: |
+          CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" \
+            -o /dev/null ${{ matrix.path }}

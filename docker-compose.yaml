@@ -103,6 +103,7 @@ services:
       - "127.0.0.1:4317:4317"     # OTLP gRPC (for otel-collector → jaeger)
     environment:
       COLLECTOR_OTLP_ENABLED: "true"
+    command: ["--query.max-clock-skew-adjustment=5ms"]
     restart: unless-stopped
 
   otel-collector:

@@ -12,7 +12,6 @@ concurrency:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   test:
@@ -31,12 +30,13 @@ jobs:
 
       - name: Validate HTML (errors only)
         run: |
-          sudo apt-get install -y tidy
-          tidy -errors -quiet -utf8 frontend/index.html; TIDY_EXIT=$?
+          sudo apt-get update -qq && sudo apt-get install -y tidy
+          TIDY_EXIT=0
+          tidy -errors -quiet -utf8 frontend/index.html || TIDY_EXIT=$?
           if [ $TIDY_EXIT -gt 1 ]; then
             echo "HTML has errors (tidy exit $TIDY_EXIT)" && exit 1
           fi
-          echo "HTML OK"
+          echo "HTML OK (warnings are expected for dynamic SPA)"
 
       - name: Check for debug leaks
         run: |

@@ -28,7 +28,7 @@ jobs:
             repos/Tim275/drova/environments/production \
             --field "reviewers[][type]=User" \
             --field "reviewers[][id]=$USER_ID" \
-            --field "prevent_self_review=false"
+            --field "prevent_self_review=true"
           echo "production environment created with required reviewer Tim275"
 
       - name: Create staging environment (no reviewers - auto deploy)

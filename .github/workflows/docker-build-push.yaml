@@ -6,27 +6,37 @@ on:
       - "v*"
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-pipeline
   cancel-in-progress: false
 
-permissions:
-  contents: write
-  packages: write
-  pull-requests: write
+permissions: {}
 
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/tim275/drova
 
 jobs:
-  build-and-push:
+  prepare:
+    name: Extract Tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.TAG }}
+    steps:
+      - name: Extract tag
+        id: tag
+        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+  build-push:
     name: Build ${{ matrix.service }}
+    needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
       packages: write
-
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -43,7 +53,8 @@ jobs:
             dockerfile: services/payment-service/Dockerfile
           - service: chat-service
             dockerfile: services/chat-service/Dockerfile
-
+    outputs:
+      digest-api-gateway:     ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
 
@@ -56,30 +67,90 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract tag
-        id: tag
-        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
       - name: Build and push
-        uses: docker/build-push-action@v5
+        id: build
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ${{ matrix.dockerfile }}
           push: true
-          tags: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ steps.tag.outputs.TAG }}
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ needs.prepare.outputs.tag }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
           platforms: linux/amd64
+          provenance: mode=max
+          sbom: true
 
-    outputs:
-      tag: ${{ steps.tag.outputs.TAG }}
+      - name: Write build summary
+        run: |
+          echo "| ${{ matrix.service }} | \`${{ needs.prepare.outputs.tag }}\` | \`${{ steps.build.outputs.digest }}\` | ✅ |" \
+            >> $GITHUB_STEP_SUMMARY
 
-  trigger-gitops:
-    name: Update GitOps
-    needs: build-and-push
-    if: needs.build-and-push.result == 'success'
+  security-scan:
+    name: Scan ${{ matrix.service }}
+    needs: [prepare, build-push]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api-gateway, user-service, trip-service, driver-service, payment-service, chat-service]
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ needs.prepare.outputs.tag }}
+          format: sarif
+          output: trivy-${{ matrix.service }}.sarif
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-${{ matrix.service }}.sarif
+          category: trivy-${{ matrix.service }}
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [prepare, build-push, security-scan]
+    if: needs.security-scan.result == 'success'
+    permissions: {}
     uses: ./.github/workflows/update-gitops.yaml
     with:
-      tag: ${{ needs.build-and-push.outputs.tag }}
+      tag: ${{ needs.prepare.outputs.tag }}
     secrets:
       GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
+
+  deployment-summary:
+    name: Deployment Summary
+    needs: [prepare, build-push, security-scan, deploy-staging]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Write deployment summary
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          BUILD="${{ needs.build-push.result }}"
+          SCAN="${{ needs.security-scan.result }}"
+          DEPLOY="${{ needs.deploy-staging.result }}"
+
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          # Release ${TAG}
+
+          | Stage | Status |
+          |---|---|
+          | Build & Push (6 services) | ${BUILD} |
+          | Security Scan (Trivy) | ${SCAN} |
+          | Deploy Staging | ${DEPLOY} |
+
+          **Images:** \`ghcr.io/tim275/drova/*:${TAG}\`
+          **Run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EOF

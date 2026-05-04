@@ -123,7 +123,7 @@ func newTestApp(t *testing.T) *application {
 func TestHandleRegister_Success(t *testing.T) {
 	app := newTestApp(t)
 
-	body := `{"display_name":"Test User","email":"test@drova.de","phone":"+4915112345678","password":"secret123","role":"rider"}`
+	body := `{"display_name":"Test User","email":"test@drova.de","phone":"+4915112345678","password":"Secret123","role":"rider"}`
 	req := httptest.NewRequest(http.MethodPost, "/v1/users/register", bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()

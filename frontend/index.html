@@ -1652,13 +1652,12 @@
     drLastPos = null; drLastTime = null;
   }
 
-  function animateDriverMarker(toLng, toLat) {
+  function animateDriverMarker(toLng, toLat, duration = 600) {
     if (!driverMarker) return;
     if (driverMarkerAnimId) cancelAnimationFrame(driverMarkerAnimId);
     const from = driverMarker.getLngLat();
     const startLng = from.lng, startLat = from.lat;
     const startTime = performance.now();
-    const duration = 380;
     function step(now) {
       const t = Math.min((now - startTime) / duration, 1);
       const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
@@ -1677,17 +1676,21 @@
     [52.5298, 13.4430], [52.5280, 13.4445], [52.5260, 13.4455],
   ];
 
-  let prevSendLat = null, prevSendLng = null;
+  let prevSendLat = null, prevSendLng = null, prevSendTime = null;
   function sendLocation(lat, lng, riderID) {
+    const now = performance.now();
     if (driverMarker) {
       if (prevSendLat !== null) {
         driverMarker.setRotation(calculateBearing({ lat: prevSendLat, lng: prevSendLng }, { lat, lng }));
-        animateDriverMarker(lng, lat);
+        const moveDuration = prevSendTime ? Math.max(600, Math.min(now - prevSendTime, 2500)) : 600;
+        animateDriverMarker(lng, lat, moveDuration);
       } else {
         driverMarker.setLngLat([lng, lat]);
       }
     }
-    if (driverMap) driverMap.easeTo({ center: [lng, lat], duration: 380 });
+    const mapDuration = prevSendTime ? Math.max(600, Math.min(now - prevSendTime, 2500)) : 600;
+    if (driverMap) driverMap.easeTo({ center: [lng, lat], duration: mapDuration });
+    prevSendTime = now;
     prevSendLat = lat; prevSendLng = lng;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     ws.send(JSON.stringify({ type: 'driver.cmd.location', data: { lat, lng, rider_id: riderID } }));
