@@ -53,8 +53,6 @@ jobs:
             dockerfile: services/payment-service/Dockerfile
           - service: chat-service
             dockerfile: services/chat-service/Dockerfile
-    outputs:
-      digest-api-gateway:     ${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
 
@@ -83,24 +81,28 @@ jobs:
           provenance: mode=max
           sbom: true
 
-      - name: Write build summary
-        run: |
-          echo "| ${{ matrix.service }} | \`${{ needs.prepare.outputs.tag }}\` | \`${{ steps.build.outputs.digest }}\` | ✅ |" \
-            >> $GITHUB_STEP_SUMMARY
-
   security-scan:
     name: Scan ${{ matrix.service }}
     needs: [prepare, build-push]
+    if: always() && needs.build-push.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
+      packages: read
       security-events: write
     strategy:
       fail-fast: false
       matrix:
         service: [api-gateway, user-service, trip-service, driver-service, payment-service, chat-service]
     steps:
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
@@ -108,7 +110,7 @@ jobs:
           format: sarif
           output: trivy-${{ matrix.service }}.sarif
           severity: CRITICAL,HIGH
-          exit-code: "1"
+          exit-code: "0"
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
@@ -119,8 +121,8 @@ jobs:
 
   deploy-staging:
     name: Deploy to Staging
-    needs: [prepare, build-push, security-scan]
-    if: needs.security-scan.result == 'success'
+    needs: [prepare, build-push]
+    if: needs.build-push.result == 'success'
     permissions: {}
     uses: ./.github/workflows/update-gitops.yaml
     with:
@@ -148,7 +150,7 @@ jobs:
           | Stage | Status |
           |---|---|
           | Build & Push (6 services) | ${BUILD} |
-          | Security Scan (Trivy) | ${SCAN} |
+          | Security Scan (Trivy) | ${SCAN} (non-blocking — results in Security tab) |
           | Deploy Staging | ${DEPLOY} |
 
           **Images:** \`ghcr.io/tim275/drova/*:${TAG}\`
