@@ -53,3 +53,16 @@ jobs:
             echo "ERROR: debugger statement found" && exit 1
           fi
           echo "No debugger statements found"
+
+      - name: Build Docker image
+        run: docker build -t drova-frontend:latest -f services/api-gateway/Dockerfile .
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@0.30.0
+        with:
+          image-ref: "drova-frontend:latest"
+          format: "table"
+          exit-code: "0"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
