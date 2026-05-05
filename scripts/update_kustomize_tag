@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 if [ "$#" -ne 2 ]; then
   echo "Usage: $0 <input-tag> <kustomization-file-path>"
@@ -9,20 +9,41 @@ fi
 INPUT_TAG=$1
 KUSTOMIZATION_FILE=$2
 
-echo "Tag:  $INPUT_TAG"
-echo "File: $KUSTOMIZATION_FILE"
-
 if ! command -v yq &>/dev/null; then
-  echo "Error: yq not found"
+  echo "::error::yq not found"
   exit 1
 fi
 
 if [ ! -f "$KUSTOMIZATION_FILE" ]; then
-  echo "Error: $KUSTOMIZATION_FILE not found"
+  echo "::error::Kustomization file not found: $KUSTOMIZATION_FILE"
   exit 1
 fi
 
+COUNT_BEFORE=$(yq '[.images[] | select(.name | test("ghcr.io/tim275/drova/"))] | length' "$KUSTOMIZATION_FILE")
+
+if [ "$COUNT_BEFORE" -eq 0 ]; then
+  echo "::error::No drova images found in $KUSTOMIZATION_FILE — check 'images:' section"
+  exit 1
+fi
+
+echo "::group::Updating $COUNT_BEFORE drova image(s) to tag: $INPUT_TAG"
+echo "File: $KUSTOMIZATION_FILE"
+echo
+echo "--- BEFORE ---"
+yq '.images[] | select(.name | test("ghcr.io/tim275/drova/")) | .name + "  →  " + .newTag' "$KUSTOMIZATION_FILE"
+
 yq e -i '(.images[] | select(.name | test("ghcr.io/tim275/drova/"))).newTag = "'"$INPUT_TAG"'"' "$KUSTOMIZATION_FILE"
 
-echo "--- Updated $KUSTOMIZATION_FILE ---"
-cat "$KUSTOMIZATION_FILE"
+COUNT_AFTER=$(yq '[.images[] | select(.name | test("ghcr.io/tim275/drova/")) | select(.newTag == "'"$INPUT_TAG"'")] | length' "$KUSTOMIZATION_FILE")
+
+if [ "$COUNT_AFTER" -ne "$COUNT_BEFORE" ]; then
+  echo "::error::Update verification failed — expected $COUNT_BEFORE updates with tag $INPUT_TAG, got $COUNT_AFTER"
+  exit 1
+fi
+
+echo
+echo "--- AFTER ---"
+yq '.images[] | select(.name | test("ghcr.io/tim275/drova/")) | .name + "  →  " + .newTag' "$KUSTOMIZATION_FILE"
+echo
+echo "✓ Successfully updated $COUNT_AFTER image(s) in $KUSTOMIZATION_FILE to $INPUT_TAG"
+echo "::endgroup::"
