@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	math "math/rand/v2"
 
 	"github.com/mmcloughlin/geohash"
@@ -26,7 +27,7 @@ func NewService(store DriverStore, rdb *redis.Client, log *zap.SugaredLogger) *S
 	return &Service{store: store, rdb: rdb, log: log}
 }
 
-var searchRadii = []float64{5, 25, 100, 500}
+var searchRadii = []float64{5, 25, 100, 500, 1500}
 
 func geoKey(packageSlug string) string {
 	return "drova:drivers:geo:" + packageSlug
@@ -36,9 +37,8 @@ func driverKey(driverID string) string {
 	return "drova:driver:" + driverID
 }
 
-func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, name string) (*pb.Driver, error) {
+func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, name string, lat, lng float64) (*pb.Driver, error) {
 	randomIndex := math.IntN(len(PredefinedRoutes))
-	randomRoute := PredefinedRoutes[randomIndex]
 	randomPlate := GenerateRandomPlate()
 	randomAvatar := util.GetRandomAvatar(randomIndex)
 
@@ -46,12 +46,19 @@ func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, nam
 		name = "Driver"
 	}
 
-	gh := geohash.Encode(randomRoute[0][0], randomRoute[0][1])
+	// Use real GPS from browser if provided, otherwise fall back to a demo location.
+	if lat == 0 || lng == 0 {
+		randomRoute := PredefinedRoutes[randomIndex]
+		lat = randomRoute[0][0]
+		lng = randomRoute[0][1]
+	}
+
+	gh := geohash.Encode(lat, lng)
 
 	driver := &pb.Driver{
 		Id:             driverID,
 		Geohash:        gh,
-		Location:       &pb.Location{Latitude: randomRoute[0][0], Longitude: randomRoute[0][1]},
+		Location:       &pb.Location{Latitude: lat, Longitude: lng},
 		Name:           name,
 		PackageSlug:    packageSlug,
 		ProfilePicture: randomAvatar,
@@ -67,8 +74,8 @@ func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, nam
 	s.rdb.HSetNX(ctx, driverKey(driverID), "busy", "")
 	s.rdb.GeoAdd(ctx, geoKey(packageSlug), &redis.GeoLocation{
 		Name:      driverID,
-		Longitude: randomRoute[0][1],
-		Latitude:  randomRoute[0][0],
+		Longitude: lng,
+		Latitude:  lat,
 	})
 
 	_ = s.store.Upsert(ctx, driver)
@@ -80,6 +87,8 @@ func (s *Service) FindAvailableDrivers(ctx context.Context, packageSlug string, 
 	for _, id := range excludeIDs {
 		excluded[id] = struct{}{}
 	}
+
+	s.log.Infow("driver search start", "package", packageSlug, "lat", pickupLat, "lng", pickupLng, "excluded", excludeIDs)
 
 	for _, radius := range searchRadii {
 		results, err := s.rdb.GeoSearchLocation(ctx, geoKey(packageSlug), &redis.GeoSearchLocationQuery{
@@ -95,16 +104,29 @@ func (s *Service) FindAvailableDrivers(ctx context.Context, packageSlug string, 
 			WithDist:  true,
 		}).Result()
 		if err != nil {
+			s.log.Warnw("geo search error", "package", packageSlug, "radius", radius, "err", err)
 			continue
 		}
+
+		s.log.Infow("geo search", "package", packageSlug, "radius", radius, "candidates", len(results))
 
 		var drivers []*pb.Driver
 		for _, r := range results {
 			if _, skip := excluded[r.Name]; skip {
+				s.log.Debugw("driver excluded", "driver", r.Name)
 				continue
 			}
 			hash, err := s.rdb.HGetAll(ctx, driverKey(r.Name)).Result()
-			if err != nil || hash["name"] == "" || hash["busy"] != "" {
+			if err != nil {
+				s.log.Warnw("driver hash error", "driver", r.Name, "err", err)
+				continue
+			}
+			if hash["name"] == "" {
+				s.log.Warnw("driver hash missing — ghost GeoSet entry", "driver", r.Name)
+				continue
+			}
+			if hash["busy"] != "" {
+				s.log.Infow("driver busy, skipping", "driver", r.Name, "trip", hash["busy"])
 				continue
 			}
 			drivers = append(drivers, &pb.Driver{
@@ -121,18 +143,28 @@ func (s *Service) FindAvailableDrivers(ctx context.Context, packageSlug string, 
 			return drivers
 		}
 	}
+
+	s.log.Warnw("no drivers found after all radii", "package", packageSlug)
 	return nil
 }
 
 func (s *Service) SetBusy(ctx context.Context, driverID, tripID string) {
-	s.rdb.HSet(ctx, driverKey(driverID), "busy", tripID)
+	if err := s.rdb.HSet(ctx, driverKey(driverID), "busy", tripID).Err(); err != nil {
+		s.log.Warnw("SetBusy failed", "driver", driverID, "trip", tripID, zap.Error(err))
+	}
 }
 
 func (s *Service) ClearBusy(ctx context.Context, driverID string) {
-	s.rdb.HSet(ctx, driverKey(driverID), "busy", "")
+	if err := s.rdb.HSet(ctx, driverKey(driverID), "busy", "").Err(); err != nil {
+		s.log.Warnw("ClearBusy failed", "driver", driverID, zap.Error(err))
+	}
 }
 
+
 func (s *Service) UpdateLocation(ctx context.Context, driverID string, lat, lng float64) {
+	if lat == 0 || lng == 0 {
+		return
+	}
 	packageSlug, err := s.rdb.HGet(ctx, driverKey(driverID), "packageSlug").Result()
 	if err != nil {
 		return
@@ -144,10 +176,28 @@ func (s *Service) UpdateLocation(ctx context.Context, driverID string, lat, lng 
 	})
 }
 
-func (s *Service) UnregisterDriver(ctx context.Context, driverID string) {
-	packageSlug, err := s.rdb.HGet(ctx, driverKey(driverID), "packageSlug").Result()
-	if err == nil && packageSlug != "" {
-		s.rdb.ZRem(ctx, geoKey(packageSlug), driverID)
+func (s *Service) GetBusyTripID(ctx context.Context, driverID string) string {
+	val, err := s.rdb.HGet(ctx, driverKey(driverID), "busy").Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		s.log.Warnw("GetBusyTripID failed", "driver", driverID, zap.Error(err))
 	}
-	s.rdb.Del(ctx, driverKey(driverID))
+	return val
+}
+
+func (s *Service) UnregisterDriver(_ context.Context, driverID string) {
+	// Always use background context: the caller context (WS/gRPC stream) is already
+	// cancelled at disconnect time, which makes HGet return zero-value strings and
+	// causes ZRem to be skipped while Del runs — leaving a ghost GeoSet entry with
+	// no hash. Background context ensures both cleanup steps always complete.
+	bgCtx := context.Background()
+	busy, _ := s.rdb.HGet(bgCtx, driverKey(driverID), "busy").Result()
+	packageSlug, err := s.rdb.HGet(bgCtx, driverKey(driverID), "packageSlug").Result()
+	if err == nil && packageSlug != "" {
+		s.rdb.ZRem(bgCtx, geoKey(packageSlug), driverID)
+	}
+	// Only delete the driver key when not in an active trip.
+	// If busy, preserve the key so reconnect can resume the trip.
+	if busy == "" {
+		s.rdb.Del(bgCtx, driverKey(driverID))
+	}
 }

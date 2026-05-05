@@ -16,13 +16,16 @@ on:
       tag:
         required: true
         type: string
-        description: "Release tag to redeploy (e.g. v0.14.0)"
+        description: "Release tag to redeploy (e.g. v0.15.0)"
 
 jobs:
   update-gitops:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: read
+    outputs:
+      pr_url: ${{ steps.pr.outputs.pull-request-url }}
 
     steps:
       - name: Checkout Actions Repo
@@ -38,49 +41,110 @@ jobs:
           ref: main
           path: drova-gitops
 
-      - name: Install yq
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify all 7 images exist in GHCR
         run: |
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          set -euo pipefail
+          for SERVICE in api-gateway user-service trip-service driver-service payment-service chat-service frontend; do
+            IMAGE="ghcr.io/tim275/drova/$SERVICE:${{ inputs.tag }}"
+            if ! docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
+              echo "::error::Image not found in GHCR: $IMAGE"
+              exit 1
+            fi
+            echo "✓ $IMAGE"
+          done
+          echo "All 7 images verified in GHCR."
+
+      - name: Install yq
+        env:
+          YQ_VERSION: "v4.44.3"
+          YQ_SHA256: "4622a6cd9ef61bcd30e9f04ac30bef73bde64fe5c05b2fafde9a9bbcd9b48bdc"
+        run: |
+          sudo wget -qO /usr/local/bin/yq \
+            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          echo "${YQ_SHA256}  /usr/local/bin/yq" | sha256sum --check
           sudo chmod +x /usr/local/bin/yq
 
       - name: Update Image Tags Staging
         run: |
-          KUSTOMIZATION_FILE="./drova-gitops/overlays/staging/kustomization.yaml"
-          SCRIPT_PATH="./actions-repo/scripts/update_kustomize_tag"
-          chmod +x "$SCRIPT_PATH"
-          echo "Calling update script with tag: ${{ inputs.tag }}, file: $KUSTOMIZATION_FILE"
-          "$SCRIPT_PATH" "${{ inputs.tag }}" "$KUSTOMIZATION_FILE"
+          chmod +x ./actions-repo/scripts/update_kustomize_tag
+          ./actions-repo/scripts/update_kustomize_tag \
+            "${{ inputs.tag }}" \
+            ./drova-gitops/overlays/staging/kustomization.yaml
 
       - uses: EndBug/add-and-commit@v9
         with:
           author_name: GitOps Bot
           author_email: gitops-bot@github.com
           cwd: ./drova-gitops
-          message: 'Update drova deployments to tag "${{ inputs.tag }}"'
+          message: 'chore: deploy ${{ inputs.tag }} to staging'
           github_token: ${{ secrets.GITOPS_PAT }}
+
+      - name: Soak period
+        run: |
+          echo "Staging deployed. Soaking 3 minutes for ArgoCD sync before opening production PR..."
+          sleep 180
 
       - name: Update Image Tags Production
         run: |
-          KUSTOMIZATION_FILE="./drova-gitops/overlays/production/kustomization.yaml"
-          SCRIPT_PATH="./actions-repo/scripts/update_kustomize_tag"
-          echo "Calling update script with tag: ${{ inputs.tag }}, file: $KUSTOMIZATION_FILE"
-          "$SCRIPT_PATH" "${{ inputs.tag }}" "$KUSTOMIZATION_FILE"
+          ./actions-repo/scripts/update_kustomize_tag \
+            "${{ inputs.tag }}" \
+            ./drova-gitops/overlays/production/kustomization.yaml
 
-      - name: Create Pull Request
+      - name: Create Production Pull Request
+        id: pr
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITOPS_PAT }}
           path: ./drova-gitops
-          commit-message: "Update prod deployments to tag ${{ inputs.tag }}"
+          commit-message: "chore: update drova images to ${{ inputs.tag }}"
           committer: GitOps Bot <gitops-bot@github.com>
           author: GitOps Bot <gitops-bot@github.com>
-          branch: gitops/update-tag-${{ inputs.tag }}
+          branch: gitops/release-${{ inputs.tag }}
           delete-branch: true
-          title: "Update prod image tags to ${{ inputs.tag }}"
+          title: "chore: deploy ${{ inputs.tag }} to production"
           body: |
-            Update all drova service image tags in the production environment kustomization to `${{ inputs.tag }}`.
+            Updates all 7 drova service image tags to `${{ inputs.tag }}` in `overlays/production/kustomization.yaml`.
+
+            Staging has been running `${{ inputs.tag }}` for ~3 minutes (soak period passed).
 
             Release: https://github.com/Tim275/drova/releases/tag/${{ inputs.tag }}
           labels: |
             automated-pr
             gitops
+
+      - name: Write deployment summary
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          # Release ${{ inputs.tag }}
+
+          ## Images verified
+          - \`ghcr.io/tim275/drova/api-gateway:${{ inputs.tag }}\`
+          - \`ghcr.io/tim275/drova/user-service:${{ inputs.tag }}\`
+          - \`ghcr.io/tim275/drova/trip-service:${{ inputs.tag }}\`
+          - \`ghcr.io/tim275/drova/driver-service:${{ inputs.tag }}\`
+          - \`ghcr.io/tim275/drova/payment-service:${{ inputs.tag }}\`
+          - \`ghcr.io/tim275/drova/chat-service:${{ inputs.tag }}\`
+          - \`ghcr.io/tim275/drova/frontend:${{ inputs.tag }}\`
+
+          ## Deployment status
+          | Environment | Method | Status |
+          |---|---|---|
+          | Staging | Direct commit (EndBug) | ✓ deployed |
+          | Production | Pull Request | awaiting review |
+
+          **Soak period:** 3 minutes after staging commit before opening production PR.
+
+          **Production PR:** ${{ steps.pr.outputs.pull-request-url }}
+          EOF
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::GitOps update failed for tag ${{ inputs.tag }} — staging or production may be inconsistent"

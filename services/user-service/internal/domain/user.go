@@ -13,16 +13,18 @@ const (
 )
 
 type User struct {
-	ID          int64
-	Email       string
-	Password    password
-	Role        Role
-	IsActivated bool
-	CreatedAt   time.Time
-	DisplayName string
-	AvatarURL   string
-	Phone       string
-	Address     string
+	ID            int64
+	Email         string
+	Password      password
+	Role          Role
+	IsActivated   bool
+	CreatedAt     time.Time
+	DisplayName   string
+	AvatarURL     string
+	Phone         string
+	Address       string
+	TotalTrips    int
+	AverageRating float64
 }
 
 type password struct {
@@ -71,4 +73,10 @@ type EmailSender interface {
 type TokenBlacklist interface {
 	Revoke(ctx context.Context, jti string, ttl time.Duration) error
 	IsRevoked(ctx context.Context, jti string) (bool, error)
+}
+
+type RefreshTokenStore interface {
+	Create(ctx context.Context, token string, userID int64, role string, ttl time.Duration) error
+	Validate(ctx context.Context, token string) (userID int64, role string, err error)
+	Delete(ctx context.Context, token string) error
 }

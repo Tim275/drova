@@ -111,6 +111,8 @@ func main() {
 	mux.HandleFunc("OPTIONS /v1/users/register", enableCORS(handleOptions))
 	mux.HandleFunc("POST /v1/auth/token", enableCORS(handleLogin))
 	mux.HandleFunc("OPTIONS /v1/auth/token", enableCORS(handleOptions))
+	mux.HandleFunc("POST /v1/auth/refresh", enableCORS(handleRefresh))
+	mux.HandleFunc("OPTIONS /v1/auth/refresh", enableCORS(handleOptions))
 	mux.HandleFunc("GET /v1/users/activate/{token}", handleActivate)
 	mux.HandleFunc("GET /v1/users/me", enableCORS(requireAuth(handleGetMe)))
 	mux.HandleFunc("PATCH /v1/users/profile", enableCORS(requireAuth(handleUpdateProfile)))
@@ -159,6 +161,7 @@ func main() {
 	case sig := <-shutdown:
 		appLog.Infow("shutting down", "signal", sig)
 		cancel()
+		kafkaClient.Wait()
 		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer shutdownCancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {

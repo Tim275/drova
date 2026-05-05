@@ -84,17 +84,24 @@ func (h *gRPCHandler) GetTripsByUser(ctx context.Context, req *pb.GetTripsReques
 	items := make([]*pb.TripHistoryItem, 0, len(trips))
 	for _, t := range trips {
 		item := &pb.TripHistoryItem{
-			Id:        t.ID,
-			Status:    t.Status,
-			Rating:    int32(t.Rating),
-			CreatedAt: t.CreatedAt,
+			Id:              t.ID,
+			Status:          t.Status,
+			Rating:          int32(t.Rating),
+			CreatedAt:       t.CreatedAt,
+			DriverName:      t.DriverName,
+			DriverPlate:     t.DriverPlate,
+			DriverAvatar:    t.DriverAvatar,
+			PickupAddress:   t.PickupAddress,
+			DropoffAddress:  t.DropoffAddress,
+			DistanceMeters:  t.DistanceMeters,
+			DurationSeconds: t.DurationSeconds,
+			PackageSlug:     t.PackageSlug,
+			PriceCents:      t.AmountCents,
 		}
-		if t.Fare != nil {
+		if t.Fare != nil && item.PriceCents == 0 {
 			item.PackageSlug = t.Fare.PackageSlug
 			item.PriceCents = t.Fare.TotalPriceInCents
 		}
-		item.DriverName = t.DriverName
-		item.DriverPlate = t.DriverPlate
 		items = append(items, item)
 	}
 	return &pb.TripsResponse{Trips: items}, nil
@@ -108,13 +115,19 @@ func (h *gRPCHandler) GetTripsByDriver(ctx context.Context, req *pb.GetTripsRequ
 	items := make([]*pb.DriverTripHistoryItem, 0, len(trips))
 	for _, t := range trips {
 		item := &pb.DriverTripHistoryItem{
-			Id:          t.ID,
-			Status:      t.Status,
-			RiderName:   t.RiderName,
-			RiderAvatar: t.RiderAvatar,
-			CreatedAt:   t.CreatedAt,
+			Id:              t.ID,
+			Status:          t.Status,
+			RiderName:       t.RiderName,
+			RiderAvatar:     t.RiderAvatar,
+			CreatedAt:       t.CreatedAt,
+			PickupAddress:   t.PickupAddress,
+			DropoffAddress:  t.DropoffAddress,
+			DistanceMeters:  t.DistanceMeters,
+			DurationSeconds: t.DurationSeconds,
+			PackageSlug:     t.PackageSlug,
+			PriceCents:      t.AmountCents,
 		}
-		if t.Fare != nil {
+		if t.Fare != nil && item.PriceCents == 0 {
 			item.PackageSlug = t.Fare.PackageSlug
 			item.PriceCents = t.Fare.TotalPriceInCents
 		}
@@ -157,6 +170,16 @@ func (h *gRPCHandler) PreviewTrip(ctx context.Context, req *pb.PreviewTripReques
 	}
 
 	estimatedFares := h.service.EstimatePackagesPriceWithRoute(route)
+
+	// Attach addresses + coordinates to the first fare so GenerateTripFares propagates them to all
+	if len(estimatedFares) > 0 {
+		estimatedFares[0].PickupAddress = req.GetPickupAddress()
+		estimatedFares[0].DropoffAddress = req.GetDropoffAddress()
+		estimatedFares[0].PickupLat = req.GetStartLocation().GetLatitude()
+		estimatedFares[0].PickupLng = req.GetStartLocation().GetLongitude()
+		estimatedFares[0].DropoffLat = req.GetEndLocation().GetLatitude()
+		estimatedFares[0].DropoffLng = req.GetEndLocation().GetLongitude()
+	}
 
 	fares, err := h.service.GenerateTripFares(ctx, estimatedFares, req.GetUserID(), route)
 	if err != nil {

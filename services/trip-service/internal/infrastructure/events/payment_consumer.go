@@ -22,7 +22,7 @@ func NewPaymentConsumer(kafka *messaging.Kafka, service domain.TripService, log 
 }
 
 func (c *PaymentConsumer) Start(ctx context.Context) {
-	go c.kafka.ConsumeMessages(ctx, messaging.TopicPaymentSuccess, "trip-service-payment-success", c.handlePaymentSuccess)
+	c.kafka.ConsumeMessages(ctx, messaging.TopicPaymentSuccess, "trip-service-payment-success", c.handlePaymentSuccess)
 }
 
 func (c *PaymentConsumer) handlePaymentSuccess(ctx context.Context, raw []byte) error {

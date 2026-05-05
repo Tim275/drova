@@ -27,6 +27,10 @@ type TripCreatedEvent struct {
 	Destination      Coordinate   `json:"destination"`
 	Route            []Coordinate `json:"route"`
 	ExcludeDriverIDs []string     `json:"exclude_driver_ids,omitempty"`
+	PickupAddress    string       `json:"pickup_address,omitempty"`
+	DropoffAddress   string       `json:"dropoff_address,omitempty"`
+	PriceCents       int64        `json:"price_cents,omitempty"`
+	DistanceMeters   int32        `json:"distance_meters,omitempty"`
 }
 
 type DriverInfo struct {

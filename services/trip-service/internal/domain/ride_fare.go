@@ -18,6 +18,14 @@ type RideFareModel struct {
 	TotalPriceInCents int64
 	Route             *tripTypes.MapboxRouteResponse
 	ExpiresAt         time.Time
+	PickupAddress     string
+	DropoffAddress    string
+	PickupLat         float64
+	PickupLng         float64
+	DropoffLat        float64
+	DropoffLng        float64
+	DistanceMeters    int32
+	DurationSeconds   int32
 }
 
 func (r *RideFareModel) ToProto() *pb.RideFare {
@@ -26,6 +34,10 @@ func (r *RideFareModel) ToProto() *pb.RideFare {
 		UserID:            r.UserID,
 		PackageSlug:       r.PackageSlug,
 		TotalPriceInCents: r.TotalPriceInCents,
+		PickupAddress:     r.PickupAddress,
+		DropoffAddress:    r.DropoffAddress,
+		DistanceMeters:    r.DistanceMeters,
+		DurationSeconds:   r.DurationSeconds,
 	}
 }
 

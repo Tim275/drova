@@ -42,11 +42,11 @@ func InitBreakers(log *zap.SugaredLogger) {
 func newBreaker(name string, log *zap.SugaredLogger) *gobreaker.CircuitBreaker {
 	return gobreaker.NewCircuitBreaker(gobreaker.Settings{
 		Name:        name,
-		MaxRequests: 2,
+		MaxRequests: 3,
 		Interval:    30 * time.Second,
-		Timeout:     15 * time.Second,
+		Timeout:     5 * time.Second, // recover fast after short restarts
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
-			return counts.ConsecutiveFailures >= 3
+			return counts.ConsecutiveFailures >= 10 // high threshold for local dev
 		},
 		OnStateChange: func(name string, from, to gobreaker.State) {
 			log.Warnw("circuit breaker state changed", "service", name, "from", from, "to", to)

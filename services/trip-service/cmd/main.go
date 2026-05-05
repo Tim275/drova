@@ -52,11 +52,11 @@ func main() {
 
 	log.Infow("trip-service starting")
 
+	if err := runMigrations(env.GetString("DB_URL", ""), env.GetString("MIGRATIONS_PATH", "services/trip-service/migrations")); err != nil {
+		log.Fatalw("migrations failed", zap.Error(err))
+	}
+	log.Infow("migrations completed")
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
-		if err := runMigrations(env.GetString("DB_URL", ""), env.GetString("MIGRATIONS_PATH", "services/trip-service/migrations")); err != nil {
-			log.Fatalw("migrations failed", zap.Error(err))
-		}
-		log.Infow("migrations completed")
 		os.Exit(0)
 	}
 
@@ -115,6 +115,24 @@ func main() {
 	paymentConsumer.Start(ctx)
 
 	go func() {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				n, err := svc.ExpireStaleSearching(ctx, 5*time.Minute)
+				if err != nil {
+					log.Warnw("expire stale searching trips", "err", err)
+				} else if n > 0 {
+					log.Infow("expired stale searching trips", "count", n)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	go func() {
 		log.Infow("grpc server ready", "addr", grpcAddr)
 		if err := grpcSrv.Serve(lis); err != nil {
 			log.Errorw("grpc server error", zap.Error(err))
@@ -131,6 +149,7 @@ func main() {
 	case <-ctx.Done():
 	}
 
+	kafka.Wait()
 	grpcSrv.GracefulStop()
 }
 
