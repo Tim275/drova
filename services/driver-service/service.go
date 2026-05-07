@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	math "math/rand/v2"
 
 	"github.com/mmcloughlin/geohash"
@@ -125,11 +126,15 @@ func (s *Service) FindAvailableDrivers(ctx context.Context, packageSlug string, 
 }
 
 func (s *Service) SetBusy(ctx context.Context, driverID, tripID string) {
-	s.rdb.HSet(ctx, driverKey(driverID), "busy", tripID)
+	if err := s.rdb.HSet(ctx, driverKey(driverID), "busy", tripID).Err(); err != nil {
+		s.log.Warnw("SetBusy failed", "driver", driverID, "trip", tripID, zap.Error(err))
+	}
 }
 
 func (s *Service) ClearBusy(ctx context.Context, driverID string) {
-	s.rdb.HSet(ctx, driverKey(driverID), "busy", "")
+	if err := s.rdb.HSet(ctx, driverKey(driverID), "busy", "").Err(); err != nil {
+		s.log.Warnw("ClearBusy failed", "driver", driverID, zap.Error(err))
+	}
 }
 
 func (s *Service) UpdateLocation(ctx context.Context, driverID string, lat, lng float64) {
@@ -145,14 +150,22 @@ func (s *Service) UpdateLocation(ctx context.Context, driverID string, lat, lng 
 }
 
 func (s *Service) GetBusyTripID(ctx context.Context, driverID string) string {
-	val, _ := s.rdb.HGet(ctx, driverKey(driverID), "busy").Result()
+	val, err := s.rdb.HGet(ctx, driverKey(driverID), "busy").Result()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		s.log.Warnw("GetBusyTripID failed", "driver", driverID, zap.Error(err))
+	}
 	return val
 }
 
 func (s *Service) UnregisterDriver(ctx context.Context, driverID string) {
+	busy, _ := s.rdb.HGet(ctx, driverKey(driverID), "busy").Result()
 	packageSlug, err := s.rdb.HGet(ctx, driverKey(driverID), "packageSlug").Result()
 	if err == nil && packageSlug != "" {
 		s.rdb.ZRem(ctx, geoKey(packageSlug), driverID)
 	}
-	s.rdb.Del(ctx, driverKey(driverID))
+	// Only delete the driver key when not in an active trip.
+	// If busy, preserve the key so reconnect can resume the trip.
+	if busy == "" {
+		s.rdb.Del(ctx, driverKey(driverID))
+	}
 }

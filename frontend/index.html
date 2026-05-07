@@ -812,15 +812,16 @@
 
   // Auth state
   let currentUser = null;
+  let _accessToken = null; // in-memory only — not persisted to localStorage (XSS protection)
 
-  function authToken() { return localStorage.getItem('drova_token'); }
+  function authToken() { return _accessToken; }
 
   async function tryRefresh() {
     try {
       const res = await fetch('/v1/auth/refresh', { method: 'POST', credentials: 'include' });
       if (!res.ok) return false;
       const data = await res.json();
-      localStorage.setItem('drova_token', data.token);
+      _accessToken = data.token;
       return true;
     } catch (_) { return false; }
   }
@@ -834,6 +835,7 @@
         options.headers['Authorization'] = 'Bearer ' + authToken();
         res = await fetch(url, options);
       } else {
+        _accessToken = null;
         localStorage.clear();
         showAuth();
         throw new Error('session expired');
@@ -843,14 +845,17 @@
   }
 
   async function initApp() {
-    const token = authToken();
-    if (!token) { showAuth(); return; }
+    // No in-memory token on page load — try to restore session via httpOnly refresh cookie.
+    if (!_accessToken) {
+      const restored = await tryRefresh();
+      if (!restored) { showAuth(); return; }
+    }
 
     try {
       const res = await fetch('/v1/users/me', {
-        headers: { 'Authorization': 'Bearer ' + token }
+        headers: { 'Authorization': 'Bearer ' + _accessToken }
       });
-      if (!res.ok) { localStorage.clear(); showAuth(); return; }
+      if (!res.ok) { _accessToken = null; localStorage.clear(); showAuth(); return; }
       const data = await res.json();
       currentUser = {
         id: String(data.id), email: data.email, role: data.role,
@@ -926,7 +931,7 @@
       const data = await res.json();
       if (!res.ok) { showAuthErr(data.error || 'Login failed.'); return; }
 
-      localStorage.setItem('drova_token', data.token);
+      _accessToken = data.token;
 
       const meRes = await fetch('/v1/users/me', {
         headers: { 'Authorization': 'Bearer ' + data.token }
@@ -998,6 +1003,7 @@
     document.getElementById('driverscreen').classList.remove('active');
     document.getElementById('mapscreen').style.display = 'none';
     document.getElementById('welcome').classList.remove('active');
+    _accessToken = null;
     localStorage.clear();
     currentUser = null;
     showAuth();
