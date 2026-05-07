@@ -40,6 +40,13 @@ func (c *TripConsumer) handleCreateSession(ctx context.Context, raw []byte) erro
 		return fmt.Errorf("unmarshal payment trip data: %w", err)
 	}
 
+	// Idempotency guard: Kafka at-least-once means this can fire twice for the same trip.
+	// If a session already exists, republish the checkout URL so the rider still gets it.
+	if existing, err := c.store.GetByTripID(ctx, data.TripID); err == nil && existing != nil {
+		c.log.Infow("payment session already exists, skipping duplicate", "trip", data.TripID, "session", existing.StripeSessionID)
+		return nil
+	}
+
 	c.log.Infow("creating stripe session", "trip", data.TripID, "user", data.UserID, "amount", data.Amount, "currency", data.Currency)
 
 	intent, err := c.service.CreatePaymentSession(ctx, data.TripID, data.UserID, data.DriverID, data.Amount, data.Currency)

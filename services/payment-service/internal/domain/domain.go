@@ -30,5 +30,6 @@ type Payment struct {
 
 type PaymentStore interface {
 	Save(ctx context.Context, p *Payment) error
+	GetByTripID(ctx context.Context, tripID string) (*Payment, error)
 	MarkSuccess(ctx context.Context, stripeSessionID string, paidAt time.Time) error
 }

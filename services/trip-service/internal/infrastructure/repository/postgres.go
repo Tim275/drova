@@ -134,9 +134,20 @@ func (r *pgRepository) UpdateTrip(ctx context.Context, tripID string, status str
 	return nil
 }
 
+var cancellableStates = []string{"searching", "accepted", "driver_arrived"}
+
 func (r *pgRepository) CancelTrip(ctx context.Context, tripID string) error {
-	_, err := r.db.Exec(ctx, `UPDATE trips SET status='cancelled' WHERE id=$1`, tripID)
-	return err
+	tag, err := r.db.Exec(ctx,
+		`UPDATE trips SET status='cancelled' WHERE id=$1 AND status = ANY($2)`,
+		tripID, cancellableStates,
+	)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("cannot cancel trip %q: not found or in non-cancellable state", tripID)
+	}
+	return nil
 }
 
 func (r *pgRepository) ExpireSearch(ctx context.Context, tripID string) (bool, error) {

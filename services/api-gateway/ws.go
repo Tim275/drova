@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"drova/services/api-gateway/grpc_clients"
@@ -24,7 +25,9 @@ const (
 var riderConnManager = messaging.NewConnectionManager()
 var driverConnManager = messaging.NewConnectionManager()
 
-func subscribeUserWS(ctx context.Context, channel string, conn *websocket.Conn) {
+// subscribeUserWS relays Redis Pub/Sub messages to the WebSocket connection.
+// mu must be the same mutex used by the ping goroutine — Gorilla forbids concurrent writes.
+func subscribeUserWS(ctx context.Context, channel string, conn *websocket.Conn, mu *sync.Mutex) {
 	if gatewayRdb == nil {
 		return
 	}
@@ -37,7 +40,10 @@ func subscribeUserWS(ctx context.Context, channel string, conn *websocket.Conn) 
 			if !ok {
 				return
 			}
-			if err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Payload)); err != nil {
+			mu.Lock()
+			err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Payload))
+			mu.Unlock()
+			if err != nil {
 				return
 			}
 		case <-ctx.Done():
@@ -80,7 +86,8 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 	riderConnManager.Add(userID, conn)
 	defer riderConnManager.Remove(userID)
 
-	go subscribeUserWS(r.Context(), "ws:rider:"+userID, conn)
+	var wmu sync.Mutex
+	go subscribeUserWS(r.Context(), "ws:rider:"+userID, conn, &wmu)
 
 	go func() {
 		ticker := time.NewTicker(wsPingInterval)
@@ -88,7 +95,10 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 		for {
 			select {
 			case <-ticker.C:
-				if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(10*time.Second)); err != nil {
+				wmu.Lock()
+				err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(10*time.Second))
+				wmu.Unlock()
+				if err != nil {
 					return
 				}
 			case <-r.Context().Done():
@@ -126,17 +136,24 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 				RiderID:  userID,
 				DriverID: cancelData.DriverID,
 			}
-			data, _ := json.Marshal(cancelEvent)
+			data, err := json.Marshal(cancelEvent)
+			if err != nil {
+				appLog.Warnw("marshal cancel event", zap.Error(err))
+				continue
+			}
 			ownerID := cancelData.DriverID
 			if ownerID == "" {
 				ownerID = userID
 			}
-			kmsg := messaging.KafkaMessage{
+			payload, err := json.Marshal(messaging.KafkaMessage{
 				Type:    contracts.TripEventCancelled,
 				OwnerID: ownerID,
 				Data:    data,
+			})
+			if err != nil {
+				appLog.Warnw("marshal cancel payload", zap.Error(err))
+				continue
 			}
-			payload, _ := json.Marshal(kmsg)
 			if err := kafkaClient.PublishMessage(r.Context(), messaging.TopicTripCancelled, payload); err != nil {
 				appLog.Errorw("publish trip cancel", zap.Error(err))
 			}
@@ -182,13 +199,17 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 
+	var wmu sync.Mutex
 	go func() {
 		ticker := time.NewTicker(wsPingInterval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(10*time.Second)); err != nil {
+				wmu.Lock()
+				err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(10*time.Second))
+				wmu.Unlock()
+				if err != nil {
 					return
 				}
 			case <-r.Context().Done():
@@ -281,7 +302,7 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go subscribeUserWS(r.Context(), "ws:driver:"+userID, conn)
+	go subscribeUserWS(r.Context(), "ws:driver:"+userID, conn, &wmu)
 
 	for {
 		_, message, err := conn.ReadMessage()
@@ -397,13 +418,20 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 				RiderID:  cancelData.RiderID,
 				DriverID: userID,
 			}
-			eventData, _ := json.Marshal(cancelEvent)
-			kmsg := messaging.KafkaMessage{
+			eventData, err := json.Marshal(cancelEvent)
+			if err != nil {
+				appLog.Warnw("marshal driver cancel event", zap.Error(err))
+				continue
+			}
+			payload, err := json.Marshal(messaging.KafkaMessage{
 				Type:    contracts.TripEventCancelledByDriver,
 				OwnerID: cancelData.RiderID,
 				Data:    eventData,
+			})
+			if err != nil {
+				appLog.Warnw("marshal driver cancel payload", zap.Error(err))
+				continue
 			}
-			payload, _ := json.Marshal(kmsg)
 			if err := kafkaClient.PublishMessage(r.Context(), messaging.TopicTripCancelled, payload); err != nil {
 				appLog.Errorw("publish driver cancel", zap.Error(err))
 			}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 	pbt "drova/shared/proto/trip"
 	pbu "drova/shared/proto/user"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/sony/gobreaker"
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/webhook"
@@ -22,6 +24,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
+
+const webhookDedupTTL = 24 * time.Hour
 
 var (
 	mapboxPublicToken    = env.GetString("MAPBOX_PUBLIC_TOKEN", "")
@@ -271,6 +275,26 @@ func handleStripeWebhook(w http.ResponseWriter, r *http.Request) {
 		appLog.Errorw("parse stripe session", zap.Error(err))
 		http.Error(w, "invalid payload", http.StatusBadRequest)
 		return
+	}
+
+	// Idempotency: Stripe retries webhooks on network failure.
+	// Use Redis SET NX so only the first delivery publishes to Kafka.
+	if gatewayRdb != nil {
+		dedupKey := "drova:webhook:stripe:" + session.ID
+		_, err := gatewayRdb.SetArgs(r.Context(), dedupKey, "1", redis.SetArgs{
+			Mode: "NX",
+			TTL:  webhookDedupTTL,
+		}).Result()
+		if errors.Is(err, redis.Nil) {
+			// Key already existed — duplicate webhook, acknowledge safely.
+			appLog.Infow("duplicate webhook ignored", "session", session.ID)
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if err != nil {
+			// Redis error — fail open to avoid silently dropping payments.
+			appLog.Warnw("webhook dedup redis error", zap.Error(err))
+		}
 	}
 
 	payload := messaging.PaymentStatusUpdate{

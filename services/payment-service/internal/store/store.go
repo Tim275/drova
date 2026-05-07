@@ -26,6 +26,18 @@ func (s *paymentStore) Save(ctx context.Context, p *domain.Payment) error {
 	return err
 }
 
+func (s *paymentStore) GetByTripID(ctx context.Context, tripID string) (*domain.Payment, error) {
+	var p domain.Payment
+	err := s.db.QueryRow(ctx,
+		`SELECT id, trip_id, user_id, driver_id, amount_cents, currency, status, stripe_session_id, created_at
+		 FROM payments WHERE trip_id = $1 LIMIT 1`, tripID,
+	).Scan(&p.ID, &p.TripID, &p.UserID, &p.DriverID, &p.AmountCents, &p.Currency, &p.Status, &p.StripeSessionID, &p.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
 func (s *paymentStore) MarkSuccess(ctx context.Context, stripeSessionID string, paidAt time.Time) error {
 	_, err := s.db.Exec(ctx, `
 		UPDATE payments SET status = 'success', paid_at = $1 WHERE stripe_session_id = $2`,

@@ -73,6 +73,13 @@ func (c *TripConsumer) startResponseTimer(ctx context.Context, tripID, driverID 
 	select {
 	case <-time.After(15 * time.Second):
 	case <-ctx.Done():
+		// Service shutting down — clear busy state so driver is not permanently blocked.
+		if val, loaded := c.pending.LoadAndDelete(tripID); loaded {
+			pi := val.(pendingInfo)
+			if pi.driverID == driverID {
+				c.service.ClearBusy(context.Background(), driverID)
+			}
+		}
 		return
 	}
 	val, loaded := c.pending.LoadAndDelete(tripID)
