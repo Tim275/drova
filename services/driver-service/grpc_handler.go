@@ -33,7 +33,10 @@ func (h *driverGrpcHandler) RegisterDriver(ctx context.Context, req *pb.Register
 		h.consumer.TryMatchWaiting(ctx, driver.GetPackageSlug(), loc.GetLatitude(), loc.GetLongitude())
 	}
 
-	return &pb.RegisterDriverResponse{Driver: driver}, nil
+	return &pb.RegisterDriverResponse{
+		Driver:         driver,
+		BusyWithTripId: h.service.GetBusyTripID(ctx, req.GetDriverID()),
+	}, nil
 }
 
 func (h *driverGrpcHandler) UnregisterDriver(ctx context.Context, req *pb.RegisterDriverRequest) (*pb.RegisterDriverResponse, error) {

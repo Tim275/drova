@@ -10,9 +10,13 @@ import (
 	"drova/services/user-service/internal/domain"
 	"drova/services/user-service/internal/middleware"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"go.uber.org/zap"
 )
+
+const refreshTokenTTL = 7 * 24 * time.Hour
+const refreshCookieName = "refresh_token"
 
 type registerRequest struct {
 	DisplayName string      `json:"display_name" validate:"required,min=2,max=50"`
@@ -102,6 +106,60 @@ func (app *application) handleCreateToken(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	refreshToken := uuid.New().String()
+	if err := app.refreshTokens.Create(r.Context(), refreshToken, user.ID, string(user.Role), refreshTokenTTL); err != nil {
+		app.log.Warnw("create refresh token", zap.Error(err))
+	} else {
+		http.SetCookie(w, &http.Cookie{
+			Name:     refreshCookieName,
+			Value:    refreshToken,
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+			Path:     "/v1/auth/",
+			MaxAge:   int(refreshTokenTTL.Seconds()),
+		})
+	}
+
+	middleware.WriteJSON(w, http.StatusOK, map[string]string{"token": token})
+}
+
+func (app *application) handleRefreshToken(w http.ResponseWriter, r *http.Request) {
+	cookie, err := r.Cookie(refreshCookieName)
+	if err != nil {
+		middleware.WriteError(w, http.StatusUnauthorized, "missing refresh token")
+		return
+	}
+
+	userID, role, err := app.refreshTokens.Validate(r.Context(), cookie.Value)
+	if err != nil {
+		http.SetCookie(w, &http.Cookie{Name: refreshCookieName, MaxAge: -1, Path: "/v1/auth/"})
+		middleware.WriteError(w, http.StatusUnauthorized, "invalid or expired refresh token")
+		return
+	}
+
+	// Rotate: delete old, issue new
+	_ = app.refreshTokens.Delete(r.Context(), cookie.Value)
+	newRefresh := uuid.New().String()
+	if err := app.refreshTokens.Create(r.Context(), newRefresh, userID, role, refreshTokenTTL); err != nil {
+		app.log.Warnw("rotate refresh token", zap.Error(err))
+	} else {
+		http.SetCookie(w, &http.Cookie{
+			Name:     refreshCookieName,
+			Value:    newRefresh,
+			HttpOnly: true,
+			SameSite: http.SameSiteStrictMode,
+			Path:     "/v1/auth/",
+			MaxAge:   int(refreshTokenTTL.Seconds()),
+		})
+	}
+
+	token, err := app.auth.GenerateToken(userID, role)
+	if err != nil {
+		app.log.Errorw("generate token on refresh", zap.Error(err))
+		middleware.WriteError(w, http.StatusInternalServerError, "could not generate token")
+		return
+	}
+
 	middleware.WriteJSON(w, http.StatusOK, map[string]string{"token": token})
 }
 
@@ -167,6 +225,10 @@ func (app *application) handleLogout(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if cookie, err := r.Cookie(refreshCookieName); err == nil {
+		_ = app.refreshTokens.Delete(r.Context(), cookie.Value)
+	}
+	http.SetCookie(w, &http.Cookie{Name: refreshCookieName, MaxAge: -1, Path: "/v1/auth/"})
 	middleware.WriteJSON(w, http.StatusOK, map[string]string{"message": "logged out"})
 }
 

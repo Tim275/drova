@@ -144,6 +144,11 @@ func (s *Service) UpdateLocation(ctx context.Context, driverID string, lat, lng 
 	})
 }
 
+func (s *Service) GetBusyTripID(ctx context.Context, driverID string) string {
+	val, _ := s.rdb.HGet(ctx, driverKey(driverID), "busy").Result()
+	return val
+}
+
 func (s *Service) UnregisterDriver(ctx context.Context, driverID string) {
 	packageSlug, err := s.rdb.HGet(ctx, driverKey(driverID), "packageSlug").Result()
 	if err == nil && packageSlug != "" {

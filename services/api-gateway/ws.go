@@ -253,9 +253,29 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		lastDriverLng = driverData.Driver.Location.Longitude
 	}
 
+	type registerPayload struct {
+		Id             string       `json:"id"`
+		Name           string       `json:"name"`
+		ProfilePicture string       `json:"profilePicture"`
+		CarPlate       string       `json:"carPlate"`
+		Geohash        string       `json:"geohash"`
+		PackageSlug    string       `json:"packageSlug"`
+		Location       *pb.Location `json:"location"`
+		BusyWithTripId string       `json:"busyWithTripId,omitempty"`
+	}
+	regPayload := registerPayload{
+		Id:             driverData.Driver.GetId(),
+		Name:           driverData.Driver.GetName(),
+		ProfilePicture: driverData.Driver.GetProfilePicture(),
+		CarPlate:       driverData.Driver.GetCarPlate(),
+		Geohash:        driverData.Driver.GetGeohash(),
+		PackageSlug:    driverData.Driver.GetPackageSlug(),
+		Location:       driverData.Driver.GetLocation(),
+		BusyWithTripId: driverData.GetBusyWithTripId(),
+	}
 	if err := driverConnManager.SendMessage(userID, contracts.WSMessage{
 		Type: contracts.DriverCmdRegister,
-		Data: driverData.Driver,
+		Data: regPayload,
 	}); err != nil {
 		appLog.Errorw("send register message", zap.Error(err))
 		return

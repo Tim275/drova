@@ -28,11 +28,12 @@ import (
 )
 
 type application struct {
-	service   *service.UserService
-	auth      *auth.Authenticator
-	blacklist domain.TokenBlacklist
-	log       *zap.SugaredLogger
-	rdb       *redis.Client
+	service       *service.UserService
+	auth          *auth.Authenticator
+	blacklist     domain.TokenBlacklist
+	refreshTokens domain.RefreshTokenStore
+	log           *zap.SugaredLogger
+	rdb           *redis.Client
 }
 
 func main() {
@@ -111,9 +112,10 @@ func main() {
 	invStore := store.NewInvitationStore(db)
 	userCache := store.NewUserCache(rdb)
 	blacklist := store.NewTokenBlacklist(rdb)
+	refreshTokens := store.NewRefreshTokenStore(rdb)
 	svc := service.New(userStore, invStore, userCache, m)
 
-	app := &application{service: svc, auth: authenticator, blacklist: blacklist, log: log, rdb: rdb}
+	app := &application{service: svc, auth: authenticator, blacklist: blacklist, refreshTokens: refreshTokens, log: log, rdb: rdb}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/health", app.handleHealth)
@@ -124,6 +126,7 @@ func main() {
 	mux.Handle("GET /v1/users/me", tracing.WrapHandler(protected(http.HandlerFunc(app.handleGetMe)), "GET /v1/users/me"))
 	mux.Handle("PATCH /v1/users/profile", tracing.WrapHandler(protected(http.HandlerFunc(app.handleUpdateProfile)), "PATCH /v1/users/profile"))
 	mux.Handle("POST /v1/auth/logout", tracing.WrapHandler(protected(http.HandlerFunc(app.handleLogout)), "POST /v1/auth/logout"))
+	mux.Handle("POST /v1/auth/refresh", tracing.WrapHandlerFunc(app.handleRefreshToken, "POST /v1/auth/refresh"))
 
 	handler := middleware.Metrics(middleware.RateLimit(rdb)(mux))
 

@@ -20,6 +20,7 @@ message RegisterDriverRequest {
 
 message RegisterDriverResponse {
   Driver driver = 1;
+  string busy_with_trip_id = 2;
 }
 
 message Driver {

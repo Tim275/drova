@@ -815,6 +815,33 @@
 
   function authToken() { return localStorage.getItem('drova_token'); }
 
+  async function tryRefresh() {
+    try {
+      const res = await fetch('/v1/auth/refresh', { method: 'POST', credentials: 'include' });
+      if (!res.ok) return false;
+      const data = await res.json();
+      localStorage.setItem('drova_token', data.token);
+      return true;
+    } catch (_) { return false; }
+  }
+
+  async function fetchAuth(url, options = {}) {
+    options.headers = { ...options.headers, 'Authorization': 'Bearer ' + authToken() };
+    let res = await fetch(url, options);
+    if (res.status === 401) {
+      const refreshed = await tryRefresh();
+      if (refreshed) {
+        options.headers['Authorization'] = 'Bearer ' + authToken();
+        res = await fetch(url, options);
+      } else {
+        localStorage.clear();
+        showAuth();
+        throw new Error('session expired');
+      }
+    }
+    return res;
+  }
+
   async function initApp() {
     const token = authToken();
     if (!token) { showAuth(); return; }
@@ -1762,6 +1789,20 @@
         const d = msg.data;
         registeredDriverID = d.id || '';
 
+        if (d.busyWithTripId) {
+          const stored = JSON.parse(localStorage.getItem('drova_active_trip') || '{}');
+          if (stored.trip_id === d.busyWithTripId) {
+            currentTripRequest = stored;
+            activeTripID = stored.trip_id;
+            window._currentTripRiderID = stored.user_id;
+            document.getElementById('tripStatusActions').style.display = 'flex';
+            document.getElementById('btnArrived').style.display  = stored.phase === 'accepted'      ? 'block' : 'none';
+            document.getElementById('btnTripStart').style.display = stored.phase === 'driver_arrived'? 'block' : 'none';
+            document.getElementById('btnTripEnd').style.display   = stored.phase === 'in_progress'  ? 'block' : 'none';
+            setStatus('Reconnected — active trip restored.');
+          }
+        }
+
         if (driverIdleMarker) { driverIdleMarker.remove(); driverIdleMarker = null; }
         if (driverMarker) driverMarker.remove();
 
@@ -1972,6 +2013,7 @@
     document.getElementById('btnTripEnd').style.display = 'none';
     setStatus('Trip accepted. Driving to pickup...');
     activeTripID = currentTripRequest.trip_id;
+    localStorage.setItem('drova_active_trip', JSON.stringify({ trip_id: currentTripRequest.trip_id, user_id: currentTripRequest.user_id, phase: 'accepted' }));
   }
 
   function declineTrip() {
@@ -2379,6 +2421,8 @@
     document.getElementById('btnArrived').style.display = 'none';
     document.getElementById('btnTripStart').style.display = 'block';
     setStatus('At pickup. Waiting for rider...');
+    const _at1 = JSON.parse(localStorage.getItem('drova_active_trip') || '{}');
+    if (_at1.trip_id) { _at1.phase = 'driver_arrived'; localStorage.setItem('drova_active_trip', JSON.stringify(_at1)); }
   }
 
   function driverTripStart() {
@@ -2391,6 +2435,8 @@
     document.getElementById('btnTripStart').style.display = 'none';
     document.getElementById('btnTripEnd').style.display = 'block';
     setStatus('Trip in progress — simulating route...');
+    const _at2 = JSON.parse(localStorage.getItem('drova_active_trip') || '{}');
+    if (_at2.trip_id) { _at2.phase = 'in_progress'; localStorage.setItem('drova_active_trip', JSON.stringify(_at2)); }
     stopPreTripTracking(); // clears locationWatchId + preTripLocationTimer
     const route = window._currentTripRoute || [];
     const riderID = window._currentTripRiderID || currentTripRequest.user_id;
@@ -2419,6 +2465,7 @@
       window._currentTripRiderID = null;
       currentTripRequest = null;
       tripEndPending = false;
+      localStorage.removeItem('drova_active_trip');
     } else {
       setStatus('Connection lost — will retry automatically...');
       tripEndPending = true;

@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-const tokenTTL = 24 * time.Hour
+const tokenTTL = 15 * time.Minute
 
 type Claims struct {
 	jwt.RegisteredClaims
