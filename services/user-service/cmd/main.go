@@ -53,14 +53,14 @@ func main() {
 		log.Warnw("tracing init failed", zap.Error(err))
 	}
 
+	if err := runMigrations(
+		env.GetString("DB_URL", ""),
+		env.GetString("MIGRATIONS_PATH", "migrations"),
+	); err != nil {
+		log.Fatalw("migrations failed", zap.Error(err))
+	}
+	log.Infow("migrations complete")
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
-		if err := runMigrations(
-			env.GetString("DB_URL", ""),
-			env.GetString("MIGRATIONS_PATH", "migrations"),
-		); err != nil {
-			log.Fatalw("migrations failed", zap.Error(err))
-		}
-		log.Infow("migrations complete")
 		return
 	}
 

@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"errors"
+	"time"
 
 	tripTypes "drova/services/trip-service/pkg/types"
 	pbd "drova/shared/proto/driver"
@@ -34,6 +35,7 @@ type TripRepository interface {
 	UpdateTrip(ctx context.Context, tripID string, status string, driver *pbd.Driver) error
 	CancelTrip(ctx context.Context, tripID string) error
 	ExpireSearch(ctx context.Context, tripID string) (bool, error)
+	ExpireStaleSearching(ctx context.Context, olderThan time.Duration) (int64, error)
 	GetTripsByUser(ctx context.Context, userID string) ([]*TripModel, error)
 	GetTripsByDriver(ctx context.Context, driverID string) ([]*TripModel, error)
 	RateTrip(ctx context.Context, tripID string, rating int) error
@@ -53,6 +55,7 @@ type TripService interface {
 	UpdateTrip(ctx context.Context, tripID string, status string, driver *pbd.Driver) error
 	CancelTrip(ctx context.Context, tripID string) error
 	ExpireSearch(ctx context.Context, tripID string) (bool, error)
+	ExpireStaleSearching(ctx context.Context, olderThan time.Duration) (int64, error)
 	GetTripsByUser(ctx context.Context, userID string) ([]*TripModel, error)
 	GetTripsByDriver(ctx context.Context, driverID string) ([]*TripModel, error)
 	RateTrip(ctx context.Context, tripID string, rating int) error

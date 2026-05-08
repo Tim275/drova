@@ -35,11 +35,11 @@ func NewDriverConsumer(kafka *messaging.Kafka, service domain.TripService, log *
 }
 
 func (c *DriverConsumer) Start(ctx context.Context) {
-	go c.kafka.ConsumeMessages(ctx, messaging.TopicDriverTripResponse, "trip-service-driver-response", c.handleDriverResponse)
-	go c.kafka.ConsumeMessages(ctx, messaging.TopicTripCompleted, "trip-service-completed", c.handleTripCompleted)
-	go c.kafka.ConsumeMessages(ctx, messaging.TopicTripCancelled, "trip-service-cancelled", c.handleTripCancelled)
-	go c.kafka.ConsumeMessages(ctx, messaging.TopicTripDriverArrived, "trip-service-arrived", c.handleStatusUpdate("driver_arrived"))
-	go c.kafka.ConsumeMessages(ctx, messaging.TopicTripInProgress, "trip-service-in-progress", c.handleStatusUpdate("in_progress"))
+	c.kafka.ConsumeMessages(ctx, messaging.TopicDriverTripResponse, "trip-service-driver-response", c.handleDriverResponse)
+	c.kafka.ConsumeMessages(ctx, messaging.TopicTripCompleted, "trip-service-completed", c.handleTripCompleted)
+	c.kafka.ConsumeMessages(ctx, messaging.TopicTripCancelled, "trip-service-cancelled", c.handleTripCancelled)
+	c.kafka.ConsumeMessages(ctx, messaging.TopicTripDriverArrived, "trip-service-arrived", c.handleStatusUpdate("driver_arrived"))
+	c.kafka.ConsumeMessages(ctx, messaging.TopicTripInProgress, "trip-service-in-progress", c.handleStatusUpdate("in_progress"))
 }
 
 func (c *DriverConsumer) handleDriverResponse(ctx context.Context, payload []byte) error {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"drova/services/trip-service/internal/domain"
 	pbd "drova/shared/proto/driver"
@@ -156,6 +157,17 @@ func (r *pgRepository) ExpireSearch(ctx context.Context, tripID string) (bool, e
 		return false, err
 	}
 	return tag.RowsAffected() > 0, nil
+}
+
+func (r *pgRepository) ExpireStaleSearching(ctx context.Context, olderThan time.Duration) (int64, error) {
+	tag, err := r.db.Exec(ctx,
+		`UPDATE trips SET status='cancelled' WHERE status='searching' AND created_at < NOW() - $1::interval`,
+		fmt.Sprintf("%.0f seconds", olderThan.Seconds()),
+	)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }
 
 func (r *pgRepository) GetTripsByUser(ctx context.Context, userID string) ([]*domain.TripModel, error) {

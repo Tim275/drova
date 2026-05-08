@@ -6,7 +6,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"time"
 
 	"drova/services/api-gateway/grpc_clients"
@@ -26,6 +29,17 @@ import (
 )
 
 const webhookDedupTTL = 24 * time.Hour
+
+var userServiceProxy = func() *httputil.ReverseProxy {
+	target, _ := url.Parse(env.GetString("USER_SERVICE_HTTP_URL", "http://user-service:8082"))
+	return httputil.NewSingleHostReverseProxy(target)
+}()
+
+// handleRefresh proxies POST /v1/auth/refresh to user-service so that
+// httpOnly cookies are preserved end-to-end without re-implementing token logic here.
+func handleRefresh(w http.ResponseWriter, r *http.Request) {
+	userServiceProxy.ServeHTTP(w, r)
+}
 
 var (
 	mapboxPublicToken    = env.GetString("MAPBOX_PUBLIC_TOKEN", "")
@@ -139,14 +153,9 @@ func handleTripHistory(w http.ResponseWriter, r *http.Request) {
 
 	var resp interface{}
 	_, err = grpc_clients.TripBreaker.Execute(func() (interface{}, error) {
-		client, err := grpc_clients.NewTripServiceClient()
-		if err != nil {
-			return nil, err
-		}
-		defer client.Close()
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
-		res, err := client.Client.GetTripsByUser(ctx, &pbt.GetTripsRequest{Id: userID})
+		res, err := grpc_clients.TripClient.GetTripsByUser(ctx, &pbt.GetTripsRequest{Id: userID})
 		if err != nil {
 			return nil, err
 		}
@@ -174,14 +183,9 @@ func handleDriverHistory(w http.ResponseWriter, r *http.Request) {
 
 	var resp interface{}
 	_, err := grpc_clients.TripBreaker.Execute(func() (interface{}, error) {
-		client, err := grpc_clients.NewTripServiceClient()
-		if err != nil {
-			return nil, err
-		}
-		defer client.Close()
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
-		res, err := client.Client.GetTripsByDriver(ctx, &pbt.GetTripsRequest{Id: driverID})
+		res, err := grpc_clients.TripClient.GetTripsByDriver(ctx, &pbt.GetTripsRequest{Id: driverID})
 		if err != nil {
 			return nil, err
 		}
@@ -213,14 +217,9 @@ func handleTripRate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, err := grpc_clients.TripBreaker.Execute(func() (interface{}, error) {
-		client, err := grpc_clients.NewTripServiceClient()
-		if err != nil {
-			return nil, err
-		}
-		defer client.Close()
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
-		_, err = client.Client.RateTrip(ctx, &pbt.RateTripRequest{TripID: req.TripID, Rating: req.Rating})
+		_, err := grpc_clients.TripClient.RateTrip(ctx, &pbt.RateTripRequest{TripID: req.TripID, Rating: req.Rating})
 		return nil, err
 	})
 	if err != nil {
@@ -336,6 +335,25 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	defer r.Body.Close()
 
+	if gatewayRdb != nil {
+		ip := r.Header.Get("X-Forwarded-For")
+		if ip == "" {
+			ip, _, _ = net.SplitHostPort(r.RemoteAddr)
+		}
+		key := "rl:register:" + ip
+		count, err := gatewayRdb.Incr(r.Context(), key).Result()
+		if err == nil {
+			if count == 1 {
+				gatewayRdb.Expire(r.Context(), key, 15*time.Minute)
+			}
+			if count > 10 {
+				w.Header().Set("Retry-After", "900")
+				http.Error(w, "too many registration attempts", http.StatusTooManyRequests)
+				return
+			}
+		}
+	}
+
 	var req pbu.RegisterRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid json", http.StatusBadRequest)
@@ -363,40 +381,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleLogin(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
-	defer r.Body.Close()
-
-	var req struct {
-		Email    string `json:"email"`
-		Password string `json:"password"`
-	}
-
-	// Support both Basic Auth (frontend) and JSON body
-	if email, password, ok := r.BasicAuth(); ok {
-		req.Email = email
-		req.Password = password
-	} else {
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid json", http.StatusBadRequest)
-			return
-		}
-	}
-
-	var token string
-	_, err := grpc_clients.UserBreaker.Execute(func() (interface{}, error) {
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
-		res, err := grpc_clients.UserClient.Login(ctx, &pbu.LoginRequest{Email: req.Email, Password: req.Password})
-		if err == nil {
-			token = res.Token
-		}
-		return nil, err
-	})
-	if err != nil {
-		grpcErrToHTTP(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]string{"token": token})
+	userServiceProxy.ServeHTTP(w, r)
 }
 
 func handleActivate(w http.ResponseWriter, r *http.Request) {
@@ -485,27 +470,7 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleLogout(w http.ResponseWriter, r *http.Request) {
-	tokenStr := tokenFromRequest(r)
-	claims, err := parseGatewayToken(tokenStr)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
-	var expiresAt int64
-	if claims.ExpiresAt != nil {
-		expiresAt = claims.ExpiresAt.Unix()
-	}
-
-	grpc_clients.UserBreaker.Execute(func() (interface{}, error) { //nolint:errcheck
-		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
-		defer cancel()
-		return grpc_clients.UserClient.Logout(ctx, &pbu.LogoutRequest{
-			Jti:       claims.ID,
-			ExpiresAt: expiresAt,
-		})
-	})
-	writeJSON(w, http.StatusOK, map[string]string{"message": "logged out"})
+	userServiceProxy.ServeHTTP(w, r)
 }
 
 func grpcErrToHTTP(w http.ResponseWriter, err error) {

@@ -23,19 +23,24 @@ func NewGrpcHandler(s *grpc.Server, service *Service, consumer *TripConsumer) {
 }
 
 func (h *driverGrpcHandler) RegisterDriver(ctx context.Context, req *pb.RegisterDriverRequest) (*pb.RegisterDriverResponse, error) {
-	driver, err := h.service.RegisterDriver(ctx, req.GetDriverID(), req.GetPackageSlug(), req.GetName())
+	driver, err := h.service.RegisterDriver(ctx, req.GetDriverID(), req.GetPackageSlug(), req.GetName(), req.GetLat(), req.GetLng())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to register driver")
 	}
 
-	loc := driver.GetLocation()
-	if loc != nil {
-		h.consumer.TryMatchWaiting(ctx, driver.GetPackageSlug(), loc.GetLatitude(), loc.GetLongitude())
+	busyTripID := h.service.GetBusyTripID(ctx, req.GetDriverID())
+	if busyTripID != "" {
+		h.consumer.ExtendTimerForDriver(ctx, busyTripID, req.GetDriverID())
+	} else {
+		loc := driver.GetLocation()
+		if loc != nil {
+			h.consumer.TryMatchWaiting(ctx, driver.GetPackageSlug(), loc.GetLatitude(), loc.GetLongitude())
+		}
 	}
 
 	return &pb.RegisterDriverResponse{
 		Driver:         driver,
-		BusyWithTripId: h.service.GetBusyTripID(ctx, req.GetDriverID()),
+		BusyWithTripId: busyTripID,
 	}, nil
 }
 

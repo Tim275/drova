@@ -26,7 +26,7 @@ func NewTripConsumer(kafka *messaging.Kafka, service domain.Service, store domai
 }
 
 func (c *TripConsumer) Start(ctx context.Context) {
-	go c.kafka.ConsumeMessages(ctx, messaging.TopicPaymentCreateSession, "payment-service-create", c.handleCreateSession)
+	c.kafka.ConsumeMessages(ctx, messaging.TopicPaymentCreateSession, "payment-service-create", c.handleCreateSession)
 }
 
 func (c *TripConsumer) handleCreateSession(ctx context.Context, raw []byte) error {

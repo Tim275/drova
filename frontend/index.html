@@ -813,17 +813,22 @@
   // Auth state
   let currentUser = null;
   let _accessToken = null; // in-memory only — not persisted to localStorage (XSS protection)
+  let _refreshPromise = null; // deduplicates concurrent refresh calls from multiple tabs/fetches
 
   function authToken() { return _accessToken; }
 
   async function tryRefresh() {
-    try {
-      const res = await fetch('/v1/auth/refresh', { method: 'POST', credentials: 'include' });
-      if (!res.ok) return false;
-      const data = await res.json();
-      _accessToken = data.token;
-      return true;
-    } catch (_) { return false; }
+    if (_refreshPromise) return _refreshPromise;
+    _refreshPromise = (async () => {
+      try {
+        const res = await fetch('/v1/auth/refresh', { method: 'POST', credentials: 'include' });
+        if (!res.ok) return false;
+        const data = await res.json();
+        _accessToken = data.token;
+        return true;
+      } catch (_) { return false; }
+    })().finally(() => { _refreshPromise = null; });
+    return _refreshPromise;
   }
 
   async function fetchAuth(url, options = {}) {
@@ -1787,7 +1792,10 @@
     const wsName = driverName || currentUser.name || currentUser.email.split('@')[0];
     const driverAvatar = currentUser.avatarUrl || defaultAvatar(wsName);
     const _wsSchemeD = location.protocol === 'https:' ? 'wss' : 'ws';
-    ws = new WebSocket(`${_wsSchemeD}://${location.host}/ws/drivers?userID=${currentUser.id}&packageSlug=${pkg}&name=${encodeURIComponent(wsName)}&avatarUrl=${encodeURIComponent(driverAvatar)}&token=${encodeURIComponent(authToken())}`);
+    const _gpsParam = driverCurrentGPS
+      ? `&lat=${driverCurrentGPS.latitude}&lng=${driverCurrentGPS.longitude}`
+      : '';
+    ws = new WebSocket(`${_wsSchemeD}://${location.host}/ws/drivers?userID=${currentUser.id}&packageSlug=${pkg}&name=${encodeURIComponent(wsName)}&avatarUrl=${encodeURIComponent(driverAvatar)}&token=${encodeURIComponent(authToken())}${_gpsParam}`);
 
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);

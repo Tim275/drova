@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"drova/shared/retry"
@@ -28,6 +29,7 @@ type Kafka struct {
 	writer   *kafka.Writer
 	dialer   *kafka.Dialer
 	registry *schema.RegistryClient
+	wg       sync.WaitGroup
 }
 
 func NewKafka(brokers []string) *Kafka {
@@ -180,7 +182,23 @@ func (k *Kafka) PublishMessage(ctx context.Context, topic string, message []byte
 	return nil
 }
 
+// ConsumeMessages launches a background goroutine that consumes messages from
+// the given topic. Call Wait() during shutdown to block until all consumers exit.
 func (k *Kafka) ConsumeMessages(ctx context.Context, topic, groupID string, handler MessageHandler) {
+	k.wg.Add(1)
+	go func() {
+		defer k.wg.Done()
+		k.consumeLoop(ctx, topic, groupID, handler)
+	}()
+}
+
+// Wait blocks until all consumer goroutines started by ConsumeMessages have exited.
+// Call this after cancelling the context to ensure a clean shutdown.
+func (k *Kafka) Wait() {
+	k.wg.Wait()
+}
+
+func (k *Kafka) consumeLoop(ctx context.Context, topic, groupID string, handler MessageHandler) {
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: k.brokers,
 		Topic:   topic,
@@ -219,7 +237,7 @@ func (k *Kafka) ConsumeMessages(ctx context.Context, topic, groupID string, hand
 
 			if dlqErr := k.publishToDLQ(ctx, msg, handlerErr, retryCfg.MaxRetries); dlqErr != nil {
 				log.Printf("failed to publish to DLQ: %v — skipping commit to avoid message loss", dlqErr)
-				continue // do not commit: let Kafka redeliver so we can retry DLQ publish
+				continue
 			}
 		}
 

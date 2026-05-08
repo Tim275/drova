@@ -220,6 +220,15 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	driverName := r.URL.Query().Get("name")
 
+	// Parse real GPS from browser — sent by the frontend before going online.
+	var driverLat, driverLng float64
+	if v := r.URL.Query().Get("lat"); v != "" {
+		fmt.Sscanf(v, "%f", &driverLat)
+	}
+	if v := r.URL.Query().Get("lng"); v != "" {
+		fmt.Sscanf(v, "%f", &driverLng)
+	}
+
 	ctx := r.Context()
 
 	defer func() {
@@ -235,6 +244,8 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 			DriverID:    userID,
 			PackageSlug: packageSlug,
 			Name:        driverName,
+			Lat:         driverLat,
+			Lng:         driverLng,
 		})
 		if err != nil {
 			return nil, err
@@ -251,10 +262,17 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		driverData.Driver.ProfilePicture = avatarURL
 	}
 
-	locationStream, err := grpc_clients.DriverClient.StreamLocation(ctx)
-	if err != nil {
-		appLog.Warnw("location stream open failed", "driver", userID, zap.Error(err))
-		locationStream = nil
+	var locationStream pb.DriverService_StreamLocationClient
+	_, lsErr := grpc_clients.DriverBreaker.Execute(func() (interface{}, error) {
+		stream, err := grpc_clients.DriverClient.StreamLocation(ctx)
+		if err != nil {
+			return nil, err
+		}
+		locationStream = stream
+		return nil, nil
+	})
+	if lsErr != nil {
+		appLog.Warnw("location stream open failed", "driver", userID, zap.Error(lsErr))
 	} else {
 		appLog.Infow("location stream opened", "driver", userID)
 	}

@@ -27,7 +27,7 @@ func NewService(store DriverStore, rdb *redis.Client, log *zap.SugaredLogger) *S
 	return &Service{store: store, rdb: rdb, log: log}
 }
 
-var searchRadii = []float64{5, 25, 100, 500}
+var searchRadii = []float64{5, 25, 100, 500, 1500}
 
 func geoKey(packageSlug string) string {
 	return "drova:drivers:geo:" + packageSlug
@@ -37,9 +37,8 @@ func driverKey(driverID string) string {
 	return "drova:driver:" + driverID
 }
 
-func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, name string) (*pb.Driver, error) {
+func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, name string, lat, lng float64) (*pb.Driver, error) {
 	randomIndex := math.IntN(len(PredefinedRoutes))
-	randomRoute := PredefinedRoutes[randomIndex]
 	randomPlate := GenerateRandomPlate()
 	randomAvatar := util.GetRandomAvatar(randomIndex)
 
@@ -47,12 +46,19 @@ func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, nam
 		name = "Driver"
 	}
 
-	gh := geohash.Encode(randomRoute[0][0], randomRoute[0][1])
+	// Use real GPS from browser if provided, otherwise fall back to a demo location.
+	if lat == 0 || lng == 0 {
+		randomRoute := PredefinedRoutes[randomIndex]
+		lat = randomRoute[0][0]
+		lng = randomRoute[0][1]
+	}
+
+	gh := geohash.Encode(lat, lng)
 
 	driver := &pb.Driver{
 		Id:             driverID,
 		Geohash:        gh,
-		Location:       &pb.Location{Latitude: randomRoute[0][0], Longitude: randomRoute[0][1]},
+		Location:       &pb.Location{Latitude: lat, Longitude: lng},
 		Name:           name,
 		PackageSlug:    packageSlug,
 		ProfilePicture: randomAvatar,
@@ -68,8 +74,8 @@ func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, nam
 	s.rdb.HSetNX(ctx, driverKey(driverID), "busy", "")
 	s.rdb.GeoAdd(ctx, geoKey(packageSlug), &redis.GeoLocation{
 		Name:      driverID,
-		Longitude: randomRoute[0][1],
-		Latitude:  randomRoute[0][0],
+		Longitude: lng,
+		Latitude:  lat,
 	})
 
 	_ = s.store.Upsert(ctx, driver)

@@ -16,6 +16,8 @@ message RegisterDriverRequest {
   string driverID = 1;
   string packageSlug = 2;
   string name = 3;
+  double lat = 4;
+  double lng = 5;
 }
 
 message RegisterDriverResponse {

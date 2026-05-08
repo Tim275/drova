@@ -126,6 +126,10 @@ func (s *service) ExpireSearch(ctx context.Context, tripID string) (bool, error)
 	return s.repo.ExpireSearch(ctx, tripID)
 }
 
+func (s *service) ExpireStaleSearching(ctx context.Context, olderThan time.Duration) (int64, error) {
+	return s.repo.ExpireStaleSearching(ctx, olderThan)
+}
+
 func (s *service) GetTripsByUser(ctx context.Context, userID string) ([]*domain.TripModel, error) {
 	return s.repo.GetTripsByUser(ctx, userID)
 }
