@@ -1129,14 +1129,14 @@
   let currentTripPhase = null;
 
   async function reverseGeocode(lng, lat) {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}&limit=1&language=en`;
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}&limit=1&country=de&language=en`;
     const res  = await fetch(url);
     const data = await res.json();
     return data.features?.[0]?.place_name ?? `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
   }
 
   async function geocode(address) {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxgl.accessToken}&limit=1&proximity=10.4515,51.1657&language=de,en&types=place,address,poi,locality`;
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxgl.accessToken}&limit=1&country=de&bbox=5.8,47.2,15.1,55.1&language=en&types=place,address,poi,locality`;
     const res  = await fetch(url);
     const data = await res.json();
     if (!data.features?.length) throw new Error(`Address not found: ${address}`);
@@ -1157,7 +1157,7 @@
       if (q.length < 2) { dropdown.classList.remove('open'); dropdown.innerHTML = ''; return; }
       timer = setTimeout(async () => {
         try {
-          const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${mapboxgl.accessToken}&limit=5&proximity=10.4515,51.1657&language=de,en&types=place,address,poi,locality`;
+          const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${mapboxgl.accessToken}&limit=5&country=de&bbox=5.8,47.2,15.1,55.1&language=en&types=place,address,poi,locality`;
           const res  = await fetch(url);
           const data = await res.json();
           dropdown.innerHTML = '';
@@ -1244,8 +1244,9 @@
     map = new mapboxgl.Map({
       container: 'map',
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: [10.5, 51.2],
+      center: [10.4515, 51.1657],
       zoom: 6,
+      maxBounds: [[5.8, 47.2], [15.1, 55.1]],
     });
     map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 
@@ -1287,6 +1288,7 @@
       style: 'mapbox://styles/mapbox/streets-v12',
       center: [10.4515, 51.1657],
       zoom: 6,
+      maxBounds: [[5.8, 47.2], [15.1, 55.1]],
     });
     driverMap.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 
@@ -1358,7 +1360,7 @@
           driverCurrentGPS = { latitude: 53.5511, longitude: 10.0028, accuracy: 999 };
           _doGoOnline();
         },
-        { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
+        { enableHighAccuracy: false, timeout: 2000, maximumAge: 30000 }
       );
     }
 
@@ -1366,7 +1368,7 @@
     navigator.geolocation.getCurrentPosition(
       onLocationSuccess,
       onLocationError,
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 2000, maximumAge: 0 }
     );
   }
 
@@ -2219,8 +2221,10 @@
         document.getElementById('payAmount').textContent = `${(d.amount / 100).toFixed(2)} ${(d.currency || 'eur').toUpperCase()}`;
         document.getElementById('payTripId').textContent = d.trip_id;
         document.getElementById('paybtn').onclick = () => {
-          if (!window.stripeClient) { alert('Stripe not configured'); return; }
-          window.stripeClient.redirectToCheckout({ sessionId: d.session_id });
+          {
+            if (!window.stripeClient) { alert('Stripe not configured'); return; }
+            window.stripeClient.redirectToCheckout({ sessionId: d.session_id });
+          }
         };
         document.getElementById('paymentoverlay').classList.add('active');
       }

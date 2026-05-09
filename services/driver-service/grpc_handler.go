@@ -30,8 +30,16 @@ func (h *driverGrpcHandler) RegisterDriver(ctx context.Context, req *pb.Register
 
 	busyTripID := h.service.GetBusyTripID(ctx, req.GetDriverID())
 	if busyTripID != "" {
-		h.consumer.ExtendTimerForDriver(ctx, busyTripID, req.GetDriverID())
-	} else {
+		if !h.service.IsBusyFresh(ctx, req.GetDriverID()) {
+			// TTL sentinel expired — service restarted while driver was mid-trip.
+			// The Kafka trip.event.completed was already acked; ClearBusy was never called.
+			h.service.ClearBusy(ctx, req.GetDriverID())
+			busyTripID = ""
+		} else {
+			h.consumer.ExtendTimerForDriver(ctx, busyTripID, req.GetDriverID())
+		}
+	}
+	if busyTripID == "" {
 		loc := driver.GetLocation()
 		if loc != nil {
 			h.consumer.TryMatchWaiting(ctx, driver.GetPackageSlug(), loc.GetLatitude(), loc.GetLongitude())

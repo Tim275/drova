@@ -48,12 +48,10 @@ func (c *TripConsumer) handleCreateSession(ctx context.Context, raw []byte) erro
 	}
 
 	c.log.Infow("creating stripe session", "trip", data.TripID, "user", data.UserID, "amount", data.Amount, "currency", data.Currency)
-
 	intent, err := c.service.CreatePaymentSession(ctx, data.TripID, data.UserID, data.DriverID, data.Amount, data.Currency)
 	if err != nil {
 		return fmt.Errorf("create payment session: %w", err)
 	}
-
 	c.log.Infow("stripe session created", "session", intent.StripeSessionID, "trip", data.TripID)
 
 	userID, _ := strconv.ParseInt(data.UserID, 10, 64)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	math "math/rand/v2"
+	"time"
 
 	"github.com/mmcloughlin/geohash"
 	"github.com/redis/go-redis/v9"
@@ -131,16 +132,36 @@ func (s *Service) FindAvailableDrivers(ctx context.Context, packageSlug string, 
 	return nil
 }
 
+const busyTTL = 2 * time.Hour // prevents stale busy state after service restart
+
+func busyTTLKey(driverID string) string { return "drv:busy-ttl:" + driverID }
+
 func (s *Service) SetBusy(ctx context.Context, driverID, tripID string) {
-	if err := s.rdb.HSet(ctx, driverKey(driverID), "busy", tripID).Err(); err != nil {
+	pipe := s.rdb.Pipeline()
+	pipe.HSet(ctx, driverKey(driverID), "busy", tripID)
+	pipe.Set(ctx, busyTTLKey(driverID), tripID, busyTTL)
+	if _, err := pipe.Exec(ctx); err != nil {
 		s.log.Warnw("SetBusy failed", "driver", driverID, "trip", tripID, zap.Error(err))
 	}
 }
 
 func (s *Service) ClearBusy(ctx context.Context, driverID string) {
-	if err := s.rdb.HSet(ctx, driverKey(driverID), "busy", "").Err(); err != nil {
+	pipe := s.rdb.Pipeline()
+	pipe.HSet(ctx, driverKey(driverID), "busy", "")
+	pipe.Del(ctx, busyTTLKey(driverID))
+	if _, err := pipe.Exec(ctx); err != nil {
 		s.log.Warnw("ClearBusy failed", "driver", driverID, zap.Error(err))
 	}
+}
+
+// IsBusyFresh returns true if the busy TTL sentinel key still exists.
+// If false, the busy state is stale (set before a service restart) and should be cleared.
+func (s *Service) IsBusyFresh(ctx context.Context, driverID string) bool {
+	exists, err := s.rdb.Exists(ctx, busyTTLKey(driverID)).Result()
+	if err != nil {
+		return true // assume fresh on Redis error — safer than a false clear
+	}
+	return exists > 0
 }
 
 func (s *Service) UpdateLocation(ctx context.Context, driverID string, lat, lng float64) {
