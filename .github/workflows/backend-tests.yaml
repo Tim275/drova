@@ -114,7 +114,8 @@ jobs:
           exit-code: "1"
           ignore-unfixed: true
           vuln-type: "os,library"
-          severity: "CRITICAL"
+          severity: "CRITICAL,HIGH"
+          # set exit-code: "0" above to make non-blocking during dependency updates
 
   codeql:
     name: CodeQL Analysis
