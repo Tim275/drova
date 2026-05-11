@@ -11,6 +11,10 @@ on:
         type: string
         description: "Tag to build and deploy (e.g. v0.16.0)"
 
+concurrency:
+  group: docker-build-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   packages: write
@@ -19,6 +23,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/tim275/drova
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build-and-push:
