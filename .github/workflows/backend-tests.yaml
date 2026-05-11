@@ -10,7 +10,6 @@ concurrency:
 permissions:
   contents: read
   pull-requests: write
-  security-events: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -64,7 +63,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-          cache: false
+          cache: true
 
       - name: Lint
         uses: golangci/golangci-lint-action@v7
@@ -74,7 +73,7 @@ jobs:
 
       - name: Vulnerability check
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
           govulncheck ./...
 
       - name: Run unit tests
@@ -123,6 +122,9 @@ jobs:
     if: ${{ needs.check_paths.outputs.should_run == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
 
     steps:
       - uses: actions/checkout@v4
