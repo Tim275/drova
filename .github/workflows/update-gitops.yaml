@@ -23,9 +23,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      packages: read
-    outputs:
-      pr_url: ${{ steps.pr.outputs.pull-request-url }}
 
     steps:
       - name: Checkout Actions Repo
@@ -41,37 +38,13 @@ jobs:
           ref: main
           path: drova-gitops
 
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Verify all 7 images exist in GHCR
-        run: |
-          set -euo pipefail
-          for SERVICE in api-gateway user-service trip-service driver-service payment-service chat-service frontend; do
-            IMAGE="ghcr.io/tim275/drova/$SERVICE:${{ inputs.tag }}"
-            if ! docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
-              echo "::error::Image not found in GHCR: $IMAGE"
-              exit 1
-            fi
-            echo "✓ $IMAGE"
-          done
-          echo "All 7 images verified in GHCR."
-
       - name: Install yq
-        env:
-          YQ_VERSION: "v4.44.3"
-          YQ_SHA256: "4622a6cd9ef61bcd30e9f04ac30bef73bde64fe5c05b2fafde9a9bbcd9b48bdc"
         run: |
           sudo wget -qO /usr/local/bin/yq \
-            "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
-          echo "${YQ_SHA256}  /usr/local/bin/yq" | sha256sum --check
+            https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
 
-      - name: Update Image Tags Staging
+      - name: Update staging image tags
         run: |
           chmod +x ./actions-repo/scripts/update_kustomize_tag
           ./actions-repo/scripts/update_kustomize_tag \
@@ -86,19 +59,42 @@ jobs:
           message: 'chore: deploy ${{ inputs.tag }} to staging'
           github_token: ${{ secrets.GITOPS_PAT }}
 
-      - name: Soak period
+      - name: Poll staging health
+        id: staging_health
         run: |
-          echo "Staging deployed. Soaking 3 minutes for ArgoCD sync before opening production PR..."
-          sleep 180
+          URL="https://staging.drova.timourhomelab.org/health"
+          MAX=300
+          INTERVAL=15
+          ELAPSED=0
+          echo "Polling ${URL} (max ${MAX}s, every ${INTERVAL}s)..."
+          while [ $ELAPSED -lt $MAX ]; do
+            STATUS=$(curl -sf --max-time 10 -o /dev/null -w "%{http_code}" "$URL" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✓ Staging healthy after ${ELAPSED}s"
+              exit 0
+            fi
+            echo "  [${ELAPSED}s] status=${STATUS} — retrying..."
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+          echo "❌ Staging not healthy after ${MAX}s"
+          exit 1
 
-      - name: Update Image Tags Production
+      - name: Rollback staging on failure
+        if: failure() && steps.staging_health.conclusion == 'failure'
+        run: |
+          cd drova-gitops
+          git revert HEAD --no-edit
+          git push
+          echo "❌ Staging rolled back"
+
+      - name: Update production image tags
         run: |
           ./actions-repo/scripts/update_kustomize_tag \
             "${{ inputs.tag }}" \
             ./drova-gitops/overlays/production/kustomization.yaml
 
       - name: Create Production Pull Request
-        id: pr
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITOPS_PAT }}
@@ -108,43 +104,13 @@ jobs:
           author: GitOps Bot <gitops-bot@github.com>
           branch: gitops/release-${{ inputs.tag }}
           delete-branch: true
-          title: "chore: deploy ${{ inputs.tag }} to production"
+          title: "deploy ${{ inputs.tag }} to production"
           body: |
-            Updates all 7 drova service image tags to `${{ inputs.tag }}` in `overlays/production/kustomization.yaml`.
-
-            Staging has been running `${{ inputs.tag }}` for ~3 minutes (soak period passed).
+            Updates all 7 drova service image tags to `${{ inputs.tag }}` in production.
 
             Release: https://github.com/Tim275/drova/releases/tag/${{ inputs.tag }}
+
+            **After merging:** run [Production Verify](https://github.com/Tim275/drova/actions/workflows/prod-verify.yaml) with tag `${{ inputs.tag }}` to confirm production health and auto-rollback if needed.
           labels: |
             automated-pr
             gitops
-
-      - name: Write deployment summary
-        run: |
-          cat >> $GITHUB_STEP_SUMMARY << EOF
-          # Release ${{ inputs.tag }}
-
-          ## Images verified
-          - \`ghcr.io/tim275/drova/api-gateway:${{ inputs.tag }}\`
-          - \`ghcr.io/tim275/drova/user-service:${{ inputs.tag }}\`
-          - \`ghcr.io/tim275/drova/trip-service:${{ inputs.tag }}\`
-          - \`ghcr.io/tim275/drova/driver-service:${{ inputs.tag }}\`
-          - \`ghcr.io/tim275/drova/payment-service:${{ inputs.tag }}\`
-          - \`ghcr.io/tim275/drova/chat-service:${{ inputs.tag }}\`
-          - \`ghcr.io/tim275/drova/frontend:${{ inputs.tag }}\`
-
-          ## Deployment status
-          | Environment | Method | Status |
-          |---|---|---|
-          | Staging | Direct commit (EndBug) | ✓ deployed |
-          | Production | Pull Request | awaiting review |
-
-          **Soak period:** 3 minutes after staging commit before opening production PR.
-
-          **Production PR:** ${{ steps.pr.outputs.pull-request-url }}
-          EOF
-
-      - name: Notify on failure
-        if: failure()
-        run: |
-          echo "::error::GitOps update failed for tag ${{ inputs.tag }} — staging or production may be inconsistent"

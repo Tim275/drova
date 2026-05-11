@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../drova-gitops/base
+  - configmap.yaml
+  - test-credentials.yaml
+
+namespace: drova-e2e
+
+patches:
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+    target:
+      kind: Deployment
+  # Not needed for smoke tests — avoids pulling 300MB image
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 0
+    target:
+      kind: Deployment
+      name: schema-registry
+  # CI Kafka has no TLS — clear the cert path so the client uses plaintext
+  - path: patch-no-kafka-tls.yaml
