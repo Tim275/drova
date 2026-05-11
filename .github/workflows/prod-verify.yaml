@@ -1,0 +1,89 @@
+name: Production Verify & Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        required: true
+        type: string
+        description: "Tag that was deployed (e.g. v0.16.0) — used for rollback if needed"
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  verify:
+    name: Smoke + Rollback if unhealthy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Poll production health
+        id: prod_health
+        run: |
+          URL="https://drova.timourhomelab.org/health"
+          MAX=300
+          INTERVAL=15
+          ELAPSED=0
+          echo "Polling ${URL} (max ${MAX}s, every ${INTERVAL}s)..."
+          while [ $ELAPSED -lt $MAX ]; do
+            STATUS=$(curl -sf --max-time 10 -o /dev/null -w "%{http_code}" "$URL" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✓ Production healthy after ${ELAPSED}s"
+              exit 0
+            fi
+            echo "  [${ELAPSED}s] status=${STATUS} — retrying..."
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+          echo "❌ Production not healthy after ${MAX}s"
+          exit 1
+
+      - name: Checkout GitOps repository
+        if: failure() && steps.prod_health.conclusion == 'failure'
+        uses: actions/checkout@v4
+        with:
+          repository: Tim275/drova-gitops
+          token: ${{ secrets.GITOPS_PAT }}
+          ref: main
+          path: drova-gitops
+
+      - name: Rollback production
+        if: failure() && steps.prod_health.conclusion == 'failure'
+        run: |
+          cd drova-gitops
+          git config user.name "GitOps Bot"
+          git config user.email "gitops-bot@github.com"
+          git revert HEAD --no-edit
+          git push
+          echo "❌ Production rolled back — reverted last commit in drova-gitops"
+
+      - name: Integration smoke tests
+        run: |
+          BASE="https://drova.timourhomelab.org"
+          echo "--- /health ---"
+          curl -sf "${BASE}/health" | grep -q "alive" && echo "✓ health ok"
+
+          echo "--- /v1/auth/token (Basic Auth) ---"
+          TOKEN=$(curl -sf -u "rider@drova.local:Test1234!" \
+            -X POST "${BASE}/v1/auth/token" | jq -r '.data.token // .token // empty')
+          [ -n "$TOKEN" ] && echo "✓ login ok" || { echo "❌ login failed"; exit 1; }
+
+          echo "--- /v1/users/me ---"
+          curl -sf -H "Authorization: Bearer ${TOKEN}" "${BASE}/v1/users/me" \
+            | jq -e '.data.email // .email' > /dev/null && echo "✓ profile ok"
+
+          echo "All production smoke tests passed ✓"
+
+      - name: Write job summary
+        if: always()
+        run: |
+          echo "## Production Verify — ${{ inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.prod_health.conclusion }}" = "success" ]; then
+            echo "✅ Production healthy — smoke tests passed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Production unhealthy — rollback triggered" >> $GITHUB_STEP_SUMMARY
+          fi

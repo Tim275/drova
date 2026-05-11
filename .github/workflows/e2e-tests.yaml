@@ -140,6 +140,27 @@ jobs:
           MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
         run: go test -v -tags=e2e -timeout 3m ./tests/e2e/...
 
+      - name: Install k6
+        run: |
+          curl -s https://packagecloud.io/install/repositories/grafana/k6/script.deb.sh | sudo bash
+          sudo apt-get install -y k6
+
+      - name: Run k6 load test
+        run: |
+          k6 run \
+            -e BASE_URL=http://localhost:8081 \
+            -e E2E_TOKEN="" \
+            --out json=k6-results.json \
+            scripts/k6/load-test.js
+
+      - name: Upload k6 results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-results
+          path: k6-results.json
+          retention-days: 7
+
       - name: Show logs on failure
         if: failure()
         run: |

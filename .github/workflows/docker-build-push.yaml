@@ -19,6 +19,8 @@ permissions:
   contents: write
   packages: write
   pull-requests: write
+  id-token: write
+  attestations: write
 
 env:
   REGISTRY: ghcr.io
@@ -78,6 +80,7 @@ jobs:
           fi
 
       - name: Build and Push
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.context }}
@@ -88,6 +91,14 @@ jobs:
             ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.8.2
+
+      - name: Sign image
+        run: |
+          cosign sign --yes \
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}@${{ steps.build.outputs.digest }}
 
   trigger_gitops:
     name: Trigger GitOps
