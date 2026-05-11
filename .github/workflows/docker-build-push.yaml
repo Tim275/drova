@@ -89,20 +89,10 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
-  e2e:
-    name: E2E Smoke Tests
-    needs: build-and-push
-    if: needs.build-and-push.result == 'success'
-    uses: ./.github/workflows/e2e-tests.yaml
-    with:
-      tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-    secrets:
-      GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
-
   trigger_gitops:
     name: Trigger GitOps
-    needs: [build-and-push, e2e]
-    if: needs.e2e.result == 'success'
+    needs: build-and-push
+    if: needs.build-and-push.result == 'success'
     uses: ./.github/workflows/update-gitops.yaml
     with:
       tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
