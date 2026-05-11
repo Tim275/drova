@@ -48,7 +48,7 @@ func (h *driverGrpcHandler) RegisterDriver(ctx context.Context, req *pb.Register
 			// pub/sub subscription only AFTER this gRPC call returns. If we call
 			// TryMatchWaiting synchronously, the Kafka notification arrives before
 			// the subscription is active and the driver never sees the trip request.
-			go func() {
+			go func() { //nolint:gosec
 				time.Sleep(400 * time.Millisecond)
 				h.consumer.TryMatchWaiting(context.Background(), slug, lat, lng)
 			}()

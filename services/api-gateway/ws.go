@@ -223,10 +223,14 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Parse real GPS from browser — sent by the frontend before going online.
 	var driverLat, driverLng float64
 	if v := r.URL.Query().Get("lat"); v != "" {
-		fmt.Sscanf(v, "%f", &driverLat)
+		if _, err := fmt.Sscanf(v, "%f", &driverLat); err != nil {
+			driverLat = 0
+		}
 	}
 	if v := r.URL.Query().Get("lng"); v != "" {
-		fmt.Sscanf(v, "%f", &driverLng)
+		if _, err := fmt.Sscanf(v, "%f", &driverLng); err != nil {
+			driverLng = 0
+		}
 	}
 
 	ctx := r.Context()

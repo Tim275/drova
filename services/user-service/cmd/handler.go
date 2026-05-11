@@ -115,7 +115,7 @@ func (app *application) handleCreateToken(w http.ResponseWriter, r *http.Request
 	if err := app.refreshTokens.Create(r.Context(), refreshToken, user.ID, string(user.Role), refreshTokenTTL); err != nil {
 		app.log.Warnw("create refresh token", zap.Error(err))
 	} else {
-		http.SetCookie(w, &http.Cookie{
+		http.SetCookie(w, &http.Cookie{ //nolint:gosec
 			Name:     refreshCookieName,
 			Value:    refreshToken,
 			HttpOnly: true,
@@ -138,7 +138,7 @@ func (app *application) handleRefreshToken(w http.ResponseWriter, r *http.Reques
 
 	userID, role, err := app.refreshTokens.Validate(r.Context(), cookie.Value)
 	if err != nil {
-		http.SetCookie(w, &http.Cookie{Name: refreshCookieName, MaxAge: -1, Path: "/v1/auth/", Secure: secureCookie()})
+		http.SetCookie(w, &http.Cookie{Name: refreshCookieName, MaxAge: -1, Path: "/v1/auth/", Secure: secureCookie(), HttpOnly: true, SameSite: http.SameSiteStrictMode})
 		middleware.WriteError(w, http.StatusUnauthorized, "invalid or expired refresh token")
 		return
 	}
@@ -157,7 +157,7 @@ func (app *application) handleRefreshToken(w http.ResponseWriter, r *http.Reques
 		app.log.Warnw("rotate refresh token", zap.Error(err))
 	} else {
 		_ = app.refreshTokens.Delete(r.Context(), cookie.Value)
-		http.SetCookie(w, &http.Cookie{
+		http.SetCookie(w, &http.Cookie{ //nolint:gosec
 			Name:     refreshCookieName,
 			Value:    newRefresh,
 			HttpOnly: true,

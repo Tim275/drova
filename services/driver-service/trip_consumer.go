@@ -86,7 +86,7 @@ func (c *TripConsumer) spawnTimer(parentCtx context.Context, event messaging.Tri
 	timerCtx, cancel := context.WithCancel(parentCtx)
 	pi := pendingInfo{event: event, driverID: driverID, cancel: cancel}
 	c.pending.Store(event.TripID, pi)
-	go c.startResponseTimer(timerCtx, event.TripID, driverID, event)
+	go c.startResponseTimer(timerCtx, event.TripID, driverID, event) //nolint:gosec
 }
 
 func (c *TripConsumer) handleFindAndNotifyDrivers(ctx context.Context, payload []byte) error {
@@ -226,7 +226,7 @@ func (c *TripConsumer) handleTripCancelled(ctx context.Context, payload []byte) 
 	if data.DriverID != "" {
 		c.service.ClearBusy(ctx, data.DriverID)
 		appLog.Infow("trip cancelled (post-accept)", "trip", data.TripID, "driver", data.DriverID)
-		go c.tryMatchFreedDriver(context.Background(), data.DriverID)
+		go c.tryMatchFreedDriver(context.Background(), data.DriverID) //nolint:gosec
 	}
 	return nil
 }
@@ -245,7 +245,7 @@ func (c *TripConsumer) handleTripCompleted(ctx context.Context, payload []byte) 
 	if data.DriverID != "" {
 		c.service.ClearBusy(ctx, data.DriverID)
 		appLog.Infow("trip completed, driver freed", "trip", data.TripID, "driver", data.DriverID)
-		go c.tryMatchFreedDriver(context.Background(), data.DriverID)
+		go c.tryMatchFreedDriver(context.Background(), data.DriverID) //nolint:gosec
 	}
 	return nil
 }

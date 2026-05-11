@@ -44,7 +44,7 @@ func NewKafka(brokers []string) *Kafka {
 		}
 		pool := x509.NewCertPool()
 		pool.AppendCertsFromPEM(ca)
-		tlsCfg = &tls.Config{RootCAs: pool}
+		tlsCfg = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
 		log.Printf("kafka: TLS enabled (CA: %s)", caPath) //nolint:gosec
 	}
 
