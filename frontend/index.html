@@ -181,10 +181,6 @@
     .btn-link { background: none; border: none; color: #6366f1; font-size: 13px; cursor: pointer; padding: 4px 0; text-decoration: underline; }
     #profileAvatarPreview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; background: #f3f4f6; border: 2px solid #e5e7eb; margin-bottom: 10px; }
     #profileMsg { display: none; margin-top: 10px; padding: 10px; border-radius: 8px; font-size: 12px; }
-    .profile-stats { display:flex; gap:16px; justify-content:center; margin-bottom:18px; }
-    .profile-stat { text-align:center; background:#f9fafb; border:1px solid #e5e7eb; border-radius:10px; padding:8px 18px; }
-    .profile-stat-val { font-size:18px; font-weight:700; color:#111827; }
-    .profile-stat-lbl { font-size:11px; color:#9ca3af; margin-top:2px; }
 
     /* Trip status bar (rider, shown in ride panel during active trip) */
     #tripStatusBar { display:none; padding:14px; background:#f9fafb; border:1.5px solid #e5e7eb; border-radius:10px; margin-top:12px; }
@@ -226,10 +222,7 @@
     .history-item-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
     .history-pkg { font-size:13px; font-weight:700; color:#111827; text-transform:capitalize; }
     .history-price { font-size:14px; font-weight:700; color:#111827; }
-    .history-meta { font-size:12px; color:#6b7280; display:flex; align-items:center; }
-    .history-route { font-size:12px; color:#374151; margin:4px 0; display:flex; flex-direction:column; gap:2px; }
-    .history-route span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:260px; }
-    .history-dist { font-size:12px; color:#6b7280; }
+    .history-meta { font-size:12px; color:#6b7280; }
     .history-status { display:inline-block; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; margin-top:4px; }
     .history-status.completed { background:#dcfce7; color:#16a34a; }
     .history-status.cancelled { background:#fef2f2; color:#dc2626; }
@@ -346,16 +339,7 @@
     }
     .chat-row.mine  .chat-msg-time { justify-content:flex-end; }
     .chat-row.theirs .chat-msg-time { justify-content:flex-start; }
-    .chat-tick { font-size:11px; color:#9ca3af; }
-    .chat-tick.read { color:#3b82f6; }
-    .chat-msg.deleted-msg { font-style:italic; opacity:0.55; font-size:12.5px; }
-    .chat-del-btn {
-      display:none; position:absolute; top:-8px; right:-8px;
-      background:#ef4444; color:white; border:none; border-radius:50%;
-      width:18px; height:18px; font-size:11px; line-height:18px; text-align:center;
-      cursor:pointer; padding:0;
-    }
-    .chat-msg:hover .chat-del-btn { display:block; }
+    .chat-tick { font-size:11px; }
 
     /* Date separator */
     .chat-date-sep {
@@ -543,16 +527,6 @@
         <input class="field-input" id="profileAvatarUrl" type="url" placeholder="https://..." oninput="document.getElementById('profileAvatarPreview').src=this.value||defaultAvatar(currentUser.name)" style="text-align:center;">
       </div>
     </div>
-    <div class="profile-stats">
-      <div class="profile-stat">
-        <div class="profile-stat-val" id="profileStatTrips">—</div>
-        <div class="profile-stat-lbl">Trips</div>
-      </div>
-      <div class="profile-stat">
-        <div class="profile-stat-val" id="profileStatRating">—</div>
-        <div class="profile-stat-lbl">Rating</div>
-      </div>
-    </div>
     <span class="field-label">Name</span>
     <input class="field-input" id="profileName" type="text" placeholder="Your name">
     <span class="field-label">Phone</span>
@@ -641,21 +615,19 @@
           <button class="sidebar-action-btn" onclick="logout()">Sign Out</button>
         </div>
       </div>
-      <div id="tripPlanSection">
-        <h3>Plan a Ride</h3>
-        <div class="ac-wrap">
-          <span class="field-label">Pickup</span>
-          <input class="field-input" id="pickup" placeholder="e.g. Berliner Hauptbahnhof" style="margin-bottom:0;" autocomplete="off">
-          <div class="ac-dropdown" id="pickup-dropdown"></div>
-        </div>
-        <div class="ac-wrap" style="margin-top:10px;">
-          <span class="field-label">Destination</span>
-          <input class="field-input" id="destination" placeholder="e.g. Hamburger Hauptbahnhof" style="margin-bottom:0;" autocomplete="off">
-          <div class="ac-dropdown" id="destination-dropdown"></div>
-        </div>
-        <button id="calcBtn" onclick="getRoute()">Get Route</button>
-        <div id="errbox"></div>
+      <h3>Plan a Ride</h3>
+      <div class="ac-wrap">
+        <span class="field-label">Pickup</span>
+        <input class="field-input" id="pickup" placeholder="e.g. Berliner Hauptbahnhof" style="margin-bottom:0;" autocomplete="off">
+        <div class="ac-dropdown" id="pickup-dropdown"></div>
       </div>
+      <div class="ac-wrap" style="margin-top:10px;">
+        <span class="field-label">Destination</span>
+        <input class="field-input" id="destination" placeholder="e.g. Hamburger Hauptbahnhof" style="margin-bottom:0;" autocomplete="off">
+        <div class="ac-dropdown" id="destination-dropdown"></div>
+      </div>
+      <button id="calcBtn" onclick="getRoute()">Get Route</button>
+      <div id="errbox"></div>
     </div>
 
     <!-- Map -->
@@ -685,23 +657,22 @@
       <div id="rideoptions"></div>
       <button id="confirmbtn" onclick="confirmRide()">Confirm Ride</button>
       <button id="backbtn" onclick="backToMap()">Back to Map</button>
-    </div>
-
-    <!-- Active trip status (outside ridepanel so it stays visible when ridepanel hides) -->
-    <div id="tripStatusBar">
-      <div class="trip-status-text" id="tripStatusText">Searching for driver...</div>
-      <div class="trip-status-sub" id="tripStatusSub"></div>
-      <button id="cancelTripBtn" onclick="cancelTrip()">Cancel Trip</button>
-      <button id="retryTripBtn" style="display:none;" onclick="retryTrip()">Try Again</button>
-      <button id="chatBtnRider" style="display:none;" onclick="openChat()">Message Driver</button>
-    </div>
-    <div id="driverInfoCard">
-      <div class="dic-row">
-        <img id="dicAvatar" class="dic-avatar" src="" alt="">
-        <div class="dic-info">
-          <div class="dic-name" id="dicName"></div>
-          <span class="dic-plate" id="dicPlate"></span>
-          <div class="dic-label">Driver en route</div>
+      <!-- Active trip status (shown after confirm) -->
+      <div id="tripStatusBar">
+        <div class="trip-status-text" id="tripStatusText">Searching for driver...</div>
+        <div class="trip-status-sub" id="tripStatusSub"></div>
+        <button id="cancelTripBtn" onclick="cancelTrip()">Cancel Trip</button>
+        <button id="retryTripBtn" style="display:none;" onclick="retryTrip()">Try Again</button>
+        <button id="chatBtnRider" style="display:none;" onclick="openChat()">Message Driver</button>
+      </div>
+      <div id="driverInfoCard">
+        <div class="dic-row">
+          <img id="dicAvatar" class="dic-avatar" src="" alt="">
+          <div class="dic-info">
+            <div class="dic-name" id="dicName"></div>
+            <span class="dic-plate" id="dicPlate"></span>
+            <div class="dic-label">Driver en route</div>
+          </div>
         </div>
       </div>
     </div>
@@ -841,61 +812,23 @@
 
   // Auth state
   let currentUser = null;
-  let _accessToken = null; // in-memory only — not persisted to localStorage (XSS protection)
-  let _refreshPromise = null; // deduplicates concurrent refresh calls from multiple tabs/fetches
 
-  function authToken() { return _accessToken; }
-
-  async function tryRefresh() {
-    if (_refreshPromise) return _refreshPromise;
-    _refreshPromise = (async () => {
-      try {
-        const res = await fetch('/v1/auth/refresh', { method: 'POST', credentials: 'include' });
-        if (!res.ok) return false;
-        const data = await res.json();
-        _accessToken = data.token;
-        return true;
-      } catch (_) { return false; }
-    })().finally(() => { _refreshPromise = null; });
-    return _refreshPromise;
-  }
-
-  async function fetchAuth(url, options = {}) {
-    options.headers = { ...options.headers, 'Authorization': 'Bearer ' + authToken() };
-    let res = await fetch(url, options);
-    if (res.status === 401) {
-      const refreshed = await tryRefresh();
-      if (refreshed) {
-        options.headers['Authorization'] = 'Bearer ' + authToken();
-        res = await fetch(url, options);
-      } else {
-        _accessToken = null;
-        localStorage.clear();
-        showAuth();
-        throw new Error('session expired');
-      }
-    }
-    return res;
-  }
+  function authToken() { return localStorage.getItem('drova_token'); }
 
   async function initApp() {
-    // No in-memory token on page load — try to restore session via httpOnly refresh cookie.
-    if (!_accessToken) {
-      const restored = await tryRefresh();
-      if (!restored) { showAuth(); return; }
-    }
+    const token = authToken();
+    if (!token) { showAuth(); return; }
 
     try {
       const res = await fetch('/v1/users/me', {
-        headers: { 'Authorization': 'Bearer ' + _accessToken }
+        headers: { 'Authorization': 'Bearer ' + token }
       });
-      if (!res.ok) { _accessToken = null; localStorage.clear(); showAuth(); return; }
+      if (!res.ok) { localStorage.clear(); showAuth(); return; }
       const data = await res.json();
       currentUser = {
         id: String(data.id), email: data.email, role: data.role,
         name: data.display_name || '', avatarUrl: data.avatar_url || '',
         phone: data.phone || '', address: data.address || '',
-        totalTrips: data.total_trips || 0, averageRating: data.average_rating || 0,
       };
       navigateByRole();
     } catch (_) { showAuth(); }
@@ -966,7 +899,7 @@
       const data = await res.json();
       if (!res.ok) { showAuthErr(data.error || 'Login failed.'); return; }
 
-      _accessToken = data.token;
+      localStorage.setItem('drova_token', data.token);
 
       const meRes = await fetch('/v1/users/me', {
         headers: { 'Authorization': 'Bearer ' + data.token }
@@ -976,7 +909,6 @@
         id: String(me.id), email: me.email, role: me.role,
         name: me.display_name || '', avatarUrl: me.avatar_url || '',
         phone: me.phone || '', address: me.address || '',
-        totalTrips: me.total_trips || 0, averageRating: me.average_rating || 0,
       };
       localStorage.setItem('drova_user', JSON.stringify(currentUser));
 
@@ -1039,7 +971,6 @@
     document.getElementById('driverscreen').classList.remove('active');
     document.getElementById('mapscreen').style.display = 'none';
     document.getElementById('welcome').classList.remove('active');
-    _accessToken = null;
     localStorage.clear();
     currentUser = null;
     showAuth();
@@ -1055,9 +986,6 @@
     const preview = document.getElementById('profileAvatarPreview');
     preview.src = currentUser.avatarUrl || defaultAvatar(currentUser.name || currentUser.email);
     document.getElementById('profileMsg').style.display = 'none';
-    document.getElementById('profileStatTrips').textContent = currentUser.totalTrips || '0';
-    const r = currentUser.averageRating;
-    document.getElementById('profileStatRating').textContent = r > 0 ? r.toFixed(1) + ' ⭐' : '—';
     document.getElementById('profileoverlay').classList.add('active');
   }
 
@@ -1163,14 +1091,14 @@
   let currentTripPhase = null;
 
   async function reverseGeocode(lng, lat) {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}&limit=1&country=de&language=en`;
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}&limit=1&language=en`;
     const res  = await fetch(url);
     const data = await res.json();
     return data.features?.[0]?.place_name ?? `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
   }
 
   async function geocode(address) {
-    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxgl.accessToken}&limit=1&country=de&bbox=5.8,47.2,15.1,55.1&language=en&types=place,address,poi,locality`;
+    const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(address)}.json?access_token=${mapboxgl.accessToken}&limit=1&proximity=10.4515,51.1657&language=de,en&types=place,address,poi,locality`;
     const res  = await fetch(url);
     const data = await res.json();
     if (!data.features?.length) throw new Error(`Address not found: ${address}`);
@@ -1191,7 +1119,7 @@
       if (q.length < 2) { dropdown.classList.remove('open'); dropdown.innerHTML = ''; return; }
       timer = setTimeout(async () => {
         try {
-          const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${mapboxgl.accessToken}&limit=5&country=de&bbox=5.8,47.2,15.1,55.1&language=en&types=place,address,poi,locality`;
+          const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${mapboxgl.accessToken}&limit=5&proximity=10.4515,51.1657&language=de,en&types=place,address,poi,locality`;
           const res  = await fetch(url);
           const data = await res.json();
           dropdown.innerHTML = '';
@@ -1263,44 +1191,137 @@
     if (dn) dn.textContent = name;
   }
 
+  let riderWsReconnectTimer = null;
+
+  function connectRiderWS() {
+    if (ws && ws.readyState === WebSocket.OPEN) return;
+    const _scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${_scheme}://${location.host}/ws/riders?userID=${currentUser.id}&token=${encodeURIComponent(authToken())}`);
+
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'trip.event.driver_assigned') {
+        const d = msg.data;
+        window.lastAssignedDriver = d;
+        activeTripDriverID = d.id || '';
+        currentTripPhase = 'accepted';
+        if (pickupMarker) pickupMarker.setDraggable(false);
+        if (destinationMarker) destinationMarker.setDraggable(false);
+        setTripStatus('Driver found', 'On the way to you', true);
+        if (d.lat && d.lng) { updateRiderETA(d.lat, d.lng); updateLiveRoute(d.lat, d.lng); }
+        const card = document.getElementById('driverInfoCard');
+        const driverName = d.name || 'Driver';
+        document.getElementById('dicName').textContent = driverName;
+        document.getElementById('dicPlate').textContent = d.car_plate || '—';
+        const dicAvatar = document.getElementById('dicAvatar');
+        dicAvatar.src = d.profile_picture || defaultAvatar(driverName);
+        dicAvatar.onerror = () => { dicAvatar.src = defaultAvatar(driverName); };
+        card.style.display = 'block';
+        document.getElementById('chatBtnRider').style.display = 'block';
+        if (d.lat && d.lng) {
+          if (!riderDriverMarker) {
+            riderDriverMarker = new mapboxgl.Marker({ element: createCarMarkerElement(), anchor: 'center' })
+              .setLngLat([d.lng, d.lat])
+              .addTo(map);
+          } else {
+            riderDriverMarker.setLngLat([d.lng, d.lat]);
+          }
+          previousDriverPos = { lat: d.lat, lng: d.lng };
+          map.flyTo({ center: [d.lng, d.lat], zoom: 13, duration: 1500 });
+        }
+      } else if (msg.type === 'trip.event.no_drivers_found') {
+        activeTripID = null;
+        activeTripDriverID = null;
+        setTripStatus('No drivers available.', 'Please try again later.', false);
+        document.getElementById('retryTripBtn').style.display = 'block';
+        if (pickupMarker) pickupMarker.setDraggable(true);
+        if (destinationMarker) destinationMarker.setDraggable(true);
+      } else if (msg.type === 'trip.event.driver_arrived') {
+        currentTripPhase = 'driver_arrived';
+        document.getElementById('arrivalinfo').innerHTML = '';
+        setTripStatus('Driver has arrived!', 'Please go to the vehicle.', false);
+      } else if (msg.type === 'trip.event.in_progress') {
+        currentTripPhase = 'in_progress';
+        lastRouteUpdateTime = 0;
+        if (previousDriverPos) updateLiveRoute(previousDriverPos.lat, previousDriverPos.lng);
+        setTripStatus('Trip in progress...', 'Enjoy the ride!', false);
+      } else if (msg.type === 'trip.event.completed') {
+        currentTripPhase = null;
+        lastRouteUpdateTime = 0;
+        if (plannedRouteCoords && map.getSource('route')) {
+          map.getSource('route').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: plannedRouteCoords } });
+        }
+        document.getElementById('arrivalinfo').innerHTML = '';
+        setTripStatus('Trip completed.', 'Please complete payment.', false);
+        hideDriverInfoCard();
+        document.getElementById('chatBtnRider').style.display = 'none';
+        closeChatWs();
+      } else if (msg.type === 'trip.event.cancelled') {
+        setTripStatus('Trip was cancelled.', '', false);
+        hideDriverInfoCard();
+        activeTripID = null; activeTripDriverID = null;
+        if (pickupMarker) pickupMarker.setDraggable(true);
+        if (destinationMarker) destinationMarker.setDraggable(true);
+        document.getElementById('chatBtnRider').style.display = 'none';
+        closeChatWs();
+      } else if (msg.type === 'trip.event.cancelled_by_driver') {
+        setTripStatus('Driver cancelled the trip.', '', false);
+        hideDriverInfoCard();
+        activeTripID = null; activeTripDriverID = null;
+        if (pickupMarker) pickupMarker.setDraggable(true);
+        if (destinationMarker) destinationMarker.setDraggable(true);
+        document.getElementById('chatBtnRider').style.display = 'none';
+        closeChatWs();
+      } else if (msg.type === 'driver.cmd.location') {
+        const d = msg.data;
+        if (!riderDriverMarker) {
+          riderDriverMarker = new mapboxgl.Marker({ element: createCarMarkerElement(), anchor: 'center' })
+            .setLngLat([d.lng, d.lat])
+            .addTo(map);
+          map.flyTo({ center: [d.lng, d.lat], zoom: 14, duration: 1500 });
+        } else {
+          if (previousDriverPos) {
+            riderDriverMarker.setRotation(calculateBearing(previousDriverPos, d));
+          }
+          animateCarMarker(d.lng, d.lat);
+        }
+        previousDriverPos = d;
+        updateRiderETA(d.lat, d.lng);
+        updateLiveRoute(d.lat, d.lng);
+      } else if (msg.type === 'payment.event.session_created') {
+        const d = msg.data;
+        const drv = window.lastAssignedDriver || {};
+        localStorage.setItem('drova_last_trip_id', d.trip_id);
+        const payDrvName = drv.name || 'Driver';
+        const payDrvAvatar = document.getElementById('payDriverAvatar');
+        payDrvAvatar.src = drv.profile_picture || defaultAvatar(payDrvName);
+        payDrvAvatar.onerror = () => { payDrvAvatar.src = defaultAvatar(payDrvName); };
+        document.getElementById('payDriverName').textContent = payDrvName;
+        document.getElementById('payDriverPlate').textContent = drv.car_plate || '';
+        document.getElementById('payAmount').textContent = `${(d.amount / 100).toFixed(2)} ${(d.currency || 'eur').toUpperCase()}`;
+        document.getElementById('payTripId').textContent = d.trip_id;
+        document.getElementById('paybtn').onclick = () => {
+          if (!window.stripeClient) { alert('Stripe not configured'); return; }
+          window.stripeClient.redirectToCheckout({ sessionId: d.session_id });
+        };
+        document.getElementById('paymentoverlay').classList.add('active');
+      }
+    };
+
+    ws.onclose = () => {
+      if (riderWsReconnectTimer) clearTimeout(riderWsReconnectTimer);
+      riderWsReconnectTimer = setTimeout(() => {
+        riderWsReconnectTimer = null;
+        if (currentUser) connectRiderWS();
+      }, 2000);
+    };
+  }
+
   async function startRider() {
     document.getElementById('authscreen').classList.remove('active');
     document.getElementById('welcome').classList.remove('active');
-    document.getElementById('driverscreen').classList.remove('active');
     document.getElementById('mapscreen').style.display = 'block';
     updateSidebarUI();
-
-    // Restore active trip after page reload
-    const _rs = JSON.parse(sessionStorage.getItem('drova_rider_session') || 'null');
-    const _rsTTL = (_rs?.phase === 'searching') ? 10 * 60 * 1000 : 2 * 60 * 60 * 1000;
-    if (_rs && _rs.tripID && (Date.now() - _rs.ts) < _rsTTL) {
-      activeTripID = _rs.tripID;
-      currentTripPhase = _rs.phase;
-      const phaseLabel = {
-        searching: 'Searching for driver...', accepted: 'Driver on the way',
-        driver_arrived: 'Driver has arrived!', in_progress: 'Trip in progress...'
-      }[_rs.phase] || 'Restoring trip...';
-      setTripStatus(phaseLabel, '', _rs.phase === 'searching' || _rs.phase === 'accepted');
-      document.getElementById('tripStatusBar').style.display = 'block';
-      document.getElementById('cancelTripBtn').style.display = _rs.phase !== 'in_progress' ? 'block' : 'none';
-      if (_rs.driver && _rs.phase !== 'searching') {
-        window.lastAssignedDriver = _rs.driver;
-        activeTripDriverID = _rs.driver.id || '';
-        const driverName = _rs.driver.name || 'Driver';
-        document.getElementById('dicName').textContent = driverName;
-        document.getElementById('dicPlate').textContent = _rs.driver.car_plate || '—';
-        const dicAvatar = document.getElementById('dicAvatar');
-        dicAvatar.src = _rs.driver.profile_picture || defaultAvatar(driverName);
-        dicAvatar.onerror = () => { dicAvatar.src = defaultAvatar(driverName); };
-        document.getElementById('driverInfoCard').style.display = 'block';
-        document.getElementById('chatBtnRider').style.display = 'block';
-      }
-      // Reconnect WS to receive further events (driver location, trip completion, etc.)
-      const _wsSchemeR = location.protocol === 'https:' ? 'wss' : 'ws';
-      ws = new WebSocket(`${_wsSchemeR}://${location.host}/ws/riders?userID=${currentUser.id}&token=${encodeURIComponent(authToken())}`);
-      ws.onmessage = handleRiderMessage;
-      ws.onclose = () => {};
-    }
 
     const cfg = await fetch('/config').then(r => r.json());
     mapboxgl.accessToken = cfg.mapboxToken;
@@ -1308,12 +1329,13 @@
       window.stripeClient = Stripe(cfg.stripePublishableKey);
     }
 
+    connectRiderWS();
+
     map = new mapboxgl.Map({
       container: 'map',
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: [10.4515, 51.1657],
+      center: [10.5, 51.2],
       zoom: 6,
-      maxBounds: [[5.8, 47.2], [15.1, 55.1]],
     });
     map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 
@@ -1332,7 +1354,6 @@
   async function startDriverScreen() {
     document.getElementById('authscreen').classList.remove('active');
     document.getElementById('welcome').classList.remove('active');
-    document.getElementById('mapscreen').style.display = 'none';
     document.getElementById('driverscreen').classList.add('active');
     updateSidebarUI();
 
@@ -1356,7 +1377,6 @@
       style: 'mapbox://styles/mapbox/streets-v12',
       center: [10.4515, 51.1657],
       zoom: 6,
-      maxBounds: [[5.8, 47.2], [15.1, 55.1]],
     });
     driverMap.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 
@@ -1390,14 +1410,6 @@
       () => {},
       { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
-
-    // Auto-reconnect if driver was online before reload
-    const _ds = JSON.parse(sessionStorage.getItem('drova_driver_session') || 'null');
-    if (_ds && _ds.pkg && (Date.now() - _ds.ts) < 8 * 60 * 60 * 1000) {
-      selectedPkg = _ds.pkg;
-      document.getElementById(`dspkg-${_ds.pkg}`)?.classList.add('selected');
-      setTimeout(() => goOnlineDriver(), 500);
-    }
   }
 
   function goOnlineDriver() {
@@ -1436,7 +1448,7 @@
           driverCurrentGPS = { latitude: 53.5511, longitude: 10.0028, accuracy: 999 };
           _doGoOnline();
         },
-        { enableHighAccuracy: false, timeout: 2000, maximumAge: 30000 }
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 30000 }
       );
     }
 
@@ -1444,7 +1456,7 @@
     navigator.geolocation.getCurrentPosition(
       onLocationSuccess,
       onLocationError,
-      { enableHighAccuracy: true, timeout: 2000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
   }
 
@@ -1452,15 +1464,10 @@
     const name = currentUser.name || currentUser.email.split('@')[0];
     document.getElementById('dsOffline').style.display = 'none';
     document.getElementById('dsOnline').style.display = 'flex';
-    sessionStorage.setItem('drova_driver_session', JSON.stringify({ pkg: selectedPkg, ts: Date.now() }));
     connectDriverWS(selectedPkg, name);
   }
 
   function goOfflineDriver() {
-    if (currentTripRequest && currentTripRequest.trip_id) {
-      setStatus('Complete or cancel the active trip before going offline.');
-      return;
-    }
     if (locationWatchId !== null) { navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
     if (simulationInterval !== null) { clearInterval(simulationInterval); simulationInterval = null; }
     stopPreTripTracking();
@@ -1486,11 +1493,9 @@
     currentTripRequest = null;
     selectedPkg = null;
     document.querySelectorAll('.ds-pkg-opt').forEach(e => e.classList.remove('selected'));
-    sessionStorage.removeItem('drova_driver_session');
   }
 
   async function getRoute() {
-    if (activeTripID) return; // block during active trip
     const pickup      = document.getElementById('pickup').value.trim();
     const destination = document.getElementById('destination').value.trim();
     if (!pickup || !destination) {
@@ -1523,13 +1528,7 @@
       const resp = await fetch('/trip/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken() },
-        body: JSON.stringify({
-          userID: currentUser.id,
-          pickup: pickupCoords,
-          destination: destinationCoords,
-          pickupAddress: pickup,
-          dropoffAddress: destination,
-        })
+        body: JSON.stringify({ userID: currentUser.id, pickup: pickupCoords, destination: destinationCoords })
       });
       if (!resp.ok) throw new Error('API error ' + resp.status);
       const json  = await resp.json();
@@ -1582,13 +1581,7 @@
       const resp = await fetch('/trip/preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken() },
-        body: JSON.stringify({
-          userID: currentUser.id,
-          pickup: pickupCoords,
-          destination: destinationCoords,
-          pickupAddress: document.getElementById('pickup').value.trim(),
-          dropoffAddress: document.getElementById('destination').value.trim(),
-        })
+        body: JSON.stringify({ userID: currentUser.id, pickup: pickupCoords, destination: destinationCoords })
       });
       if (!resp.ok) return;
       const json  = await resp.json();
@@ -1617,13 +1610,16 @@
   }
 
   function showRidePanel(route, fares) {
-    if (activeTripID) return; // never reopen ride panel during active trip
     const km  = route.distance / 1000;
     const min = Math.round(route.duration / 60);
 
     document.getElementById('routeinfo').textContent  = `Route: ${km.toFixed(2)} km`;
     document.getElementById('arrivalinfo').innerHTML  = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Arrival in: ${min} min`;
 
+    document.getElementById('rideoptions').style.display = 'block';
+    document.getElementById('tripStatusBar').style.display = 'none';
+    document.getElementById('confirmbtn').style.display = 'block';
+    document.getElementById('backbtn').style.display = 'block';
     document.getElementById('rideoptions').innerHTML = fares.map(fare => {
       const v     = vehicles.find(x => x.id === fare.packageSlug) ?? { name: fare.packageSlug, desc: '' };
       const price = (fare.totalPriceInCents / 100).toFixed(2);
@@ -1700,7 +1696,6 @@
   let drLastPos = null;   // last real position received from Kafka
   let drLastTime = null;  // timestamp of last real position
   let preTripLocationTimer = null;
-  let _noDriversTimer = null;
 
   function createFlagMarkerEl(type) {
     const el = document.createElement('div');
@@ -1891,31 +1886,13 @@
     const wsName = driverName || currentUser.name || currentUser.email.split('@')[0];
     const driverAvatar = currentUser.avatarUrl || defaultAvatar(wsName);
     const _wsSchemeD = location.protocol === 'https:' ? 'wss' : 'ws';
-    const _gpsParam = driverCurrentGPS
-      ? `&lat=${driverCurrentGPS.latitude}&lng=${driverCurrentGPS.longitude}`
-      : '';
-    ws = new WebSocket(`${_wsSchemeD}://${location.host}/ws/drivers?userID=${currentUser.id}&packageSlug=${pkg}&name=${encodeURIComponent(wsName)}&avatarUrl=${encodeURIComponent(driverAvatar)}&token=${encodeURIComponent(authToken())}${_gpsParam}`);
+    ws = new WebSocket(`${_wsSchemeD}://${location.host}/ws/drivers?userID=${currentUser.id}&packageSlug=${pkg}&name=${encodeURIComponent(wsName)}&avatarUrl=${encodeURIComponent(driverAvatar)}&token=${encodeURIComponent(authToken())}`);
 
     ws.onmessage = (event) => {
-      let msg;
-      try { msg = JSON.parse(event.data); } catch(e) { return; }
+      const msg = JSON.parse(event.data);
       if (msg.type === 'driver.cmd.register') {
         const d = msg.data;
         registeredDriverID = d.id || '';
-
-        if (d.busyWithTripId) {
-          const stored = JSON.parse(localStorage.getItem('drova_active_trip') || '{}');
-          if (stored.trip_id === d.busyWithTripId) {
-            currentTripRequest = stored;
-            activeTripID = stored.trip_id;
-            window._currentTripRiderID = stored.user_id;
-            document.getElementById('tripStatusActions').style.display = 'flex';
-            document.getElementById('btnArrived').style.display  = stored.phase === 'accepted'      ? 'block' : 'none';
-            document.getElementById('btnTripStart').style.display = stored.phase === 'driver_arrived'? 'block' : 'none';
-            document.getElementById('btnTripEnd').style.display   = stored.phase === 'in_progress'  ? 'block' : 'none';
-            setStatus('Reconnected — active trip restored.');
-          }
-        }
 
         if (driverIdleMarker) { driverIdleMarker.remove(); driverIdleMarker = null; }
         if (driverMarker) driverMarker.remove();
@@ -1944,7 +1921,7 @@
         currentTripRequest = msg.data;
         renderTripOnDriverMap(msg.data);
         showTripRequestInfo(msg.data);
-      } else if (msg.type === 'trip.event.cancelled' || msg.type === 'trip.event.cancelled_by_driver') {
+      } else if (msg.type === 'trip.event.cancelled') {
         // Rider cancelled — go back to waiting state
         document.getElementById('tripRequest').style.display = 'none';
         document.getElementById('tripStatusActions').style.display = 'none';
@@ -1966,7 +1943,7 @@
     };
 
     ws.onclose = () => {
-      if (currentTripRequest && driverReconnectPkg) {
+      if (driverReconnectPkg) {
         setStatus('Connection lost — reconnecting...');
         if (driverReconnectTimer) clearTimeout(driverReconnectTimer);
         driverReconnectTimer = setTimeout(() => {
@@ -1982,8 +1959,7 @@
                   data: { trip_id: currentTripRequest.trip_id, rider_id: currentTripRequest.user_id, lat, lng }
                 }));
                 tripEndPending = false;
-                setStatus('Ride complete! Rider is paying.');
-      setTimeout(() => setStatus('Online — waiting for requests.'), 4000);
+                setStatus('Trip ended. Triggering payment...');
               }
             }, 2000);
           }
@@ -2011,9 +1987,7 @@
       .setPopup(new mapboxgl.Popup({ offset: 25 }).setText('Destination'))
       .addTo(driverMap);
 
-    const coords = (data.route || [])
-      .map(c => [c.lng, c.lat])
-      .filter(c => !isNaN(c[0]) && !isNaN(c[1]));
+    const coords = (data.route || []).map(c => [c.lng, c.lat]);
     const geojson = { type: 'Feature', geometry: { type: 'LineString', coordinates: coords } };
 
     if (driverMap.getSource('trip-route')) {
@@ -2026,34 +2000,43 @@
       });
     }
 
-    if (coords.length > 1) {
+    if (coords.length) {
       const bounds = coords.reduce((b, c) => b.extend(c), new mapboxgl.LngLatBounds(coords[0], coords[0]));
       driverMap.fitBounds(bounds, { padding: 80 });
-    } else if (coords.length === 1) {
-      driverMap.easeTo({ center: coords[0], zoom: 14 });
     }
   }
 
-  function showTripRequestInfo(data) {
+  async function showTripRequestInfo(data) {
+    const km = data.pickup && data.destination
+      ? haversineKm(data.pickup, data.destination).toFixed(1)
+      : '?';
+    const price = data.price_cents ? ` · €${(data.price_cents / 100).toFixed(2)}` : '';
     const box = document.getElementById('tripRequestInfo');
-    const km = data.distance_meters > 0
-      ? (data.distance_meters / 1000).toFixed(1)
-      : data.pickup && data.destination
-        ? haversineKm(data.pickup, data.destination).toFixed(1)
-        : '?';
-    const priceStr = data.price_cents > 0
-      ? `€${(data.price_cents / 100).toFixed(2)}`
-      : '';
-    const pickupAddr  = data.pickup_address  || '—';
-    const dropoffAddr = data.dropoff_address || '—';
+
+    const pickupHint  = data.pickup_address  || '<em>loading...</em>';
+    const destHint    = data.dropoff_address || '<em>loading...</em>';
 
     box.innerHTML =
-      `<strong>Package:</strong> ${data.package_slug}${priceStr ? ' · <strong>' + priceStr + '</strong>' : ''}<br>` +
-      `<strong>Distance:</strong> ${km} km<br>` +
-      `<strong>Pickup:</strong> ${pickupAddr}<br>` +
-      `<strong>Destination:</strong> ${dropoffAddr}`;
+      `<strong>Package:</strong> ${data.package_slug}${price}<br>` +
+      `<strong>Distance:</strong> ~${km} km<br>` +
+      `<strong>Pickup:</strong> ${pickupHint}<br>` +
+      `<strong>Destination:</strong> ${destHint}`;
     document.getElementById('tripRequest').style.display = 'block';
     setStatus('New trip request received.');
+
+    if (!data.pickup_address || !data.dropoff_address) {
+      try {
+        const [pickupAddr, destAddr] = await Promise.all([
+          data.pickup_address  ? Promise.resolve(data.pickup_address)  : reverseGeocode(data.pickup.lng, data.pickup.lat),
+          data.dropoff_address ? Promise.resolve(data.dropoff_address) : reverseGeocode(data.destination.lng, data.destination.lat),
+        ]);
+        box.innerHTML =
+          `<strong>Package:</strong> ${data.package_slug}${price}<br>` +
+          `<strong>Distance:</strong> ~${km} km<br>` +
+          `<strong>Pickup:</strong> ${pickupAddr}<br>` +
+          `<strong>Destination:</strong> ${destAddr}`;
+      } catch (_) {}
+    }
   }
 
   function haversineKm(a, b) {
@@ -2127,7 +2110,6 @@
     document.getElementById('btnTripEnd').style.display = 'none';
     setStatus('Trip accepted. Driving to pickup...');
     activeTripID = currentTripRequest.trip_id;
-    localStorage.setItem('drova_active_trip', JSON.stringify({ trip_id: currentTripRequest.trip_id, user_id: currentTripRequest.user_id, phase: 'accepted' }));
   }
 
   function declineTrip() {
@@ -2150,13 +2132,7 @@
     currentTripRequest = null;
   }
 
-  function showTripPlan() {
-    document.getElementById('tripPlanSection').style.display = '';
-  }
-
   function setTripStatus(text, sub, showCancel) {
-    document.getElementById('ridepanel').style.display = 'none';
-    document.getElementById('tripPlanSection').style.display = 'none';
     const bar = document.getElementById('tripStatusBar');
     bar.style.display = 'block';
     document.getElementById('tripStatusText').textContent = text;
@@ -2165,6 +2141,8 @@
     document.getElementById('retryTripBtn').style.display = 'none';
     document.getElementById('confirmbtn').style.display = 'none';
     document.getElementById('backbtn').style.display = 'none';
+    document.getElementById('rideoptions').style.display = 'none';
+    document.getElementById('arrivalinfo').innerHTML = '';
   }
 
   function retryTrip() {
@@ -2185,8 +2163,6 @@
       type: 'trip.cmd.cancel',
       data: { trip_id: activeTripID, driver_id: activeTripDriverID || '' }
     }));
-    if (_noDriversTimer) { clearTimeout(_noDriversTimer); _noDriversTimer = null; }
-    sessionStorage.removeItem('drova_rider_session');
     document.getElementById('tripStatusText').textContent = 'Trip cancelled.';
     document.getElementById('cancelTripBtn').style.display = 'none';
     hideDriverInfoCard();
@@ -2209,169 +2185,18 @@
     const data = await resp.json();
     activeTripID = data.data?.tripID || null;
     activeTripDriverID = null;
-    currentTripPhase = null;
-    if (activeTripID) sessionStorage.setItem('drova_rider_session', JSON.stringify({ tripID: activeTripID, phase: 'searching', ts: Date.now() }));
-    setTripStatus('Searching for driver...', '', true);
-    const infoBox = document.getElementById('routeinfo');
-    infoBox.textContent = '';
 
-    if (ws) { ws.close(); ws = null; }
+    currentTripPhase = null;
+    setTripStatus('Searching for driver...', '', true);
+    document.getElementById('routeinfo').textContent = '';
+
     stopDRLoop();
     if (riderDriverMarker) { riderDriverMarker.remove(); }
     riderDriverMarker = null;
     previousDriverPos = null;
-    const _wsSchemeR = location.protocol === 'https:' ? 'wss' : 'ws';
-    ws = new WebSocket(`${_wsSchemeR}://${location.host}/ws/riders?userID=${currentUser.id}&token=${encodeURIComponent(authToken())}`);
 
-    ws.onmessage = handleRiderMessage;
-    ws.onclose = () => {};
-  }
-
-  function handleRiderMessage(event) {
-    let msg;
-    try { msg = JSON.parse(event.data); } catch(e) { return; }
-    if (msg.type === 'trip.event.driver_assigned') {
-      if (_noDriversTimer) { clearTimeout(_noDriversTimer); _noDriversTimer = null; }
-      const d = msg.data;
-      window.lastAssignedDriver = d;
-      activeTripDriverID = d.id || '';
-      currentTripPhase = 'accepted';
-      // Close ride selection panel and reset retry button — driver found even after delay
-      document.getElementById('ridepanel').style.display = 'none';
-      document.getElementById('retryTripBtn').style.display = 'none';
-      if (pickupMarker) pickupMarker.setDraggable(false);
-      if (destinationMarker) destinationMarker.setDraggable(false);
-      setTripStatus('Driver found', 'On the way to you', true);
-      if (d.lat && d.lng) { updateRiderETA(d.lat, d.lng); updateLiveRoute(d.lat, d.lng); }
-      const card = document.getElementById('driverInfoCard');
-      const driverName = d.name || 'Driver';
-      document.getElementById('dicName').textContent = driverName;
-      document.getElementById('dicPlate').textContent = d.car_plate || '—';
-      const dicAvatar = document.getElementById('dicAvatar');
-      dicAvatar.src = d.profile_picture || defaultAvatar(driverName);
-      dicAvatar.onerror = () => { dicAvatar.src = defaultAvatar(driverName); };
-      card.style.display = 'block';
-      document.getElementById('chatBtnRider').style.display = 'block';
-      // Save state for page reload restore
-      sessionStorage.setItem('drova_rider_session', JSON.stringify({
-        tripID: activeTripID, phase: 'accepted', ts: Date.now(),
-        driver: { id: d.id, name: d.name, car_plate: d.car_plate, profile_picture: d.profile_picture }
-      }));
-      // Track driver position silently — marker appears only when driver_arrived fires
-      if (d.lat && d.lng) {
-        previousDriverPos = { lat: d.lat, lng: d.lng };
-      }
-    } else if (msg.type === 'trip.event.no_drivers_found') {
-      // Keep activeTripID — backend is still searching (10-min waiting queue).
-      // Show "expanding" status and only give up after 3 minutes.
-      if (_noDriversTimer) return; // timer already running from earlier no_drivers_found
-      setTripStatus('Expanding search area...', 'Still looking for a driver.', true);
-      _noDriversTimer = setTimeout(() => {
-        _noDriversTimer = null;
-        // Only give up if driver still hasn't been assigned
-        if (currentTripPhase !== null) return;
-        activeTripID = null;
-        activeTripDriverID = null;
-        sessionStorage.removeItem('drova_rider_session');
-        setTripStatus('No drivers available.', 'Please try again later.', false);
-        document.getElementById('retryTripBtn').style.display = 'block';
-        if (pickupMarker) pickupMarker.setDraggable(true);
-        if (destinationMarker) destinationMarker.setDraggable(true);
-        showTripPlan();
-      }, 3 * 60 * 1000);
-    } else if (msg.type === 'trip.event.driver_arrived') {
-      currentTripPhase = 'driver_arrived';
-      document.getElementById('arrivalinfo').innerHTML = '';
-      setTripStatus('Driver has arrived!', 'Please go to the vehicle.', false);
-      const _rs = JSON.parse(sessionStorage.getItem('drova_rider_session') || 'null');
-      if (_rs) { _rs.phase = 'driver_arrived'; sessionStorage.setItem('drova_rider_session', JSON.stringify(_rs)); }
-      // Now show driver's car for the first time — they're at pickup
-      if (map && previousDriverPos) {
-        if (!riderDriverMarker) {
-          riderDriverMarker = new mapboxgl.Marker({ element: createCarMarkerElement(), anchor: 'center' })
-            .setLngLat([previousDriverPos.lng, previousDriverPos.lat])
-            .addTo(map);
-        } else {
-          riderDriverMarker.setLngLat([previousDriverPos.lng, previousDriverPos.lat]);
-        }
-        map.flyTo({ center: [previousDriverPos.lng, previousDriverPos.lat], zoom: 15, duration: 1000 });
-      }
-    } else if (msg.type === 'trip.event.in_progress') {
-      currentTripPhase = 'in_progress';
-      lastRouteUpdateTime = 0;
-      if (previousDriverPos) updateLiveRoute(previousDriverPos.lat, previousDriverPos.lng);
-      setTripStatus('Trip in progress...', 'Enjoy the ride!', false);
-      const _rs2 = JSON.parse(sessionStorage.getItem('drova_rider_session') || 'null');
-      if (_rs2) { _rs2.phase = 'in_progress'; sessionStorage.setItem('drova_rider_session', JSON.stringify(_rs2)); }
-    } else if (msg.type === 'trip.event.completed') {
-      currentTripPhase = null;
-      lastRouteUpdateTime = 0;
-      sessionStorage.removeItem('drova_rider_session');
-      if (plannedRouteCoords && map && map.getSource('route')) {
-        map.getSource('route').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: plannedRouteCoords } });
-      }
-      document.getElementById('arrivalinfo').innerHTML = '';
-      setTripStatus('Trip completed.', 'Please complete payment.', false);
-      hideDriverInfoCard();
-      document.getElementById('chatBtnRider').style.display = 'none';
-      closeChatWs();
-    } else if (msg.type === 'trip.event.cancelled') {
-      if (_noDriversTimer) { clearTimeout(_noDriversTimer); _noDriversTimer = null; }
-      sessionStorage.removeItem('drova_rider_session');
-      setTripStatus('Trip was cancelled.', '', false);
-      hideDriverInfoCard();
-      activeTripID = null; activeTripDriverID = null;
-      if (pickupMarker) pickupMarker.setDraggable(true);
-      if (destinationMarker) destinationMarker.setDraggable(true);
-      document.getElementById('chatBtnRider').style.display = 'none';
-      closeChatWs();
-      showTripPlan();
-    } else if (msg.type === 'trip.event.cancelled_by_driver') {
-      if (_noDriversTimer) { clearTimeout(_noDriversTimer); _noDriversTimer = null; }
-      sessionStorage.removeItem('drova_rider_session');
-      setTripStatus('Driver cancelled the trip.', '', false);
-      hideDriverInfoCard();
-      activeTripID = null; activeTripDriverID = null;
-      if (pickupMarker) pickupMarker.setDraggable(true);
-      if (destinationMarker) destinationMarker.setDraggable(true);
-      document.getElementById('chatBtnRider').style.display = 'none';
-      closeChatWs();
-      showTripPlan();
-    } else if (msg.type === 'driver.cmd.location') {
-      const d = msg.data;
-      if (!map) return;
-      previousDriverPos = d;
-      updateRiderETA(d.lat, d.lng);
-      if (!riderDriverMarker) {
-        riderDriverMarker = new mapboxgl.Marker({ element: createCarMarkerElement(), anchor: 'center' })
-          .setLngLat([d.lng, d.lat])
-          .addTo(map);
-        map.flyTo({ center: [d.lng, d.lat], zoom: 14, duration: 1500 });
-      } else {
-        if (previousDriverPos) {
-          riderDriverMarker.setRotation(calculateBearing(previousDriverPos, d));
-        }
-        animateCarMarker(d.lng, d.lat);
-      }
-      updateLiveRoute(d.lat, d.lng);
-    } else if (msg.type === 'payment.event.session_created') {
-      const d = msg.data;
-      const drv = window.lastAssignedDriver || {};
-      localStorage.setItem('drova_last_trip_id', d.trip_id);
-      const payDrvName = drv.name || 'Driver';
-      const payDrvAvatar = document.getElementById('payDriverAvatar');
-      payDrvAvatar.src = drv.profile_picture || defaultAvatar(payDrvName);
-      payDrvAvatar.onerror = () => { payDrvAvatar.src = defaultAvatar(payDrvName); };
-      document.getElementById('payDriverName').textContent = payDrvName;
-      document.getElementById('payDriverPlate').textContent = drv.car_plate || '';
-      document.getElementById('payAmount').textContent = `${(d.amount / 100).toFixed(2)} ${(d.currency || 'eur').toUpperCase()}`;
-      document.getElementById('payTripId').textContent = d.trip_id;
-      document.getElementById('paybtn').onclick = () => {
-        if (!window.stripeClient) { alert('Stripe not configured'); return; }
-        window.stripeClient.redirectToCheckout({ sessionId: d.session_id });
-      };
-      document.getElementById('paymentoverlay').classList.add('active');
-    }
+    // ensure WS is connected (opened on startRider; reconnect if dropped)
+    connectRiderWS();
   }
 
   function closeDriverPanel() {
@@ -2419,7 +2244,6 @@
     document.getElementById('ratingoverlay').classList.remove('active');
     ratingTripID = null;
     selectedRating = 0;
-    showTripPlan();
   }
 
   // --- History ---
@@ -2440,35 +2264,16 @@
       };
       const pkgNames = { economy: 'Economy', comfort: 'Comfort', van: 'Van', business: 'Business' };
       document.getElementById('historyList').innerHTML = trips.map(t => {
-        const date = t.createdAt ? new Date(t.createdAt * 1000).toLocaleString(undefined, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12: false }) : '—';
+        const date = t.createdAt ? new Date(t.createdAt * 1000).toLocaleDateString('en-US', { day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
         const stars = t.rating ? '★'.repeat(t.rating) + '☆'.repeat(5 - t.rating) : '';
         const statusLabel = statusLabels[t.status] || t.status;
-        const pkg = pkgNames[t.packageSlug] || t.packageSlug || '';
-        const price = t.priceCents ? `€${(t.priceCents / 100).toFixed(2)}` : '—';
-        const distKm = t.distanceMeters ? (t.distanceMeters / 1000).toFixed(1) + ' km' : '';
-        const durMin = t.durationSeconds ? Math.round(t.durationSeconds / 60) + ' min' : '';
-        const pickup = t.pickupAddress || '';
-        const dropoff = t.dropoffAddress || '';
-        const routeLine = pickup && dropoff
-          ? `<div class="history-route"><span>📍 ${pickup}</span><span>🏁 ${dropoff}</span></div>`
-          : '';
-        const distLine = (distKm || durMin)
-          ? `<span class="history-dist">${[distKm, durMin].filter(Boolean).join(' · ')}</span>`
-          : '';
-        const driverLine = t.driverName
-          ? `<span>${t.driverName}${t.driverPlate ? ' · ' + t.driverPlate : ''}</span>`
-          : '';
         return `
           <div class="history-item">
             <div class="history-item-top">
-              ${pkg ? `<span class="history-pkg">${pkg}</span>` : ''}
-              <span class="history-price">${price}</span>
+              <span class="history-pkg">${pkgNames[t.packageSlug] || t.packageSlug}</span>
+              <span class="history-price">€${(t.priceCents / 100).toFixed(2)}</span>
             </div>
-            ${routeLine}
-            <div class="history-meta" style="gap:6px;flex-wrap:wrap;">
-              ${distLine}${distLine && driverLine ? ' · ' : ''}${driverLine}
-              <span>${date}</span>
-            </div>
+            <div class="history-meta">${date}${t.driverName ? ` · ${t.driverName}` : ''}${t.driverPlate ? ` · ${t.driverPlate}` : ''}</div>
             <span class="history-status ${t.status}">${statusLabel}</span>
             ${stars ? `<div class="history-stars">${stars}</div>` : ''}
           </div>`;
@@ -2506,31 +2311,18 @@
       };
       const pkgNames = { economy: 'Economy', comfort: 'Comfort', van: 'Van', business: 'Business' };
       document.getElementById('driverHistoryList').innerHTML = trips.map(t => {
-        const date = t.createdAt ? new Date(t.createdAt * 1000).toLocaleString(undefined, { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit', hour12: false }) : '—';
+        const date = t.createdAt ? new Date(t.createdAt * 1000).toLocaleDateString('en-US', { day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
         const statusLabel = statusLabels[t.status] || t.status;
         const riderAvatar = t.riderAvatar || defaultAvatar(t.riderName || 'Rider');
-        const price = t.priceCents ? `€${(t.priceCents / 100).toFixed(2)}` : '—';
-        const pkg = pkgNames[t.packageSlug] || t.packageSlug || '';
-        const distKm = t.distanceMeters ? (t.distanceMeters / 1000).toFixed(1) + ' km' : '';
-        const durMin = t.durationSeconds ? Math.round(t.durationSeconds / 60) + ' min' : '';
-        const pickup = t.pickupAddress || '';
-        const dropoff = t.dropoffAddress || '';
-        const routeLine = pickup && dropoff
-          ? `<div class="history-route"><span>📍 ${pickup}</span><span>🏁 ${dropoff}</span></div>`
-          : '';
         return `
           <div class="history-item">
             <div class="history-item-top">
-              ${pkg ? `<span class="history-pkg">${pkg}</span>` : ''}
-              <span class="history-price">${price}</span>
+              <span class="history-pkg">${pkgNames[t.packageSlug] || t.packageSlug}</span>
+              <span class="history-price">€${(t.priceCents / 100).toFixed(2)}</span>
             </div>
-            ${routeLine}
-            <div class="history-meta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;">
+            <div class="history-meta" style="display:flex;align-items:center;gap:6px;margin-top:4px;">
               <img src="${riderAvatar}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;" onerror="this.src='${defaultAvatar(t.riderName || 'Rider')}'">
-              <span>${t.riderName || 'Rider'}</span>
-              ${distKm ? `<span>· ${distKm}</span>` : ''}
-              ${durMin ? `<span>· ${durMin}</span>` : ''}
-              <span>· ${date}</span>
+              <span>${t.riderName || 'Rider'} · ${date}</span>
             </div>
             <span class="history-status ${t.status}">${statusLabel}</span>
           </div>`;
@@ -2613,8 +2405,6 @@
     document.getElementById('btnArrived').style.display = 'none';
     document.getElementById('btnTripStart').style.display = 'block';
     setStatus('At pickup. Waiting for rider...');
-    const _at1 = JSON.parse(localStorage.getItem('drova_active_trip') || '{}');
-    if (_at1.trip_id) { _at1.phase = 'driver_arrived'; localStorage.setItem('drova_active_trip', JSON.stringify(_at1)); }
   }
 
   function driverTripStart() {
@@ -2627,8 +2417,6 @@
     document.getElementById('btnTripStart').style.display = 'none';
     document.getElementById('btnTripEnd').style.display = 'block';
     setStatus('Trip in progress — simulating route...');
-    const _at2 = JSON.parse(localStorage.getItem('drova_active_trip') || '{}');
-    if (_at2.trip_id) { _at2.phase = 'in_progress'; localStorage.setItem('drova_active_trip', JSON.stringify(_at2)); }
     stopPreTripTracking(); // clears locationWatchId + preTripLocationTimer
     const route = window._currentTripRoute || [];
     const riderID = window._currentTripRiderID || currentTripRequest.user_id;
@@ -2652,13 +2440,11 @@
         type: 'driver.cmd.trip_end',
         data: { trip_id: currentTripRequest.trip_id, rider_id: currentTripRequest.user_id, lat: endLat, lng: endLng }
       }));
-      setStatus('Ride complete! Rider is paying.');
-      setTimeout(() => setStatus('Online — waiting for requests.'), 4000);
+      setStatus('Trip ended. Triggering payment...');
       window._currentTripRoute = null;
       window._currentTripRiderID = null;
       currentTripRequest = null;
       tripEndPending = false;
-      localStorage.removeItem('drova_active_trip');
     } else {
       setStatus('Connection lost — will retry automatically...');
       tripEndPending = true;
@@ -2733,39 +2519,21 @@
     const token = encodeURIComponent(authToken());
     const _wsSchemeC = location.protocol === 'https:' ? 'wss' : 'ws';
     const _chatHost = location.protocol === 'https:' ? location.host : `${location.hostname}:8084`;
-    const _chatName = encodeURIComponent(currentUser.display_name || currentUser.name || '');
     chatWs = new WebSocket(
-      `${_wsSchemeC}://${_chatHost}/ws/chat?tripID=${chatTripID}&userID=${currentUser.id}&token=${token}&name=${_chatName}`
+      `${_wsSchemeC}://${_chatHost}/ws/chat?tripID=${chatTripID}&userID=${currentUser.id}&token=${token}`
     );
 
-    chatWs.onopen = () => {
-      chatWs.send(JSON.stringify({ type: 'read' }));
-    };
-
     chatWs.onmessage = (event) => {
-      let msg;
-      try { msg = JSON.parse(event.data); } catch(e) { return; }
+      const msg = JSON.parse(event.data);
       if (msg.type === 'history') {
         msg.messages.forEach(renderChatMessage);
-      } else if (msg.type === 'read_receipt') {
-        handleReadReceipt(msg);
-      } else if (msg.type === 'message_deleted') {
-        handleMessageDeleted(msg.message_id);
       } else {
         renderChatMessage(msg);
-        if (msg.sender_id !== String(currentUser.id)) {
-          chatWs.send(JSON.stringify({ type: 'read' }));
-        }
       }
     };
 
     chatWs.onerror = () => {
-      appendChatInfo('Connection lost. <button onclick="openChat()" style="background:none;border:none;color:#6366f1;text-decoration:underline;cursor:pointer;font-size:12px;padding:0;">Reconnect</button>');
-    };
-    chatWs.onclose = (e) => {
-      if (e.code !== 1000 && e.code !== 1001) {
-        appendChatInfo('Connection lost. <button onclick="openChat()" style="background:none;border:none;color:#6366f1;text-decoration:underline;cursor:pointer;font-size:12px;padding:0;">Reconnect</button>');
-      }
+      appendChatInfo('Chat connection failed.');
     };
   }
 
@@ -2784,39 +2552,14 @@
   let lastChatDate = null;
   let lastChatSender = null;
 
-  function handleReadReceipt(receipt) {
-    document.querySelectorAll('.chat-tick[data-mine="1"]').forEach(el => {
-      el.classList.add('read');
-      el.textContent = '✓✓';
-    });
-  }
-
-  function handleMessageDeleted(messageID) {
-    const el = document.querySelector(`.chat-msg[data-msgid="${messageID}"]`);
-    if (el) {
-      el.textContent = 'Message deleted';
-      el.classList.add('deleted-msg');
-      const delBtn = el.querySelector('.chat-del-btn');
-      if (delBtn) delBtn.remove();
-    }
-  }
-
-  function deleteChatMessage(messageID, btnEl) {
-    if (!chatWs || chatWs.readyState !== WebSocket.OPEN) return;
-    chatWs.send(JSON.stringify({ type: 'delete', message_id: messageID }));
-    btnEl.closest('.chat-msg').textContent = 'Message deleted';
-    btnEl.closest('.chat-msg').classList.add('deleted-msg');
-  }
-
   function renderChatMessage(msg) {
     const box = document.getElementById('chatMessages');
     const isMine = msg.sender_id === String(currentUser.id);
     const senderRole = msg.sender_role || (isMine ? currentUser.role : (currentUser.role === 'driver' ? 'rider' : 'driver'));
-    const isDeleted = !!msg.deleted_at;
 
-    // Date separator — uses browser local timezone automatically
+    // Date separator
     const msgDate = msg.sent_at ? new Date(msg.sent_at) : new Date();
-    const dateStr = msgDate.toLocaleDateString(undefined, { day:'2-digit', month:'2-digit', year:'numeric' });
+    const dateStr = msgDate.toLocaleDateString('en-US', { day:'2-digit', month:'2-digit', year:'numeric' });
     if (dateStr !== lastChatDate) {
       lastChatDate = dateStr;
       lastChatSender = null;
@@ -2829,26 +2572,25 @@
     const senderChanged = msg.sender_id !== lastChatSender;
     lastChatSender = msg.sender_id;
 
-    // Local timezone time
-    const time = msgDate.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false });
+    const time = msgDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 
-    // Sender label: prefer stored sender_name, fallback to role lookup
+    // Avatar src
     let avatarSrc = '';
-    let senderLabel = msg.sender_name || '';
+    let senderLabel = '';
     if (isMine) {
-      avatarSrc = currentUser.avatarUrl || defaultAvatar(currentUser.display_name || 'me');
-      if (!senderLabel) senderLabel = 'You';
+      avatarSrc = currentUser.avatarUrl || defaultAvatar(currentUser.name || 'me');
+      senderLabel = 'You';
     } else {
       if (currentUser.role === 'driver') {
         const req = currentTripRequest || {};
-        const rName = req.rider_name || senderLabel || 'Rider';
+        const rName = req.rider_name || 'Rider';
         avatarSrc = req.rider_avatar || defaultAvatar(rName);
-        if (!senderLabel) senderLabel = rName;
+        senderLabel = rName;
       } else {
         const drv = window.lastAssignedDriver || {};
-        const dName = drv.name || senderLabel || 'Driver';
+        const dName = drv.name || 'Driver';
         avatarSrc = drv.profile_picture || defaultAvatar(dName);
-        if (!senderLabel) senderLabel = dName;
+        senderLabel = dName;
       }
     }
 
@@ -2879,33 +2621,12 @@
     // Color: mine = dark, theirs-driver = blue, theirs-rider = white
     let bubbleClass = 'chat-msg ' + (isMine ? 'mine' : 'theirs');
     if (!isMine && senderRole === 'driver') bubbleClass += ' role-driver';
-    if (isDeleted) bubbleClass += ' deleted-msg';
     bubble.className = bubbleClass;
-    if (msg.id) bubble.dataset.msgid = msg.id;
-    bubble.textContent = isDeleted ? 'Message deleted' : (msg.content || '');
-
-    // Delete button — own non-deleted messages only
-    if (isMine && !isDeleted) {
-      const delBtn = document.createElement('button');
-      delBtn.className = 'chat-del-btn';
-      delBtn.title = 'Delete message';
-      delBtn.textContent = '×';
-      delBtn.onclick = (e) => { e.stopPropagation(); deleteChatMessage(msg.id); };
-      bubble.appendChild(delBtn);
-    }
+    bubble.textContent = msg.content;
 
     const meta = document.createElement('div');
     meta.className = 'chat-msg-time';
     meta.textContent = time;
-
-    // Read/sent ticks for own messages
-    if (isMine && !isDeleted) {
-      const tick = document.createElement('span');
-      tick.className = 'chat-tick' + (msg.read_at ? ' read' : '');
-      tick.dataset.mine = '1';
-      tick.textContent = msg.read_at ? ' ✓✓' : ' ✓';
-      meta.appendChild(tick);
-    }
 
     wrap.appendChild(bubble);
     wrap.appendChild(meta);
