@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        required: true
+        type: string
+        description: "Tag to build and deploy (e.g. v0.16.0)"
 
 permissions:
   contents: write
@@ -59,7 +65,12 @@ jobs:
 
       - name: Extract tag
         id: tag
-        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "TAG=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Build and Push
         uses: docker/build-push-action@v5
@@ -79,6 +90,6 @@ jobs:
     if: needs.build-and-push.result == 'success'
     uses: ./.github/workflows/update-gitops.yaml
     with:
-      tag: ${{ github.ref_name }}
+      tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     secrets:
       GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
