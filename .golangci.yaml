@@ -16,6 +16,8 @@ linters:
         - G404
         - G104
   exclusions:
+    paths:
+      - "^proto/"
     rules:
       # tests: relax errcheck and gosec
       - path: "_test\\.go"
