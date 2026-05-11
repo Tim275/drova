@@ -27,8 +27,8 @@ var rooms *RoomManager
 var store *MessageStore
 
 const (
-	wsPingInterval = 25 * time.Second
-	wsPongWait     = 35 * time.Second
+	wsPingInterval = 30 * time.Second
+	wsPongWait     = 120 * time.Second
 )
 
 var upgrader = websocket.Upgrader{
@@ -142,6 +142,16 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "tripID required", http.StatusBadRequest)
 		return
 	}
+	if len(tripID) > 64 || strings.ContainsAny(tripID, "\n\r\t $") {
+		http.Error(w, "invalid tripID", http.StatusBadRequest)
+		return
+	}
+	senderName := strings.TrimSpace(r.URL.Query().Get("name"))
+	if senderName == "" {
+		senderName = role
+	}
+	senderName = strings.ReplaceAll(strings.ReplaceAll(senderName, "\n", " "), "\r", " ")
+	role = strings.ReplaceAll(strings.ReplaceAll(role, "\n", " "), "\r", " ")
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -180,7 +190,7 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	appLog.Infow("chat connected", "trip", tripID, "user", userID, "role", role)
+	appLog.Infow("chat connected", "trip", tripID, "user", userID, "role", role, "name", senderName)
 
 	for {
 		_, raw, err := conn.ReadMessage()
@@ -189,25 +199,59 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var incoming struct {
-			Content string `json:"content"`
+			Type      string `json:"type"`
+			Content   string `json:"content"`
+			MessageID string `json:"message_id"`
 		}
 		if err := json.Unmarshal(raw, &incoming); err != nil {
 			continue
 		}
-		content := strings.TrimSpace(incoming.Content)
-		if content == "" {
-			continue
-		}
 
-		msg, err := store.Save(r.Context(), tripID, userID, role, content)
-		if err != nil {
-			appLog.Warnw("save message failed", zap.Error(err))
-			continue
-		}
+		switch incoming.Type {
+		case "read":
+			if _, err := store.MarkAllRead(r.Context(), tripID, userID); err != nil {
+				appLog.Warnw("mark read failed", zap.Error(err))
+				continue
+			}
+			receipt, _ := json.Marshal(map[string]any{
+				"type":        "read_receipt",
+				"reader_id":   userID,
+				"reader_role": role,
+			})
+			if err := rooms.Publish(r.Context(), tripID, receipt); err != nil {
+				appLog.Warnw("redis publish read_receipt failed", zap.Error(err))
+			}
 
-		data, _ := json.Marshal(msg)
-		if err := rooms.Publish(r.Context(), tripID, data); err != nil {
-			appLog.Warnw("redis publish failed", zap.Error(err))
+		case "delete":
+			if incoming.MessageID == "" {
+				continue
+			}
+			if _, err := store.SoftDelete(r.Context(), incoming.MessageID, userID); err != nil {
+				appLog.Warnw("soft delete failed", zap.Error(err))
+				continue
+			}
+			deleted, _ := json.Marshal(map[string]any{
+				"type":       "message_deleted",
+				"message_id": incoming.MessageID,
+			})
+			if err := rooms.Publish(r.Context(), tripID, deleted); err != nil {
+				appLog.Warnw("redis publish message_deleted failed", zap.Error(err))
+			}
+
+		default:
+			content := strings.TrimSpace(incoming.Content)
+			if content == "" {
+				continue
+			}
+			msg, err := store.Save(r.Context(), tripID, userID, role, senderName, content)
+			if err != nil {
+				appLog.Warnw("save message failed", zap.Error(err))
+				continue
+			}
+			data, _ := json.Marshal(msg)
+			if err := rooms.Publish(r.Context(), tripID, data); err != nil {
+				appLog.Warnw("redis publish failed", zap.Error(err))
+			}
 		}
 	}
 

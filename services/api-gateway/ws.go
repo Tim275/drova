@@ -58,11 +58,11 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := r.URL.Query().Get("userID")
-	if userID == "" || userID != fmt.Sprintf("%d", claims.UserID) {
+	if claimedID := r.URL.Query().Get("userID"); claimedID == "" || claimedID != fmt.Sprintf("%d", claims.UserID) {
 		http.Error(w, "userID mismatch", http.StatusUnauthorized)
 		return
 	}
+	userID := fmt.Sprintf("%d", claims.UserID) // derived from trusted JWT, not URL param
 
 	conn, err := riderConnManager.Upgrade(w, r)
 	if err != nil {
@@ -157,11 +157,11 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := r.URL.Query().Get("userID")
-	if userID == "" || userID != fmt.Sprintf("%d", claims.UserID) {
+	if claimedID := r.URL.Query().Get("userID"); claimedID == "" || claimedID != fmt.Sprintf("%d", claims.UserID) {
 		http.Error(w, "userID mismatch", http.StatusUnauthorized)
 		return
 	}
+	userID := fmt.Sprintf("%d", claims.UserID)
 
 	packageSlug := r.URL.Query().Get("packageSlug")
 	if packageSlug == "" {
