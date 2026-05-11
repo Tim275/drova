@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io"
+	"time"
 
 	pb "drova/shared/proto/driver"
 
@@ -23,17 +24,41 @@ func NewGrpcHandler(s *grpc.Server, service *Service, consumer *TripConsumer) {
 }
 
 func (h *driverGrpcHandler) RegisterDriver(ctx context.Context, req *pb.RegisterDriverRequest) (*pb.RegisterDriverResponse, error) {
-	driver, err := h.service.RegisterDriver(ctx, req.GetDriverID(), req.GetPackageSlug(), req.GetName())
+	driver, err := h.service.RegisterDriver(ctx, req.GetDriverID(), req.GetPackageSlug(), req.GetName(), req.GetLat(), req.GetLng())
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "failed to register driver")
 	}
 
-	loc := driver.GetLocation()
-	if loc != nil {
-		h.consumer.TryMatchWaiting(ctx, driver.GetPackageSlug(), loc.GetLatitude(), loc.GetLongitude())
+	busyTripID := h.service.GetBusyTripID(ctx, req.GetDriverID())
+	if busyTripID != "" {
+		if !h.consumer.ExtendTimerForDriver(ctx, busyTripID, req.GetDriverID()) {
+			// No pending timer — service restarted or trip already resolved.
+			// Clear stale busy state so the driver is immediately available.
+			h.service.ClearBusy(ctx, req.GetDriverID())
+			busyTripID = ""
+		}
+	}
+	if busyTripID == "" {
+		loc := driver.GetLocation()
+		if loc != nil {
+			slug := driver.GetPackageSlug()
+			lat := loc.GetLatitude()
+			lng := loc.GetLongitude()
+			// Run after a short delay: the api-gateway sets up the driver's Redis
+			// pub/sub subscription only AFTER this gRPC call returns. If we call
+			// TryMatchWaiting synchronously, the Kafka notification arrives before
+			// the subscription is active and the driver never sees the trip request.
+			go func() { //nolint:gosec
+				time.Sleep(400 * time.Millisecond)
+				h.consumer.TryMatchWaiting(context.Background(), slug, lat, lng)
+			}()
+		}
 	}
 
-	return &pb.RegisterDriverResponse{Driver: driver}, nil
+	return &pb.RegisterDriverResponse{
+		Driver:         driver,
+		BusyWithTripId: busyTripID,
+	}, nil
 }
 
 func (h *driverGrpcHandler) UnregisterDriver(ctx context.Context, req *pb.RegisterDriverRequest) (*pb.RegisterDriverResponse, error) {

@@ -49,11 +49,11 @@ func main() {
 
 	appLog.Infow("driver-service starting")
 
+	if err := runMigrations(env.GetString("DB_URL", ""), env.GetString("MIGRATIONS_PATH", "services/driver-service/migrations")); err != nil {
+		appLog.Fatalw("migrations failed", zap.Error(err))
+	}
+	appLog.Infow("migrations completed")
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
-		if err := runMigrations(env.GetString("DB_URL", ""), env.GetString("MIGRATIONS_PATH", "services/driver-service/migrations")); err != nil {
-			appLog.Fatalw("migrations failed", zap.Error(err))
-		}
-		appLog.Infow("migrations completed")
 		os.Exit(0)
 	}
 
@@ -97,7 +97,7 @@ func main() {
 	pgStore := store.NewPostgresStore(db)
 	svc := NewService(pgStore, rdb, appLog)
 
-	consumer := NewTripConsumer(kafka, svc)
+	consumer := NewTripConsumer(kafka, svc, rdb)
 	consumer.Start(ctx)
 
 	grpcServer := grpcserver.NewServer(append(tracing.WithTracingInterceptors(),
@@ -119,6 +119,7 @@ func main() {
 
 	<-ctx.Done()
 	appLog.Infow("driver-service shutting down")
+	kafka.Wait()
 	grpcServer.GracefulStop()
 }
 

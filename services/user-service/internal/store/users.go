@@ -36,10 +36,12 @@ func (s *UserStore) GetByEmail(ctx context.Context, email string) (*domain.User,
 	var hash []byte
 	err := s.db.QueryRow(ctx, `
 		SELECT id, email, password_hash, role, is_activated, created_at,
-		       COALESCE(display_name,''), COALESCE(avatar_url,''), COALESCE(phone,''), COALESCE(address,'')
+		       COALESCE(display_name,''), COALESCE(avatar_url,''), COALESCE(phone,''), COALESCE(address,''),
+		       COALESCE(total_trips,0), COALESCE(average_rating,0)
 		FROM users WHERE email = $1`, email,
 	).Scan(&u.ID, &u.Email, &hash, &u.Role, &u.IsActivated, &u.CreatedAt,
-		&u.DisplayName, &u.AvatarURL, &u.Phone, &u.Address)
+		&u.DisplayName, &u.AvatarURL, &u.Phone, &u.Address,
+		&u.TotalTrips, &u.AverageRating)
 	if err != nil {
 		return nil, err
 	}
@@ -52,10 +54,12 @@ func (s *UserStore) GetByID(ctx context.Context, id int64) (*domain.User, error)
 	var hash []byte
 	err := s.db.QueryRow(ctx, `
 		SELECT id, email, password_hash, role, is_activated, created_at,
-		       COALESCE(display_name,''), COALESCE(avatar_url,''), COALESCE(phone,''), COALESCE(address,'')
+		       COALESCE(display_name,''), COALESCE(avatar_url,''), COALESCE(phone,''), COALESCE(address,''),
+		       COALESCE(total_trips,0), COALESCE(average_rating,0)
 		FROM users WHERE id = $1`, id,
 	).Scan(&u.ID, &u.Email, &hash, &u.Role, &u.IsActivated, &u.CreatedAt,
-		&u.DisplayName, &u.AvatarURL, &u.Phone, &u.Address)
+		&u.DisplayName, &u.AvatarURL, &u.Phone, &u.Address,
+		&u.TotalTrips, &u.AverageRating)
 	if err != nil {
 		return nil, err
 	}

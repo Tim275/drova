@@ -35,11 +35,11 @@ func NewDriverConsumer(kafka *messaging.Kafka, service domain.TripService, log *
 }
 
 func (c *DriverConsumer) Start(ctx context.Context) {
-	go c.kafka.ConsumeMessages(ctx, messaging.TopicDriverTripResponse, "trip-service-driver-response", c.handleDriverResponse)
-	go c.kafka.ConsumeMessages(ctx, messaging.TopicTripCompleted, "trip-service-completed", c.handleTripCompleted)
-	go c.kafka.ConsumeMessages(ctx, messaging.TopicTripCancelled, "trip-service-cancelled", c.handleTripCancelled)
-	go c.kafka.ConsumeMessages(ctx, messaging.TopicTripDriverArrived, "trip-service-arrived", c.handleStatusUpdate("driver_arrived"))
-	go c.kafka.ConsumeMessages(ctx, messaging.TopicTripInProgress, "trip-service-in-progress", c.handleStatusUpdate("in_progress"))
+	c.kafka.ConsumeMessages(ctx, messaging.TopicDriverTripResponse, "trip-service-driver-response", c.handleDriverResponse)
+	c.kafka.ConsumeMessages(ctx, messaging.TopicTripCompleted, "trip-service-completed", c.handleTripCompleted)
+	c.kafka.ConsumeMessages(ctx, messaging.TopicTripCancelled, "trip-service-cancelled", c.handleTripCancelled)
+	c.kafka.ConsumeMessages(ctx, messaging.TopicTripDriverArrived, "trip-service-arrived", c.handleStatusUpdate("driver_arrived"))
+	c.kafka.ConsumeMessages(ctx, messaging.TopicTripInProgress, "trip-service-in-progress", c.handleStatusUpdate("in_progress"))
 }
 
 func (c *DriverConsumer) handleDriverResponse(ctx context.Context, payload []byte) error {
@@ -102,6 +102,11 @@ func (c *DriverConsumer) handleTripDeclined(ctx context.Context, data messaging.
 	trip, err := c.service.GetTripByID(ctx, data.TripID)
 	if err != nil || trip == nil {
 		return fmt.Errorf("get trip: %w", err)
+	}
+
+	if trip.Fare == nil || trip.Fare.Route == nil || len(trip.Fare.Route.Routes) == 0 || len(trip.Fare.Route.Routes[0].Geometry.Coordinates) == 0 {
+		c.log.Warnw("trip has incomplete route, cannot retry", "trip", data.TripID)
+		return nil
 	}
 
 	rawCoords := trip.Fare.Route.Routes[0].Geometry.Coordinates
@@ -208,10 +213,12 @@ func (c *DriverConsumer) handleTripCompleted(ctx context.Context, payload []byte
 func (c *DriverConsumer) handleTripCancelled(ctx context.Context, payload []byte) error {
 	var msg messaging.KafkaMessage
 	if err := json.Unmarshal(payload, &msg); err != nil {
+		c.log.Warnw("handleTripCancelled: unmarshal envelope", "err", err)
 		return nil
 	}
 	var data messaging.TripCancelledEvent
 	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		c.log.Warnw("handleTripCancelled: unmarshal data", "err", err)
 		return nil
 	}
 	return c.service.CancelTrip(ctx, data.TripID)
@@ -221,10 +228,12 @@ func (c *DriverConsumer) handleStatusUpdate(status string) func(context.Context,
 	return func(ctx context.Context, payload []byte) error {
 		var msg messaging.KafkaMessage
 		if err := json.Unmarshal(payload, &msg); err != nil {
+			c.log.Warnw("handleStatusUpdate: unmarshal envelope", "status", status, "err", err)
 			return nil
 		}
 		var data messaging.TripStatusEvent
 		if err := json.Unmarshal(msg.Data, &data); err != nil {
+			c.log.Warnw("handleStatusUpdate: unmarshal data", "status", status, "err", err)
 			return nil
 		}
 		return c.service.UpdateTrip(ctx, data.TripID, status, nil)

@@ -9,15 +9,15 @@ import (
 )
 
 func startNotificationConsumers(ctx context.Context) {
-	go kafkaClient.ConsumeMessages(ctx, messaging.TopicDriverTripRequest, "api-gateway-driver-notify", handleNotification)
-	go kafkaClient.ConsumeMessages(ctx, messaging.TopicTripDriverAssigned, "api-gateway-rider-notify", handleNotification)
-	go kafkaClient.ConsumeMessages(ctx, messaging.TopicTripNoDriversFound, "api-gateway-no-drivers", handleNotification)
-	go kafkaClient.ConsumeMessages(ctx, messaging.TopicPaymentSessionCreated, "api-gateway-payment-session", handleNotification)
-	go kafkaClient.ConsumeMessages(ctx, messaging.TopicDriverLocation, "api-gateway-location-notify", handleNotification)
-	go kafkaClient.ConsumeMessages(ctx, messaging.TopicTripCancelled, "api-gateway-cancelled", handleNotification)
-	go kafkaClient.ConsumeMessages(ctx, messaging.TopicTripDriverArrived, "api-gateway-arrived", handleNotification)
-	go kafkaClient.ConsumeMessages(ctx, messaging.TopicTripInProgress, "api-gateway-in-progress", handleNotification)
-	go kafkaClient.ConsumeMessages(ctx, messaging.TopicTripCompleted, "api-gateway-completed", handleNotification)
+	kafkaClient.ConsumeMessages(ctx, messaging.TopicDriverTripRequest, "api-gateway-driver-notify", handleNotification)
+	kafkaClient.ConsumeMessages(ctx, messaging.TopicTripDriverAssigned, "api-gateway-rider-notify", handleNotification)
+	kafkaClient.ConsumeMessages(ctx, messaging.TopicTripNoDriversFound, "api-gateway-no-drivers", handleNotification)
+	kafkaClient.ConsumeMessages(ctx, messaging.TopicPaymentSessionCreated, "api-gateway-payment-session", handleNotification)
+	kafkaClient.ConsumeMessages(ctx, messaging.TopicDriverLocation, "api-gateway-location-notify", handleNotification)
+	kafkaClient.ConsumeMessages(ctx, messaging.TopicTripCancelled, "api-gateway-cancelled", handleNotification)
+	kafkaClient.ConsumeMessages(ctx, messaging.TopicTripDriverArrived, "api-gateway-arrived", handleNotification)
+	kafkaClient.ConsumeMessages(ctx, messaging.TopicTripInProgress, "api-gateway-in-progress", handleNotification)
+	kafkaClient.ConsumeMessages(ctx, messaging.TopicTripCompleted, "api-gateway-completed", handleNotification)
 }
 
 func handleNotification(ctx context.Context, payload []byte) error {

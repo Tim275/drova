@@ -41,14 +41,14 @@ func main() {
 		log.Warnw("tracing init failed", zap.Error(tracerErr))
 	}
 
+	if err := runMigrations(
+		env.GetString("DB_URL", ""),
+		env.GetString("MIGRATIONS_PATH", "migrations"),
+	); err != nil {
+		log.Fatalw("migrations failed", fmt.Sprintf("%v", err))
+	}
+	log.Infow("migrations complete")
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
-		if err := runMigrations(
-			env.GetString("DB_URL", ""),
-			env.GetString("MIGRATIONS_PATH", "migrations"),
-		); err != nil {
-			log.Fatalw("migrations failed", fmt.Sprintf("%v", err))
-		}
-		log.Infow("migrations complete")
 		return
 	}
 
@@ -118,6 +118,7 @@ func main() {
 
 	log.Infow("payment-service shutting down")
 	cancel()
+	kafkaClient.Wait()
 }
 
 func stripMigrateParams(rawURL string) string {

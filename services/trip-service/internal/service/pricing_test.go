@@ -78,6 +78,9 @@ func (f *fakeRepo) ExpireSearch(_ context.Context, tripID string) (bool, error) 
 	}
 	return false, nil
 }
+func (f *fakeRepo) ExpireStaleSearching(_ context.Context, _ time.Duration) (int64, error) {
+	return 0, nil
+}
 func (f *fakeRepo) GetTripsByUser(_ context.Context, _ string) ([]*domain.TripModel, error) {
 	return nil, nil
 }

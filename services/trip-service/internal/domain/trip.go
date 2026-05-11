@@ -3,6 +3,7 @@ package domain
 import (
 	"context"
 	"errors"
+	"time"
 
 	tripTypes "drova/services/trip-service/pkg/types"
 	pbd "drova/shared/proto/driver"
@@ -12,18 +13,28 @@ import (
 var ErrNotFound = errors.New("not found")
 
 type TripModel struct {
-	ID           string
-	UserID       string
-	RiderName    string
-	RiderAvatar  string
-	Status       string
-	Fare         *RideFareModel
-	DriverID     string
-	DriverName   string
-	DriverPlate  string
-	DriverAvatar string
-	Rating       int
-	CreatedAt    int64
+	ID              string
+	UserID          string
+	RiderName       string
+	RiderAvatar     string
+	Status          string
+	Fare            *RideFareModel
+	DriverID        string
+	DriverName      string
+	DriverPlate     string
+	DriverAvatar    string
+	Rating          int
+	RiderRating     int
+	PickupAddress   string
+	DropoffAddress  string
+	DistanceMeters  int32
+	DurationSeconds int32
+	PackageSlug     string
+	AmountCents     int64
+	CreatedAt       int64
+	CompletedAt     *time.Time
+	CancelledAt     *time.Time
+	CancelledBy     string
 }
 
 type TripRepository interface {
@@ -34,6 +45,7 @@ type TripRepository interface {
 	UpdateTrip(ctx context.Context, tripID string, status string, driver *pbd.Driver) error
 	CancelTrip(ctx context.Context, tripID string) error
 	ExpireSearch(ctx context.Context, tripID string) (bool, error)
+	ExpireStaleSearching(ctx context.Context, olderThan time.Duration) (int64, error)
 	GetTripsByUser(ctx context.Context, userID string) ([]*TripModel, error)
 	GetTripsByDriver(ctx context.Context, driverID string) ([]*TripModel, error)
 	RateTrip(ctx context.Context, tripID string, rating int) error
@@ -53,6 +65,7 @@ type TripService interface {
 	UpdateTrip(ctx context.Context, tripID string, status string, driver *pbd.Driver) error
 	CancelTrip(ctx context.Context, tripID string) error
 	ExpireSearch(ctx context.Context, tripID string) (bool, error)
+	ExpireStaleSearching(ctx context.Context, olderThan time.Duration) (int64, error)
 	GetTripsByUser(ctx context.Context, userID string) ([]*TripModel, error)
 	GetTripsByDriver(ctx context.Context, driverID string) ([]*TripModel, error)
 	RateTrip(ctx context.Context, tripID string, rating int) error

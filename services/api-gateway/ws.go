@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"drova/services/api-gateway/grpc_clients"
@@ -24,7 +25,9 @@ const (
 var riderConnManager = messaging.NewConnectionManager()
 var driverConnManager = messaging.NewConnectionManager()
 
-func subscribeUserWS(ctx context.Context, channel string, conn *websocket.Conn) {
+// subscribeUserWS relays Redis Pub/Sub messages to the WebSocket connection.
+// mu must be the same mutex used by the ping goroutine — Gorilla forbids concurrent writes.
+func subscribeUserWS(ctx context.Context, channel string, conn *websocket.Conn, mu *sync.Mutex) {
 	if gatewayRdb == nil {
 		return
 	}
@@ -37,7 +40,10 @@ func subscribeUserWS(ctx context.Context, channel string, conn *websocket.Conn) 
 			if !ok {
 				return
 			}
-			if err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Payload)); err != nil {
+			mu.Lock()
+			err := conn.WriteMessage(websocket.TextMessage, []byte(msg.Payload))
+			mu.Unlock()
+			if err != nil {
 				return
 			}
 		case <-ctx.Done():
@@ -58,11 +64,11 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := r.URL.Query().Get("userID")
-	if userID == "" || userID != fmt.Sprintf("%d", claims.UserID) {
+	if claimedID := r.URL.Query().Get("userID"); claimedID == "" || claimedID != fmt.Sprintf("%d", claims.UserID) {
 		http.Error(w, "userID mismatch", http.StatusUnauthorized)
 		return
 	}
+	userID := fmt.Sprintf("%d", claims.UserID) // derived from trusted JWT, not URL param
 
 	conn, err := riderConnManager.Upgrade(w, r)
 	if err != nil {
@@ -80,7 +86,8 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 	riderConnManager.Add(userID, conn)
 	defer riderConnManager.Remove(userID)
 
-	go subscribeUserWS(r.Context(), "ws:rider:"+userID, conn)
+	var wmu sync.Mutex
+	go subscribeUserWS(r.Context(), "ws:rider:"+userID, conn, &wmu)
 
 	go func() {
 		ticker := time.NewTicker(wsPingInterval)
@@ -88,7 +95,10 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 		for {
 			select {
 			case <-ticker.C:
-				if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(10*time.Second)); err != nil {
+				wmu.Lock()
+				err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(10*time.Second))
+				wmu.Unlock()
+				if err != nil {
 					return
 				}
 			case <-r.Context().Done():
@@ -126,17 +136,24 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 				RiderID:  userID,
 				DriverID: cancelData.DriverID,
 			}
-			data, _ := json.Marshal(cancelEvent)
+			data, err := json.Marshal(cancelEvent)
+			if err != nil {
+				appLog.Warnw("marshal cancel event", zap.Error(err))
+				continue
+			}
 			ownerID := cancelData.DriverID
 			if ownerID == "" {
 				ownerID = userID
 			}
-			kmsg := messaging.KafkaMessage{
+			payload, err := json.Marshal(messaging.KafkaMessage{
 				Type:    contracts.TripEventCancelled,
 				OwnerID: ownerID,
 				Data:    data,
+			})
+			if err != nil {
+				appLog.Warnw("marshal cancel payload", zap.Error(err))
+				continue
 			}
-			payload, _ := json.Marshal(kmsg)
 			if err := kafkaClient.PublishMessage(r.Context(), messaging.TopicTripCancelled, payload); err != nil {
 				appLog.Errorw("publish trip cancel", zap.Error(err))
 			}
@@ -157,11 +174,11 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := r.URL.Query().Get("userID")
-	if userID == "" || userID != fmt.Sprintf("%d", claims.UserID) {
+	if claimedID := r.URL.Query().Get("userID"); claimedID == "" || claimedID != fmt.Sprintf("%d", claims.UserID) {
 		http.Error(w, "userID mismatch", http.StatusUnauthorized)
 		return
 	}
+	userID := fmt.Sprintf("%d", claims.UserID)
 
 	packageSlug := r.URL.Query().Get("packageSlug")
 	if packageSlug == "" {
@@ -182,13 +199,17 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 
+	var wmu sync.Mutex
 	go func() {
 		ticker := time.NewTicker(wsPingInterval)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				if err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(10*time.Second)); err != nil {
+				wmu.Lock()
+				err := conn.WriteControl(websocket.PingMessage, nil, time.Now().Add(10*time.Second))
+				wmu.Unlock()
+				if err != nil {
 					return
 				}
 			case <-r.Context().Done():
@@ -199,10 +220,25 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	driverName := r.URL.Query().Get("name")
 
+	// Parse real GPS from browser — sent by the frontend before going online.
+	var driverLat, driverLng float64
+	if v := r.URL.Query().Get("lat"); v != "" {
+		if _, err := fmt.Sscanf(v, "%f", &driverLat); err != nil {
+			driverLat = 0
+		}
+	}
+	if v := r.URL.Query().Get("lng"); v != "" {
+		if _, err := fmt.Sscanf(v, "%f", &driverLng); err != nil {
+			driverLng = 0
+		}
+	}
+
 	ctx := r.Context()
 
 	defer func() {
-		_, _ = grpc_clients.DriverClient.UnregisterDriver(ctx, &pb.RegisterDriverRequest{
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		_, _ = grpc_clients.DriverClient.UnregisterDriver(cleanupCtx, &pb.RegisterDriverRequest{
 			DriverID:    userID,
 			PackageSlug: packageSlug,
 		})
@@ -214,6 +250,8 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 			DriverID:    userID,
 			PackageSlug: packageSlug,
 			Name:        driverName,
+			Lat:         driverLat,
+			Lng:         driverLng,
 		})
 		if err != nil {
 			return nil, err
@@ -230,17 +268,24 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		driverData.Driver.ProfilePicture = avatarURL
 	}
 
-	locationStream, err := grpc_clients.DriverClient.StreamLocation(ctx)
-	if err != nil {
-		appLog.Warnw("location stream open failed", "driver", userID, zap.Error(err))
-		locationStream = nil
+	var locationStream pb.DriverService_StreamLocationClient
+	_, lsErr := grpc_clients.DriverBreaker.Execute(func() (interface{}, error) {
+		stream, err := grpc_clients.DriverClient.StreamLocation(ctx)
+		if err != nil {
+			return nil, err
+		}
+		locationStream = stream
+		return nil, nil
+	})
+	if lsErr != nil {
+		appLog.Warnw("location stream open failed", "driver", claims.UserID, zap.Error(lsErr))
 	} else {
-		appLog.Infow("location stream opened", "driver", userID)
+		appLog.Infow("location stream opened", "driver", claims.UserID)
 	}
 	defer func() {
 		if locationStream != nil {
 			_ = locationStream.CloseSend()
-			appLog.Infow("location stream closed", "driver", userID)
+			appLog.Infow("location stream closed", "driver", claims.UserID)
 		}
 	}()
 
@@ -253,15 +298,35 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		lastDriverLng = driverData.Driver.Location.Longitude
 	}
 
+	type registerPayload struct {
+		Id             string       `json:"id"`
+		Name           string       `json:"name"`
+		ProfilePicture string       `json:"profilePicture"`
+		CarPlate       string       `json:"carPlate"`
+		Geohash        string       `json:"geohash"`
+		PackageSlug    string       `json:"packageSlug"`
+		Location       *pb.Location `json:"location"`
+		BusyWithTripId string       `json:"busyWithTripId,omitempty"`
+	}
+	regPayload := registerPayload{
+		Id:             driverData.Driver.GetId(),
+		Name:           driverData.Driver.GetName(),
+		ProfilePicture: driverData.Driver.GetProfilePicture(),
+		CarPlate:       driverData.Driver.GetCarPlate(),
+		Geohash:        driverData.Driver.GetGeohash(),
+		PackageSlug:    driverData.Driver.GetPackageSlug(),
+		Location:       driverData.Driver.GetLocation(),
+		BusyWithTripId: driverData.GetBusyWithTripId(),
+	}
 	if err := driverConnManager.SendMessage(userID, contracts.WSMessage{
 		Type: contracts.DriverCmdRegister,
-		Data: driverData.Driver,
+		Data: regPayload,
 	}); err != nil {
 		appLog.Errorw("send register message", zap.Error(err))
 		return
 	}
 
-	go subscribeUserWS(r.Context(), "ws:driver:"+userID, conn)
+	go subscribeUserWS(r.Context(), "ws:driver:"+userID, conn, &wmu)
 
 	for {
 		_, message, err := conn.ReadMessage()
@@ -300,11 +365,13 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			if locData.RiderID != "" {
 				if gatewayRdb != nil {
-					wsMsg, _ := json.Marshal(contracts.WSMessage{
+					wsMsg, merr := json.Marshal(contracts.WSMessage{
 						Type: contracts.DriverCmdLocation,
 						Data: locData,
 					})
-					if err := gatewayRdb.Publish(r.Context(), "ws:rider:"+locData.RiderID, string(wsMsg)).Err(); err != nil {
+					if merr != nil {
+						appLog.Warnw("marshal location msg", zap.Error(merr))
+					} else if err := gatewayRdb.Publish(r.Context(), "ws:rider:"+locData.RiderID, string(wsMsg)).Err(); err != nil {
 						appLog.Warnw("redis publish location", zap.Error(err))
 					}
 				} else {
@@ -312,12 +379,18 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 						Type: contracts.DriverCmdLocation,
 						Data: locData,
 					}); err != nil {
-						data, _ := json.Marshal(locData)
-						payload, _ := json.Marshal(messaging.KafkaMessage{
+						data, merr1 := json.Marshal(locData)
+						if merr1 != nil {
+							break
+						}
+						payload, merr2 := json.Marshal(messaging.KafkaMessage{
 							Type:    contracts.DriverCmdLocation,
 							OwnerID: locData.RiderID,
 							Data:    data,
 						})
+						if merr2 != nil {
+							break
+						}
 						if err := kafkaClient.PublishMessage(r.Context(), messaging.TopicDriverLocation, payload); err != nil {
 							appLog.Errorw("publish location", zap.Error(err))
 						}
@@ -377,13 +450,20 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 				RiderID:  cancelData.RiderID,
 				DriverID: userID,
 			}
-			eventData, _ := json.Marshal(cancelEvent)
-			kmsg := messaging.KafkaMessage{
+			eventData, err := json.Marshal(cancelEvent)
+			if err != nil {
+				appLog.Warnw("marshal driver cancel event", zap.Error(err))
+				continue
+			}
+			payload, err := json.Marshal(messaging.KafkaMessage{
 				Type:    contracts.TripEventCancelledByDriver,
 				OwnerID: cancelData.RiderID,
 				Data:    eventData,
+			})
+			if err != nil {
+				appLog.Warnw("marshal driver cancel payload", zap.Error(err))
+				continue
 			}
-			payload, _ := json.Marshal(kmsg)
 			if err := kafkaClient.PublishMessage(r.Context(), messaging.TopicTripCancelled, payload); err != nil {
 				appLog.Errorw("publish driver cancel", zap.Error(err))
 			}
@@ -443,6 +523,8 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			appLog.Infow("driver status", "driver", userID, "type", driverMsg.Type, "trip", statusData.TripID)
 
+		case "ping":
+			// client keepalive — ignore
 		default:
 			appLog.Warnw("unknown driver message", "type", driverMsg.Type)
 		}
