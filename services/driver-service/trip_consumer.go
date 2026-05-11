@@ -9,11 +9,23 @@ import (
 	"time"
 
 	"drova/shared/messaging"
+	pb "drova/shared/proto/driver"
 
 	"github.com/redis/go-redis/v9"
 )
 
 const waitingTTL = 10 * time.Minute
+
+// responseTimeout is the window a driver has to accept a trip request.
+// Overridable in tests to avoid real 15s waits.
+var responseTimeout = 15 * time.Second
+
+// driverServicer is the subset of Service used by TripConsumer — allows unit testing without Redis.
+type driverServicer interface {
+	FindAvailableDrivers(ctx context.Context, packageSlug string, lat, lng float64, exclude []string) []*pb.Driver
+	SetBusy(ctx context.Context, driverID, tripID string)
+	ClearBusy(ctx context.Context, driverID string)
+}
 
 type pendingInfo struct {
 	event    messaging.TripCreatedEvent
@@ -23,12 +35,12 @@ type pendingInfo struct {
 
 type TripConsumer struct {
 	kafka   *messaging.Kafka
-	service *Service
+	service driverServicer
 	rdb     *redis.Client
 	pending sync.Map // tripID → pendingInfo (short-lived, in-memory is fine)
 }
 
-func NewTripConsumer(kafka *messaging.Kafka, service *Service, rdb *redis.Client) *TripConsumer {
+func NewTripConsumer(kafka *messaging.Kafka, service driverServicer, rdb *redis.Client) *TripConsumer {
 	return &TripConsumer{kafka: kafka, service: service, rdb: rdb}
 }
 
@@ -125,7 +137,7 @@ func (c *TripConsumer) handleFindAndNotifyDrivers(ctx context.Context, payload [
 // explicitly cancelled (driver responded or reconnect extension). Only the 15s path clears busy.
 func (c *TripConsumer) startResponseTimer(ctx context.Context, tripID, driverID string, event messaging.TripCreatedEvent) {
 	select {
-	case <-time.After(15 * time.Second):
+	case <-time.After(responseTimeout):
 	case <-ctx.Done():
 		return // cancelled by handleDriverResponse, handleTripCancelled, or ExtendTimerForDriver
 	}

@@ -39,6 +39,21 @@ jobs:
     env:
       GOFLAGS: "-mod=readonly"
 
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: drova
+          POSTGRES_PASSWORD: drova
+          POSTGRES_DB: drova_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -59,8 +74,14 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
-      - name: Run tests with coverage
+      - name: Run unit tests
         run: go test -race -count=1 -timeout 3m -coverprofile=coverage.out ./...
+
+      - name: Run integration tests
+        env:
+          TEST_DB_URL: postgres://drova:drova@localhost:5432/drova_test?sslmode=disable
+          MIGRATIONS_PATH: services/user-service/migrations
+        run: go test -race -count=1 -tags=integration -timeout 2m ./...
 
       - name: Build all services
         run: |
