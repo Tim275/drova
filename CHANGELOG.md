@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/Tim275/drova/compare/v0.15.0...v0.16.0) (2026-05-11)
+
+
+### Features
+
+* driver reconnect, refresh token, tests, pipeline hardening ([679eee9](https://github.com/Tim275/drova/commit/679eee97ff337dad08917164ad06ce333188e57a))
+
 ## [0.15.0](https://github.com/Tim275/drova/compare/v0.14.0...v0.15.0) (2026-05-04)
 
 
