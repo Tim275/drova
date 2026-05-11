@@ -16,16 +16,21 @@ type PaymentProcessor interface {
 }
 
 type Payment struct {
-	ID              int64
-	TripID          string
-	UserID          int64
-	DriverID        string
-	AmountCents     int64
-	Currency        string
-	Status          types.PaymentStatus
-	StripeSessionID string
-	CreatedAt       time.Time
-	PaidAt          *time.Time
+	ID                     int64
+	TripID                 string
+	UserID                 int64
+	DriverID               string
+	AmountCents            int64
+	Currency               string
+	Status                 types.PaymentStatus
+	StripeSessionID        string
+	StripePaymentIntentID  string
+	DriverPayoutCents      int64
+	PlatformFeeCents       int64
+	RefundID               string
+	CreatedAt              time.Time
+	PaidAt                 *time.Time
+	RefundedAt             *time.Time
 }
 
 type PaymentStore interface {

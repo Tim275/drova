@@ -200,10 +200,11 @@ func (k *Kafka) Wait() {
 
 func (k *Kafka) consumeLoop(ctx context.Context, topic, groupID string, handler MessageHandler) {
 	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: k.brokers,
-		Topic:   topic,
-		GroupID: groupID,
-		Dialer:  k.dialer,
+		Brokers:     k.brokers,
+		Topic:       topic,
+		GroupID:     groupID,
+		Dialer:      k.dialer,
+		StartOffset: kafka.FirstOffset,
 	})
 	defer reader.Close()
 

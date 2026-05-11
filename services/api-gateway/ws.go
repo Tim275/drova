@@ -232,7 +232,9 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	defer func() {
-		_, _ = grpc_clients.DriverClient.UnregisterDriver(ctx, &pb.RegisterDriverRequest{
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		_, _ = grpc_clients.DriverClient.UnregisterDriver(cleanupCtx, &pb.RegisterDriverRequest{
 			DriverID:    userID,
 			PackageSlug: packageSlug,
 		})
@@ -359,11 +361,13 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			if locData.RiderID != "" {
 				if gatewayRdb != nil {
-					wsMsg, _ := json.Marshal(contracts.WSMessage{
+					wsMsg, merr := json.Marshal(contracts.WSMessage{
 						Type: contracts.DriverCmdLocation,
 						Data: locData,
 					})
-					if err := gatewayRdb.Publish(r.Context(), "ws:rider:"+locData.RiderID, string(wsMsg)).Err(); err != nil {
+					if merr != nil {
+						appLog.Warnw("marshal location msg", zap.Error(merr))
+					} else if err := gatewayRdb.Publish(r.Context(), "ws:rider:"+locData.RiderID, string(wsMsg)).Err(); err != nil {
 						appLog.Warnw("redis publish location", zap.Error(err))
 					}
 				} else {
@@ -371,12 +375,18 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 						Type: contracts.DriverCmdLocation,
 						Data: locData,
 					}); err != nil {
-						data, _ := json.Marshal(locData)
-						payload, _ := json.Marshal(messaging.KafkaMessage{
+						data, merr1 := json.Marshal(locData)
+						if merr1 != nil {
+							break
+						}
+						payload, merr2 := json.Marshal(messaging.KafkaMessage{
 							Type:    contracts.DriverCmdLocation,
 							OwnerID: locData.RiderID,
 							Data:    data,
 						})
+						if merr2 != nil {
+							break
+						}
 						if err := kafkaClient.PublishMessage(r.Context(), messaging.TopicDriverLocation, payload); err != nil {
 							appLog.Errorw("publish location", zap.Error(err))
 						}

@@ -104,6 +104,11 @@ func (c *DriverConsumer) handleTripDeclined(ctx context.Context, data messaging.
 		return fmt.Errorf("get trip: %w", err)
 	}
 
+	if trip.Fare == nil || trip.Fare.Route == nil || len(trip.Fare.Route.Routes) == 0 || len(trip.Fare.Route.Routes[0].Geometry.Coordinates) == 0 {
+		c.log.Warnw("trip has incomplete route, cannot retry", "trip", data.TripID)
+		return nil
+	}
+
 	rawCoords := trip.Fare.Route.Routes[0].Geometry.Coordinates
 	pickup := messaging.Coordinate{Lat: rawCoords[0][1], Lng: rawCoords[0][0]}
 	dest := messaging.Coordinate{Lat: rawCoords[len(rawCoords)-1][1], Lng: rawCoords[len(rawCoords)-1][0]}
@@ -208,10 +213,12 @@ func (c *DriverConsumer) handleTripCompleted(ctx context.Context, payload []byte
 func (c *DriverConsumer) handleTripCancelled(ctx context.Context, payload []byte) error {
 	var msg messaging.KafkaMessage
 	if err := json.Unmarshal(payload, &msg); err != nil {
+		c.log.Warnw("handleTripCancelled: unmarshal envelope", "err", err)
 		return nil
 	}
 	var data messaging.TripCancelledEvent
 	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		c.log.Warnw("handleTripCancelled: unmarshal data", "err", err)
 		return nil
 	}
 	return c.service.CancelTrip(ctx, data.TripID)
@@ -221,10 +228,12 @@ func (c *DriverConsumer) handleStatusUpdate(status string) func(context.Context,
 	return func(ctx context.Context, payload []byte) error {
 		var msg messaging.KafkaMessage
 		if err := json.Unmarshal(payload, &msg); err != nil {
+			c.log.Warnw("handleStatusUpdate: unmarshal envelope", "status", status, "err", err)
 			return nil
 		}
 		var data messaging.TripStatusEvent
 		if err := json.Unmarshal(msg.Data, &data); err != nil {
+			c.log.Warnw("handleStatusUpdate: unmarshal data", "status", status, "err", err)
 			return nil
 		}
 		return c.service.UpdateTrip(ctx, data.TripID, status, nil)

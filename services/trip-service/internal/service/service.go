@@ -32,13 +32,19 @@ func NewService(repo domain.TripRepository, users domain.UserInfoProvider) domai
 
 func (s *service) CreateTrip(ctx context.Context, fare *domain.RideFareModel) (*domain.TripModel, error) {
 	trip := &domain.TripModel{
-		ID:          uuid.New().String(),
-		UserID:      fare.UserID,
-		RiderName:   fare.RiderName,
-		RiderAvatar: fare.RiderAvatar,
-		Status:      "searching",
-		Fare:        fare,
-		CreatedAt:   time.Now().Unix(),
+		ID:              uuid.New().String(),
+		UserID:          fare.UserID,
+		RiderName:       fare.RiderName,
+		RiderAvatar:     fare.RiderAvatar,
+		Status:          "searching",
+		Fare:            fare,
+		CreatedAt:       time.Now().Unix(),
+		PickupAddress:   fare.PickupAddress,
+		DropoffAddress:  fare.DropoffAddress,
+		DistanceMeters:  fare.DistanceMeters,
+		DurationSeconds: fare.DurationSeconds,
+		PackageSlug:     fare.PackageSlug,
+		AmountCents:     fare.TotalPriceInCents,
 	}
 	return s.repo.CreateTrip(ctx, trip)
 }
@@ -90,6 +96,14 @@ func (s *service) EstimatePackagesPriceWithRoute(route *tripTypes.MapboxRouteRes
 
 func (s *service) GenerateTripFares(ctx context.Context, rideFares []*domain.RideFareModel, userID string, route *tripTypes.MapboxRouteResponse) ([]*domain.RideFareModel, error) {
 	riderName, riderAvatar := s.users.GetRiderInfo(ctx, userID)
+
+	var distMeters int32
+	var durSecs int32
+	if len(route.Routes) > 0 {
+		distMeters = int32(math.Round(route.Routes[0].Distance))
+		durSecs = int32(math.Round(route.Routes[0].Duration))
+	}
+
 	fares := make([]*domain.RideFareModel, len(rideFares))
 	for i, f := range rideFares {
 		fare := &domain.RideFareModel{
@@ -101,6 +115,15 @@ func (s *service) GenerateTripFares(ctx context.Context, rideFares []*domain.Rid
 			TotalPriceInCents: f.TotalPriceInCents,
 			Route:             route,
 			ExpiresAt:         time.Now().Add(domain.FareExpiryDuration),
+			// Addresses carried over from the preview request via rideFares[0]
+			PickupAddress:  rideFares[0].PickupAddress,
+			DropoffAddress: rideFares[0].DropoffAddress,
+			PickupLat:      rideFares[0].PickupLat,
+			PickupLng:      rideFares[0].PickupLng,
+			DropoffLat:     rideFares[0].DropoffLat,
+			DropoffLng:     rideFares[0].DropoffLng,
+			DistanceMeters:  distMeters,
+			DurationSeconds: durSecs,
 		}
 		if err := s.repo.SaveRideFare(ctx, fare); err != nil {
 			return nil, fmt.Errorf("failed to save trip fare: %w", err)

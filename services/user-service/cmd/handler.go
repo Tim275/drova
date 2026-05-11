@@ -179,15 +179,17 @@ func (app *application) handleGetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	middleware.WriteJSON(w, http.StatusOK, map[string]any{
-		"id":           user.ID,
-		"email":        user.Email,
-		"role":         user.Role,
-		"is_activated": user.IsActivated,
-		"created_at":   user.CreatedAt,
-		"display_name": user.DisplayName,
-		"avatar_url":   user.AvatarURL,
-		"phone":        user.Phone,
-		"address":      user.Address,
+		"id":             user.ID,
+		"email":          user.Email,
+		"role":           user.Role,
+		"is_activated":   user.IsActivated,
+		"created_at":     user.CreatedAt,
+		"display_name":   user.DisplayName,
+		"avatar_url":     user.AvatarURL,
+		"phone":          user.Phone,
+		"address":        user.Address,
+		"total_trips":    user.TotalTrips,
+		"average_rating": user.AverageRating,
 	})
 }
 
@@ -213,7 +215,11 @@ func (app *application) handleUpdateProfile(w http.ResponseWriter, r *http.Reque
 		middleware.WriteError(w, http.StatusInternalServerError, "could not update profile")
 		return
 	}
-	user, _ := app.service.GetByID(r.Context(), claims.UserID)
+	user, err := app.service.GetByID(r.Context(), claims.UserID)
+	if err != nil || user == nil {
+		middleware.WriteError(w, http.StatusInternalServerError, "could not fetch updated profile")
+		return
+	}
 	middleware.WriteJSON(w, http.StatusOK, map[string]any{
 		"id":           user.ID,
 		"display_name": user.DisplayName,

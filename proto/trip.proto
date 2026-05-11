@@ -17,6 +17,8 @@ message PreviewTripRequest {
   string userID = 1;
   Coordinate startLocation = 2;
   Coordinate endLocation = 3;
+  string pickupAddress = 4;
+  string dropoffAddress = 5;
 }
 
 message PreviewTripResponse {
@@ -55,6 +57,10 @@ message RideFare {
   string userID = 2;
   string packageSlug = 3;
   int64 totalPriceInCents = 4;
+  string pickupAddress = 5;
+  string dropoffAddress = 6;
+  int32 distanceMeters = 7;
+  int32 durationSeconds = 8;
 }
 
 message Trip {
@@ -86,6 +92,11 @@ message TripHistoryItem {
   string driverPlate = 6;
   int32  rating = 7;
   int64  createdAt = 8;
+  string pickupAddress = 9;
+  string dropoffAddress = 10;
+  int32  distanceMeters = 11;
+  int32  durationSeconds = 12;
+  string driverAvatar = 13;
 }
 
 message DriverTripHistoryItem {
@@ -96,6 +107,10 @@ message DriverTripHistoryItem {
   string riderName = 5;
   string riderAvatar = 6;
   int64  createdAt = 7;
+  string pickupAddress = 8;
+  string dropoffAddress = 9;
+  int32  distanceMeters = 10;
+  int32  durationSeconds = 11;
 }
 
 message TripsResponse {

@@ -133,33 +133,43 @@ func (c *TripConsumer) startResponseTimer(ctx context.Context, tripID, driverID 
 	if !loaded {
 		return // already handled by response/cancel path
 	}
-	pi := val.(pendingInfo)
-	pi.cancel() // cleanup context resource
+	pi, ok := val.(pendingInfo)
+	if !ok {
+		return
+	}
 	if pi.driverID != driverID {
 		c.pending.Store(tripID, pi) // restore — different driver owns this entry
 		return
 	}
 	appLog.Infow("driver timed out", "driver", driverID, "trip", tripID)
-	c.service.ClearBusy(ctx, driverID)
+	// Use background context: timerCtx (ctx) must not be cancelled before cleanup finishes.
+	// pi.cancel() would cancel ctx, so we call it last.
+	bgCtx := context.Background()
+	c.service.ClearBusy(bgCtx, driverID)
 	event.ExcludeDriverIDs = append(event.ExcludeDriverIDs, driverID)
-	_ = c.publishRetry(ctx, event)
+	_ = c.publishRetry(bgCtx, event)
+	pi.cancel() // release context resources after cleanup
 }
 
-// ExtendTimerForDriver is called on driver reconnect. It resets the 15s window so a
-// brief disconnection doesn't cause the trip to be re-assigned to another driver.
-func (c *TripConsumer) ExtendTimerForDriver(parentCtx context.Context, tripID, driverID string) {
+// ExtendTimerForDriver is called on driver reconnect. Returns true if the timer was found
+// and extended, false if no pending entry exists (service restarted or trip already resolved).
+func (c *TripConsumer) ExtendTimerForDriver(parentCtx context.Context, tripID, driverID string) bool {
 	val, loaded := c.pending.LoadAndDelete(tripID) // atomically take
 	if !loaded {
-		return // timer already fired or driver responded — nothing to extend
+		return false // timer fired, driver responded, or service restarted
 	}
-	pi := val.(pendingInfo)
+	pi, ok := val.(pendingInfo)
+	if !ok {
+		return false
+	}
 	if pi.driverID != driverID {
 		c.pending.Store(tripID, pi) // belongs to a different driver, put back
-		return
+		return false
 	}
 	pi.cancel() // stop old timer goroutine
 	appLog.Infow("timer extended on driver reconnect", "driver", driverID, "trip", tripID)
 	c.spawnTimer(parentCtx, pi.event, driverID)
+	return true
 }
 
 func (c *TripConsumer) handleDriverResponse(ctx context.Context, payload []byte) error {
@@ -172,8 +182,9 @@ func (c *TripConsumer) handleDriverResponse(ctx context.Context, payload []byte)
 		return fmt.Errorf("unmarshal data: %w", err)
 	}
 	if val, loaded := c.pending.LoadAndDelete(data.TripID); loaded {
-		pi := val.(pendingInfo)
-		pi.cancel() // stop the 15s timer goroutine
+		if pi, ok := val.(pendingInfo); ok {
+			pi.cancel() // stop the 15s timer goroutine
+		}
 	}
 	if msg.Type == "driver.cmd.trip_decline" {
 		c.service.ClearBusy(ctx, data.Driver.ID)
@@ -184,15 +195,20 @@ func (c *TripConsumer) handleDriverResponse(ctx context.Context, payload []byte)
 func (c *TripConsumer) handleTripCancelled(ctx context.Context, payload []byte) error {
 	var msg messaging.KafkaMessage
 	if err := json.Unmarshal(payload, &msg); err != nil {
+		appLog.Warnw("handleTripCancelled: unmarshal envelope", "err", err)
 		return nil
 	}
 	var data messaging.TripCancelledEvent
 	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		appLog.Warnw("handleTripCancelled: unmarshal data", "err", err)
 		return nil
 	}
 	c.waitingDelete(ctx, data.TripID)
 	if val, loaded := c.pending.LoadAndDelete(data.TripID); loaded {
-		pi := val.(pendingInfo)
+		pi, ok := val.(pendingInfo)
+		if !ok {
+			return nil
+		}
 		pi.cancel() // stop the 15s timer goroutine
 		c.service.ClearBusy(ctx, pi.driverID)
 		appLog.Infow("trip cancelled (pre-accept)", "trip", data.TripID, "driver", pi.driverID)
@@ -201,6 +217,7 @@ func (c *TripConsumer) handleTripCancelled(ctx context.Context, payload []byte) 
 	if data.DriverID != "" {
 		c.service.ClearBusy(ctx, data.DriverID)
 		appLog.Infow("trip cancelled (post-accept)", "trip", data.TripID, "driver", data.DriverID)
+		go c.tryMatchFreedDriver(context.Background(), data.DriverID)
 	}
 	return nil
 }
@@ -208,17 +225,33 @@ func (c *TripConsumer) handleTripCancelled(ctx context.Context, payload []byte) 
 func (c *TripConsumer) handleTripCompleted(ctx context.Context, payload []byte) error {
 	var msg messaging.KafkaMessage
 	if err := json.Unmarshal(payload, &msg); err != nil {
+		appLog.Warnw("handleTripCompleted: unmarshal envelope", "err", err)
 		return nil
 	}
 	var data messaging.TripStatusEvent
 	if err := json.Unmarshal(msg.Data, &data); err != nil {
+		appLog.Warnw("handleTripCompleted: unmarshal data", "err", err)
 		return nil
 	}
 	if data.DriverID != "" {
 		c.service.ClearBusy(ctx, data.DriverID)
 		appLog.Infow("trip completed, driver freed", "trip", data.TripID, "driver", data.DriverID)
+		go c.tryMatchFreedDriver(context.Background(), data.DriverID)
 	}
 	return nil
+}
+
+// tryMatchFreedDriver checks the waiting queue after a driver is freed (trip completed/cancelled).
+func (c *TripConsumer) tryMatchFreedDriver(ctx context.Context, driverID string) {
+	packageSlug, err := c.rdb.HGet(ctx, driverKey(driverID), "packageSlug").Result()
+	if err != nil || packageSlug == "" {
+		return
+	}
+	pos, err := c.rdb.GeoPos(ctx, geoKey(packageSlug), driverID).Result()
+	if err != nil || len(pos) == 0 || pos[0] == nil {
+		return
+	}
+	c.TryMatchWaiting(ctx, packageSlug, pos[0].Latitude, pos[0].Longitude)
 }
 
 func (c *TripConsumer) TryMatchWaiting(ctx context.Context, packageSlug string, lat, lng float64) {

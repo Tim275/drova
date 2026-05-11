@@ -83,6 +83,9 @@ func main() {
 		Password: env.GetString("REDIS_PASSWORD", ""),
 	})
 	defer rdb.Close()
+	if err := rdb.Ping(context.Background()).Err(); err != nil {
+		log.Fatalw("redis ping failed", zap.Error(err))
+	}
 
 	migrationsPath := env.GetString("MIGRATIONS_PATH", "services/user-service/migrations")
 	if err := runMigrations(env.GetString("DB_URL", ""), migrationsPath); err != nil {

@@ -15,8 +15,11 @@ type Message struct {
 	TripID     string             `json:"trip_id" bson:"trip_id"`
 	SenderID   string             `json:"sender_id" bson:"sender_id"`
 	SenderRole string             `json:"sender_role" bson:"sender_role"`
+	SenderName string             `json:"sender_name" bson:"sender_name"`
 	Content    string             `json:"content" bson:"content"`
 	SentAt     time.Time          `json:"sent_at" bson:"sent_at"`
+	ReadAt     *time.Time         `json:"read_at,omitempty" bson:"read_at,omitempty"`
+	DeletedAt  *time.Time         `json:"deleted_at,omitempty" bson:"deleted_at,omitempty"`
 }
 
 type MessageStore struct {
@@ -41,12 +44,13 @@ func NewMessageStore(ctx context.Context, uri string) (*MessageStore, error) {
 	return &MessageStore{client: client, coll: coll}, nil
 }
 
-func (s *MessageStore) Save(ctx context.Context, tripID, senderID, senderRole, content string) (*Message, error) {
+func (s *MessageStore) Save(ctx context.Context, tripID, senderID, senderRole, senderName, content string) (*Message, error) {
 	msg := &Message{
 		ID:         primitive.NewObjectID(),
 		TripID:     tripID,
 		SenderID:   senderID,
 		SenderRole: senderRole,
+		SenderName: senderName,
 		Content:    content,
 		SentAt:     time.Now().UTC(),
 	}
@@ -70,6 +74,38 @@ func (s *MessageStore) GetMessages(ctx context.Context, tripID string, limit int
 		return nil, err
 	}
 	return msgs, nil
+}
+
+// MarkAllRead marks all messages in a trip NOT sent by readerID as read.
+// Returns the timestamp used so callers can broadcast it.
+func (s *MessageStore) MarkAllRead(ctx context.Context, tripID, readerID string) (time.Time, error) {
+	now := time.Now().UTC()
+	_, err := s.coll.UpdateMany(ctx,
+		bson.M{
+			"trip_id":   tripID,
+			"sender_id": bson.M{"$ne": readerID},
+			"read_at":   nil,
+			"deleted_at": nil,
+		},
+		bson.M{"$set": bson.M{"read_at": now}},
+	)
+	return now, err
+}
+
+// SoftDelete marks a message as deleted (only by the original sender).
+func (s *MessageStore) SoftDelete(ctx context.Context, messageID, senderID string) (*Message, error) {
+	oid, err := primitive.ObjectIDFromHex(messageID)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now().UTC()
+	var msg Message
+	err = s.coll.FindOneAndUpdate(ctx,
+		bson.M{"_id": oid, "sender_id": senderID, "deleted_at": nil},
+		bson.M{"$set": bson.M{"deleted_at": now, "content": ""}},
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	).Decode(&msg)
+	return &msg, err
 }
 
 func (s *MessageStore) Close() {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io"
+	"time"
 
 	pb "drova/shared/proto/driver"
 
@@ -30,19 +31,27 @@ func (h *driverGrpcHandler) RegisterDriver(ctx context.Context, req *pb.Register
 
 	busyTripID := h.service.GetBusyTripID(ctx, req.GetDriverID())
 	if busyTripID != "" {
-		if !h.service.IsBusyFresh(ctx, req.GetDriverID()) {
-			// TTL sentinel expired — service restarted while driver was mid-trip.
-			// The Kafka trip.event.completed was already acked; ClearBusy was never called.
+		if !h.consumer.ExtendTimerForDriver(ctx, busyTripID, req.GetDriverID()) {
+			// No pending timer — service restarted or trip already resolved.
+			// Clear stale busy state so the driver is immediately available.
 			h.service.ClearBusy(ctx, req.GetDriverID())
 			busyTripID = ""
-		} else {
-			h.consumer.ExtendTimerForDriver(ctx, busyTripID, req.GetDriverID())
 		}
 	}
 	if busyTripID == "" {
 		loc := driver.GetLocation()
 		if loc != nil {
-			h.consumer.TryMatchWaiting(ctx, driver.GetPackageSlug(), loc.GetLatitude(), loc.GetLongitude())
+			slug := driver.GetPackageSlug()
+			lat := loc.GetLatitude()
+			lng := loc.GetLongitude()
+			// Run after a short delay: the api-gateway sets up the driver's Redis
+			// pub/sub subscription only AFTER this gRPC call returns. If we call
+			// TryMatchWaiting synchronously, the Kafka notification arrives before
+			// the subscription is active and the driver never sees the trip request.
+			go func() {
+				time.Sleep(400 * time.Millisecond)
+				h.consumer.TryMatchWaiting(context.Background(), slug, lat, lng)
+			}()
 		}
 	}
 

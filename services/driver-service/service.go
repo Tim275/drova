@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	math "math/rand/v2"
-	"time"
 
 	"github.com/mmcloughlin/geohash"
 	"github.com/redis/go-redis/v9"
@@ -89,6 +88,8 @@ func (s *Service) FindAvailableDrivers(ctx context.Context, packageSlug string, 
 		excluded[id] = struct{}{}
 	}
 
+	s.log.Infow("driver search start", "package", packageSlug, "lat", pickupLat, "lng", pickupLng, "excluded", excludeIDs)
+
 	for _, radius := range searchRadii {
 		results, err := s.rdb.GeoSearchLocation(ctx, geoKey(packageSlug), &redis.GeoSearchLocationQuery{
 			GeoSearchQuery: redis.GeoSearchQuery{
@@ -103,16 +104,29 @@ func (s *Service) FindAvailableDrivers(ctx context.Context, packageSlug string, 
 			WithDist:  true,
 		}).Result()
 		if err != nil {
+			s.log.Warnw("geo search error", "package", packageSlug, "radius", radius, "err", err)
 			continue
 		}
+
+		s.log.Infow("geo search", "package", packageSlug, "radius", radius, "candidates", len(results))
 
 		var drivers []*pb.Driver
 		for _, r := range results {
 			if _, skip := excluded[r.Name]; skip {
+				s.log.Debugw("driver excluded", "driver", r.Name)
 				continue
 			}
 			hash, err := s.rdb.HGetAll(ctx, driverKey(r.Name)).Result()
-			if err != nil || hash["name"] == "" || hash["busy"] != "" {
+			if err != nil {
+				s.log.Warnw("driver hash error", "driver", r.Name, "err", err)
+				continue
+			}
+			if hash["name"] == "" {
+				s.log.Warnw("driver hash missing — ghost GeoSet entry", "driver", r.Name)
+				continue
+			}
+			if hash["busy"] != "" {
+				s.log.Infow("driver busy, skipping", "driver", r.Name, "trip", hash["busy"])
 				continue
 			}
 			drivers = append(drivers, &pb.Driver{
@@ -129,42 +143,28 @@ func (s *Service) FindAvailableDrivers(ctx context.Context, packageSlug string, 
 			return drivers
 		}
 	}
+
+	s.log.Warnw("no drivers found after all radii", "package", packageSlug)
 	return nil
 }
 
-const busyTTL = 2 * time.Hour // prevents stale busy state after service restart
-
-func busyTTLKey(driverID string) string { return "drv:busy-ttl:" + driverID }
-
 func (s *Service) SetBusy(ctx context.Context, driverID, tripID string) {
-	pipe := s.rdb.Pipeline()
-	pipe.HSet(ctx, driverKey(driverID), "busy", tripID)
-	pipe.Set(ctx, busyTTLKey(driverID), tripID, busyTTL)
-	if _, err := pipe.Exec(ctx); err != nil {
+	if err := s.rdb.HSet(ctx, driverKey(driverID), "busy", tripID).Err(); err != nil {
 		s.log.Warnw("SetBusy failed", "driver", driverID, "trip", tripID, zap.Error(err))
 	}
 }
 
 func (s *Service) ClearBusy(ctx context.Context, driverID string) {
-	pipe := s.rdb.Pipeline()
-	pipe.HSet(ctx, driverKey(driverID), "busy", "")
-	pipe.Del(ctx, busyTTLKey(driverID))
-	if _, err := pipe.Exec(ctx); err != nil {
+	if err := s.rdb.HSet(ctx, driverKey(driverID), "busy", "").Err(); err != nil {
 		s.log.Warnw("ClearBusy failed", "driver", driverID, zap.Error(err))
 	}
 }
 
-// IsBusyFresh returns true if the busy TTL sentinel key still exists.
-// If false, the busy state is stale (set before a service restart) and should be cleared.
-func (s *Service) IsBusyFresh(ctx context.Context, driverID string) bool {
-	exists, err := s.rdb.Exists(ctx, busyTTLKey(driverID)).Result()
-	if err != nil {
-		return true // assume fresh on Redis error — safer than a false clear
-	}
-	return exists > 0
-}
 
 func (s *Service) UpdateLocation(ctx context.Context, driverID string, lat, lng float64) {
+	if lat == 0 || lng == 0 {
+		return
+	}
 	packageSlug, err := s.rdb.HGet(ctx, driverKey(driverID), "packageSlug").Result()
 	if err != nil {
 		return
@@ -184,15 +184,20 @@ func (s *Service) GetBusyTripID(ctx context.Context, driverID string) string {
 	return val
 }
 
-func (s *Service) UnregisterDriver(ctx context.Context, driverID string) {
-	busy, _ := s.rdb.HGet(ctx, driverKey(driverID), "busy").Result()
-	packageSlug, err := s.rdb.HGet(ctx, driverKey(driverID), "packageSlug").Result()
+func (s *Service) UnregisterDriver(_ context.Context, driverID string) {
+	// Always use background context: the caller context (WS/gRPC stream) is already
+	// cancelled at disconnect time, which makes HGet return zero-value strings and
+	// causes ZRem to be skipped while Del runs — leaving a ghost GeoSet entry with
+	// no hash. Background context ensures both cleanup steps always complete.
+	bgCtx := context.Background()
+	busy, _ := s.rdb.HGet(bgCtx, driverKey(driverID), "busy").Result()
+	packageSlug, err := s.rdb.HGet(bgCtx, driverKey(driverID), "packageSlug").Result()
 	if err == nil && packageSlug != "" {
-		s.rdb.ZRem(ctx, geoKey(packageSlug), driverID)
+		s.rdb.ZRem(bgCtx, geoKey(packageSlug), driverID)
 	}
 	// Only delete the driver key when not in an active trip.
 	// If busy, preserve the key so reconnect can resume the trip.
 	if busy == "" {
-		s.rdb.Del(ctx, driverKey(driverID))
+		s.rdb.Del(bgCtx, driverKey(driverID))
 	}
 }

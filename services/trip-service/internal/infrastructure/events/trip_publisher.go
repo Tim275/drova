@@ -67,15 +67,19 @@ func (p *TripEventPublisher) PublishTripCreated(ctx context.Context, trip *domai
 	}
 
 	event := messaging.TripCreatedEvent{
-		TripID:        trip.ID,
-		UserID:        trip.UserID,
-		RiderName:     trip.RiderName,
-		RiderAvatar:   trip.RiderAvatar,
-		PackageSlug:   trip.Fare.PackageSlug,
-		PickupGeohash: pickupGeohash,
-		Pickup:        pickup,
-		Destination:   dest,
-		Route:         route,
+		TripID:         trip.ID,
+		UserID:         trip.UserID,
+		RiderName:      trip.RiderName,
+		RiderAvatar:    trip.RiderAvatar,
+		PackageSlug:    trip.Fare.PackageSlug,
+		PickupGeohash:  pickupGeohash,
+		Pickup:         pickup,
+		Destination:    dest,
+		Route:          route,
+		PickupAddress:  trip.PickupAddress,
+		DropoffAddress: trip.DropoffAddress,
+		PriceCents:     trip.AmountCents,
+		DistanceMeters: trip.DistanceMeters,
 	}
 
 	data, err := json.Marshal(event)

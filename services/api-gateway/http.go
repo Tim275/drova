@@ -31,8 +31,17 @@ import (
 const webhookDedupTTL = 24 * time.Hour
 
 var userServiceProxy = func() *httputil.ReverseProxy {
-	target, _ := url.Parse(env.GetString("USER_SERVICE_HTTP_URL", "http://user-service:8082"))
-	return httputil.NewSingleHostReverseProxy(target)
+	rawURL := env.GetString("USER_SERVICE_HTTP_URL", "http://user-service:8082")
+	target, err := url.Parse(rawURL)
+	if err != nil {
+		panic("invalid USER_SERVICE_HTTP_URL: " + err.Error())
+	}
+	p := httputil.NewSingleHostReverseProxy(target)
+	p.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		appLog.Warnw("user-service proxy error", "err", err)
+		http.Error(w, "user service unavailable", http.StatusBadGateway)
+	}
+	return p
 }()
 
 // handleRefresh proxies POST /v1/auth/refresh to user-service so that

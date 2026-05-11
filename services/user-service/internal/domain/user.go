@@ -13,16 +13,18 @@ const (
 )
 
 type User struct {
-	ID          int64
-	Email       string
-	Password    password
-	Role        Role
-	IsActivated bool
-	CreatedAt   time.Time
-	DisplayName string
-	AvatarURL   string
-	Phone       string
-	Address     string
+	ID            int64
+	Email         string
+	Password      password
+	Role          Role
+	IsActivated   bool
+	CreatedAt     time.Time
+	DisplayName   string
+	AvatarURL     string
+	Phone         string
+	Address       string
+	TotalTrips    int
+	AverageRating float64
 }
 
 type password struct {
