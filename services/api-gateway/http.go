@@ -56,7 +56,7 @@ var (
 )
 
 func handleHealth(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, contracts.APIResponse{Data: map[string]string{"status": "ok", "service": "api-gateway"}})
+	writeJSON(w, http.StatusOK, contracts.APIResponse{Data: "i am alive"})
 }
 
 func handleReadyz(kafka interface{ Ping(ctx context.Context) error }) http.HandlerFunc {
