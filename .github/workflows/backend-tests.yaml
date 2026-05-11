@@ -80,7 +80,7 @@ jobs:
       - name: Run integration tests
         env:
           TEST_DB_URL: postgres://drova:drova@localhost:5432/drova_test?sslmode=disable
-          MIGRATIONS_PATH: services/user-service/migrations
+          MIGRATIONS_PATH: ${{ github.workspace }}/services/user-service/migrations
         run: go test -race -count=1 -tags=integration -timeout 2m ./...
 
       - name: Build all services
