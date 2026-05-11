@@ -519,6 +519,8 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			appLog.Infow("driver status", "driver", userID, "type", driverMsg.Type, "trip", statusData.TripID)
 
+		case "ping":
+			// client keepalive — ignore
 		default:
 			appLog.Warnw("unknown driver message", "type", driverMsg.Type)
 		}

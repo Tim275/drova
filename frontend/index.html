@@ -340,6 +340,18 @@
     .chat-row.mine  .chat-msg-time { justify-content:flex-end; }
     .chat-row.theirs .chat-msg-time { justify-content:flex-start; }
     .chat-tick { font-size:11px; }
+    .chat-seen { font-size:10px; color:#6b7280; margin-top:2px; padding:0 2px; text-align:right; }
+
+    /* Delete button — visible on hover */
+    .chat-msg-wrap-inner { position:relative; display:inline-block; }
+    .chat-delete-btn {
+      display:none; position:absolute; top:-8px; right:-8px;
+      width:18px; height:18px; border-radius:50%; background:#ef4444;
+      color:white; border:none; cursor:pointer; font-size:11px; font-weight:700;
+      line-height:18px; text-align:center; padding:0; z-index:10;
+    }
+    .chat-msg-wrap-inner:hover .chat-delete-btn { display:block; }
+    .chat-msg.deleted { font-style:italic; opacity:.5; }
 
     /* Date separator */
     .chat-date-sep {
@@ -730,7 +742,7 @@
         <button id="btnTripStart" class="status-action-btn btn-start" onclick="driverTripStart()" style="display:none;">Start Trip</button>
         <button id="btnTripEnd"   class="status-action-btn btn-end"   onclick="driverTripEnd()"   style="display:none;">End Trip</button>
         <button id="btnTripCancel" class="status-action-btn" style="margin-top:6px;background:white;color:#111827;border:1.5px solid #d1d5db;" onclick="driverCancelTrip()">Cancel Trip</button>
-        <button id="chatBtnDriver" onclick="openChat()">Message Rider</button>
+        <button id="chatBtnDriver" onclick="openChat()" style="display:none;">Message Rider</button>
       </div>
       <button class="btn btn-outline" style="margin-top:auto;" onclick="goOfflineDriver()">Go Offline</button>
       <button class="sidebar-action-btn" style="margin-top:8px;" onclick="showDriverHistory()">My Trips</button>
@@ -815,8 +827,28 @@
 
   function authToken() { return localStorage.getItem('drova_token'); }
 
-  async function initApp() {
+  async function ensureFreshToken() {
     const token = authToken();
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        // Refresh if token expires within 60 seconds
+        if (payload.exp && (payload.exp - Date.now() / 1000) > 60) return token;
+      } catch (_) {}
+    }
+    try {
+      const res = await fetch('/v1/auth/refresh', { method: 'POST', credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem('drova_token', data.token);
+        return data.token;
+      }
+    } catch (_) {}
+    return token; // fallback to existing token
+  }
+
+  async function initApp() {
+    const token = await ensureFreshToken();
     if (!token) { showAuth(); return; }
 
     try {
@@ -1193,10 +1225,20 @@
 
   let riderWsReconnectTimer = null;
 
+  let _riderHeartbeat = null;
   function connectRiderWS() {
     if (ws && ws.readyState === WebSocket.OPEN) return;
     const _scheme = location.protocol === 'https:' ? 'wss' : 'ws';
     ws = new WebSocket(`${_scheme}://${location.host}/ws/riders?userID=${currentUser.id}&token=${encodeURIComponent(authToken())}`);
+
+    ws.onopen = () => {
+      if (_riderHeartbeat) clearInterval(_riderHeartbeat);
+      _riderHeartbeat = setInterval(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        }
+      }, 20000);
+    };
 
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
@@ -1240,6 +1282,9 @@
         currentTripPhase = 'driver_arrived';
         document.getElementById('arrivalinfo').innerHTML = '';
         setTripStatus('Driver has arrived!', 'Please go to the vehicle.', false);
+        if (plannedRouteCoords && map.getSource('route')) {
+          map.getSource('route').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: plannedRouteCoords } });
+        }
       } else if (msg.type === 'trip.event.in_progress') {
         currentTripPhase = 'in_progress';
         lastRouteUpdateTime = 0;
@@ -1309,11 +1354,12 @@
     };
 
     ws.onclose = () => {
+      if (_riderHeartbeat) { clearInterval(_riderHeartbeat); _riderHeartbeat = null; }
       if (riderWsReconnectTimer) clearTimeout(riderWsReconnectTimer);
       riderWsReconnectTimer = setTimeout(() => {
         riderWsReconnectTimer = null;
         if (currentUser) connectRiderWS();
-      }, 2000);
+      }, 500);
     };
   }
 
@@ -1938,16 +1984,29 @@
         if (simulationInterval !== null) { clearInterval(simulationInterval); simulationInterval = null; }
         stopPreTripTracking();
         currentTripRequest = null;
+        document.getElementById('chatBtnDriver').style.display = 'none';
         setStatus('Trip cancelled by rider. Waiting for new requests...');
       }
     };
 
+    let _driverHeartbeat = null;
+    ws.onopen = () => {
+      if (_driverHeartbeat) clearInterval(_driverHeartbeat);
+      _driverHeartbeat = setInterval(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'ping' }));
+        }
+      }, 20000);
+    };
+
     ws.onclose = () => {
+      if (_driverHeartbeat) { clearInterval(_driverHeartbeat); _driverHeartbeat = null; }
       if (driverReconnectPkg) {
-        setStatus('Connection lost — reconnecting...');
         if (driverReconnectTimer) clearTimeout(driverReconnectTimer);
-        driverReconnectTimer = setTimeout(() => {
-          driverReconnectTimer = null;
+        let _attempts = 0;
+        const _tryReconnect = () => {
+          _attempts++;
+          if (_attempts > 2) setStatus('Connection lost — reconnecting...');
           connectDriverWS(driverReconnectPkg);
           if (tripEndPending) {
             setTimeout(() => {
@@ -1963,9 +2022,8 @@
               }
             }, 2000);
           }
-        }, 1500);
-      } else {
-        setStatus('Connection lost.');
+        };
+        driverReconnectTimer = setTimeout(_tryReconnect, 500);
       }
     };
   }
@@ -2110,6 +2168,7 @@
     document.getElementById('btnTripEnd').style.display = 'none';
     setStatus('Trip accepted. Driving to pickup...');
     activeTripID = currentTripRequest.trip_id;
+    document.getElementById('chatBtnDriver').style.display = 'block';
   }
 
   function declineTrip() {
@@ -2130,6 +2189,7 @@
     stopPreTripTracking();
     setStatus('Trip declined. Waiting for new requests...');
     currentTripRequest = null;
+    document.getElementById('chatBtnDriver').style.display = 'none';
   }
 
   function setTripStatus(text, sub, showCancel) {
@@ -2291,12 +2351,13 @@
     const overlay = document.getElementById('driverhistoryoverlay');
     overlay.style.display = 'flex';
     document.getElementById('driverHistoryList').innerHTML = '<p style="color:#6b7280;font-size:14px;">Loading...</p>';
-    if (!registeredDriverID) {
-      document.getElementById('driverHistoryList').innerHTML = '<p style="color:#6b7280;font-size:14px;">Go online first to see your trips.</p>';
+    const drvID = registeredDriverID || currentUser?.id;
+    if (!drvID) {
+      document.getElementById('driverHistoryList').innerHTML = '<p style="color:#6b7280;font-size:14px;">No trips yet.</p>';
       return;
     }
     try {
-      const res = await fetch(`/trips/driver-history?driverID=${encodeURIComponent(registeredDriverID)}`, {
+      const res = await fetch(`/trips/driver-history?driverID=${encodeURIComponent(drvID)}`, {
         headers: { 'Authorization': 'Bearer ' + authToken() }
       });
       const trips = await res.json();
@@ -2444,6 +2505,7 @@
       window._currentTripRoute = null;
       window._currentTripRiderID = null;
       currentTripRequest = null;
+      document.getElementById('chatBtnDriver').style.display = 'none';
       tripEndPending = false;
     } else {
       setStatus('Connection lost — will retry automatically...');
@@ -2470,6 +2532,7 @@
     window._currentTripRoute = null;
     window._currentTripRiderID = null;
     currentTripRequest = null;
+    document.getElementById('chatBtnDriver').style.display = 'none';
   }
 
   // Boot
@@ -2479,7 +2542,7 @@
   let chatWs = null;
   let chatTripID = null;
 
-  function openChat() {
+  async function openChat() {
     // Driver always uses currentTripRequest.trip_id (most current),
     // Rider falls back to activeTripID
     const tripID = currentTripRequest?.trip_id || activeTripID;
@@ -2516,24 +2579,49 @@
 
     if (chatWs) { chatWs.close(); chatWs = null; }
 
-    const token = encodeURIComponent(authToken());
+    const freshToken = await ensureFreshToken();
+    const token = encodeURIComponent(freshToken || '');
     const _wsSchemeC = location.protocol === 'https:' ? 'wss' : 'ws';
     const _chatHost = location.protocol === 'https:' ? location.host : `${location.hostname}:8084`;
     chatWs = new WebSocket(
       `${_wsSchemeC}://${_chatHost}/ws/chat?tripID=${chatTripID}&userID=${currentUser.id}&token=${token}`
     );
 
+    chatWs.onopen = () => {
+      chatWs.send(JSON.stringify({ type: 'read' }));
+    };
+
     chatWs.onmessage = (event) => {
       const msg = JSON.parse(event.data);
       if (msg.type === 'history') {
         msg.messages.forEach(renderChatMessage);
+      } else if (msg.type === 'message_deleted') {
+        // Find and update the deleted bubble
+        const bubble = document.querySelector(`[data-msg-id="${msg.message_id}"]`);
+        if (bubble) {
+          bubble.textContent = 'Message deleted';
+          bubble.classList.add('deleted');
+          const inner = bubble.parentElement;
+          const del = inner?.querySelector('.chat-delete-btn');
+          if (del) del.remove();
+        }
+      } else if (msg.type === 'read_receipt') {
+        // Mark all own message ticks as ✓✓
+        document.querySelectorAll('.chat-tick').forEach(t => { t.textContent = '✓✓'; });
       } else {
         renderChatMessage(msg);
       }
     };
 
     chatWs.onerror = () => {
-      appendChatInfo('Chat connection failed.');
+      appendChatInfo('Chat connection failed — retrying...');
+    };
+
+    chatWs.onclose = () => {
+      // Auto-reconnect if the overlay is still open and trip is active
+      if (chatTripID && document.getElementById('chatoverlay').classList.contains('active')) {
+        setTimeout(() => openChat(), 1500);
+      }
     };
   }
 
@@ -2545,8 +2633,13 @@
     const input = document.getElementById('chatInput');
     const content = input.value.trim();
     if (!content || !chatWs || chatWs.readyState !== WebSocket.OPEN) return;
-    chatWs.send(JSON.stringify({ content }));
+    chatWs.send(JSON.stringify({ type: 'message', content }));
     input.value = '';
+  }
+
+  function deleteChatMessage(msgId) {
+    if (!chatWs || chatWs.readyState !== WebSocket.OPEN) return;
+    chatWs.send(JSON.stringify({ type: 'delete', message_id: msgId }));
   }
 
   let lastChatDate = null;
@@ -2617,18 +2710,41 @@
       wrap.appendChild(label);
     }
 
+    const isDeleted = !!msg.deleted_at || (msg.content === '' && msg.id);
+
     const bubble = document.createElement('div');
-    // Color: mine = dark, theirs-driver = blue, theirs-rider = white
     let bubbleClass = 'chat-msg ' + (isMine ? 'mine' : 'theirs');
     if (!isMine && senderRole === 'driver') bubbleClass += ' role-driver';
+    if (isDeleted) bubbleClass += ' deleted';
     bubble.className = bubbleClass;
-    bubble.textContent = msg.content;
+    bubble.textContent = isDeleted ? 'Message deleted' : msg.content;
+    if (msg.id) bubble.dataset.msgId = msg.id;
+
+    // Wrap bubble so delete button can be positioned absolutely
+    const inner = document.createElement('div');
+    inner.className = 'chat-msg-wrap-inner';
+    inner.appendChild(bubble);
+
+    if (isMine && !isDeleted && msg.id) {
+      const del = document.createElement('button');
+      del.className = 'chat-delete-btn';
+      del.title = 'Delete message';
+      del.textContent = '×';
+      del.onclick = () => deleteChatMessage(msg.id);
+      inner.appendChild(del);
+    }
 
     const meta = document.createElement('div');
     meta.className = 'chat-msg-time';
     meta.textContent = time;
+    if (isMine) {
+      const tick = document.createElement('span');
+      tick.className = 'chat-tick';
+      tick.textContent = msg.read_at ? '✓✓' : '✓';
+      meta.appendChild(tick);
+    }
 
-    wrap.appendChild(bubble);
+    wrap.appendChild(inner);
     wrap.appendChild(meta);
 
     if (isMine) {
