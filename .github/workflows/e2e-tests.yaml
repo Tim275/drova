@@ -1,0 +1,150 @@
+name: E2E Tests
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: false
+        type: string
+        default: ""
+        description: "Image tag aus GHCR (leer = lokal bauen für PR)"
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  e2e:
+    name: E2E Smoke Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: drova
+          POSTGRES_PASSWORD: drova
+          POSTGRES_DB: drova
+        options: >-
+          --health-cmd "pg_isready -U drova -d drova"
+          --health-interval 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-retries 10
+      kafka:
+        image: confluentinc/cp-kafka:7.6.0
+        env:
+          KAFKA_NODE_ID: 1
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://172.17.0.1:9092
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      mongo:
+        image: mongo:7
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Checkout drova-gitops
+        uses: actions/checkout@v4
+        with:
+          repository: Tim275/drova-gitops
+          token: ${{ secrets.GITOPS_PAT }}
+          path: drova-gitops
+
+      - name: Install k3d
+        run: |
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.7.4 bash
+          k3d version
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Create k3d cluster
+        run: |
+          k3d cluster create drova-e2e \
+            --no-lb \
+            --k3s-arg "--disable=traefik@server:0" \
+            --wait
+          kubectl cluster-info
+
+      - name: Login to GHCR
+        if: inputs.tag != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build images locally (PR mode)
+        if: inputs.tag == ''
+        run: |
+          for svc in api-gateway user-service trip-service driver-service payment-service chat-service; do
+            echo "Building $svc..."
+            docker build -t ghcr.io/tim275/drova/$svc:e2e \
+              -f services/$svc/Dockerfile . -q
+          done
+          docker build -t ghcr.io/tim275/drova/frontend:e2e \
+            -f frontend/Dockerfile frontend/ -q
+
+      - name: Pull images from GHCR (release mode)
+        if: inputs.tag != ''
+        run: |
+          for svc in api-gateway user-service trip-service driver-service payment-service chat-service frontend; do
+            docker pull ghcr.io/tim275/drova/$svc:${{ inputs.tag }}
+            docker tag ghcr.io/tim275/drova/$svc:${{ inputs.tag }} \
+                       ghcr.io/tim275/drova/$svc:e2e
+          done
+
+      - name: Load images into k3d
+        run: |
+          for svc in api-gateway user-service trip-service driver-service payment-service chat-service frontend; do
+            k3d image import ghcr.io/tim275/drova/$svc:e2e -c drova-e2e
+          done
+
+      - name: Create namespace + deploy
+        run: |
+          kubectl create namespace drova-e2e
+          kubectl apply -k scripts/e2e-overlay/
+          kubectl rollout status deployment/api-gateway -n drova-e2e --timeout=120s
+          kubectl rollout status deployment/user-service -n drova-e2e --timeout=120s
+          kubectl rollout status deployment/trip-service -n drova-e2e --timeout=120s
+
+      - name: Port-forward api-gateway
+        run: |
+          kubectl port-forward svc/api-gateway 8081:8081 -n drova-e2e &
+          sleep 5
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run E2E smoke tests
+        env:
+          E2E_BASE_URL: http://localhost:8081
+          MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
+        run: go test -v -tags=e2e -timeout 3m ./tests/e2e/...
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== api-gateway logs ==="
+          kubectl logs -l app=api-gateway -n drova-e2e --tail=50 || true
+          echo "=== user-service logs ==="
+          kubectl logs -l app=user-service -n drova-e2e --tail=30 || true
+
+      - name: Cleanup
+        if: always()
+        run: k3d cluster delete drova-e2e

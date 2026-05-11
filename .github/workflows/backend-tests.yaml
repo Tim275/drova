@@ -126,6 +126,14 @@ jobs:
           severity: "CRITICAL,HIGH"
           # set exit-code: "0" above to make non-blocking during dependency updates
 
+  e2e:
+    name: E2E Smoke Tests
+    needs: [check_paths, test]
+    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
+    uses: ./.github/workflows/e2e-tests.yaml
+    secrets:
+      GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
+
   codeql:
     name: CodeQL Analysis
     needs: check_paths
