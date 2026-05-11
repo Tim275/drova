@@ -1,37 +1,33 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# Referenziert das drova-gitops base (wird im e2e workflow ausgecheckt)
 resources:
   - ../../drova-gitops/base
+  - configmap.yaml
+  - test-credentials.yaml
 
 namespace: drova-e2e
 
-# Überschreibt alle Infra-URLs auf Docker Bridge IP (172.17.0.1)
-# Pods in k3d erreichen so Kafka/Postgres/Redis/MongoDB auf dem Runner
-configMapGenerator:
-  - name: drova-e2e-env
-    literals:
-      - DB_URL=postgres://drova:drova@172.17.0.1:5432/drova
-      - REDIS_URL=172.17.0.1:6379
-      - REDIS_PASSWORD=
-      - KAFKA_BROKERS=172.17.0.1:9092
-      - MONGO_URI=mongodb://172.17.0.1:27017
-      - ENVIRONMENT=e2e
-      - HTTP_ADDR=:8081
-
 patches:
-  # Alle Deployments auf 1 Replica (CI spart Ressourcen)
   - patch: |-
       - op: replace
         path: /spec/replicas
         value: 1
     target:
       kind: Deployment
-  # imagePullPolicy: Never — Images wurden per k3d image import geladen
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: IfNotPresent
     target:
       kind: Deployment
+  # Not needed for smoke tests — avoids pulling 300MB image
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 0
+    target:
+      kind: Deployment
+      name: schema-registry
+  # CI Kafka has no TLS — clear the cert path so the client uses plaintext
+  - path: patch-no-kafka-tls.yaml
