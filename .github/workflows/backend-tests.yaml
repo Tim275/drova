@@ -12,6 +12,9 @@ permissions:
   pull-requests: write
   security-events: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   check_paths:
     runs-on: ubuntu-latest
@@ -49,7 +52,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U drova -d drova_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 5
@@ -77,6 +80,14 @@ jobs:
       - name: Run unit tests
         run: go test -race -count=1 -timeout 3m -coverprofile=coverage.out ./...
 
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage.out
+          retention-days: 7
+
       - name: Run integration tests
         env:
           TEST_DB_URL: postgres://drova:drova@localhost:5432/drova_test?sslmode=disable
@@ -100,10 +111,10 @@ jobs:
         with:
           image-ref: "drova-api-gateway:latest"
           format: "table"
-          exit-code: "0"
+          exit-code: "1"
           ignore-unfixed: true
           vuln-type: "os,library"
-          severity: "CRITICAL,HIGH"
+          severity: "CRITICAL"
 
   codeql:
     name: CodeQL Analysis

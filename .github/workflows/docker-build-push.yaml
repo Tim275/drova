@@ -16,6 +16,7 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/tim275/drova
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build-and-push:
@@ -109,7 +110,7 @@ jobs:
           output: trivy-${{ matrix.service }}.sarif
           severity: CRITICAL,HIGH
           ignore-unfixed: true
-          exit-code: "0"
+          exit-code: "1"
 
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
@@ -120,8 +121,8 @@ jobs:
 
   trigger_gitops:
     name: Trigger GitOps
-    needs: build-and-push
-    if: needs.build-and-push.result == 'success'
+    needs: [build-and-push, security-scan]
+    if: needs.build-and-push.result == 'success' && needs.security-scan.result == 'success'
     uses: ./.github/workflows/update-gitops.yaml
     with:
       tag: ${{ github.ref_name }}
