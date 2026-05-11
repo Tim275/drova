@@ -54,10 +54,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Checkout drova-gitops
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: Tim275/drova-gitops
           token: ${{ secrets.GITOPS_PAT }}
@@ -69,7 +69,7 @@ jobs:
           k3d version
 
       - name: Install kubectl
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@v5
 
       - name: Create k3d cluster
         run: |
@@ -81,7 +81,7 @@ jobs:
 
       - name: Login to GHCR
         if: inputs.tag != ''
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -126,7 +126,7 @@ jobs:
           kubectl port-forward svc/api-gateway 8081:8081 -n drova-e2e &
           sleep 5
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
