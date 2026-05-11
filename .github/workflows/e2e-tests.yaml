@@ -8,6 +8,9 @@ on:
         type: string
         default: ""
         description: "Image tag aus GHCR (leer = lokal bauen für PR)"
+    secrets:
+      GITOPS_PAT:
+        required: true
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
