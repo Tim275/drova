@@ -7,6 +7,13 @@ on:
         required: true
         type: string
         description: "Tag that was deployed (e.g. v0.16.0) — used for rollback if needed"
+  repository_dispatch:
+    types: [production-deployed]
+    # Payload: { "tag": "v0.16.0" }
+    # Trigger from drova-gitops PostSync hook:
+    #   curl -X POST https://api.github.com/repos/Tim275/drova/dispatches \
+    #     -H "Authorization: Bearer $DROVA_PAT" \
+    #     -d '{"event_type":"production-deployed","client_payload":{"tag":"v0.16.0"}}'
 
 permissions:
   contents: write
@@ -18,6 +25,8 @@ jobs:
   verify:
     name: Smoke + Rollback if unhealthy
     runs-on: ubuntu-latest
+    env:
+      DEPLOY_TAG: ${{ github.event.inputs.tag || github.event.client_payload.tag }}
 
     steps:
       - name: Poll production health
@@ -80,7 +89,7 @@ jobs:
       - name: Write job summary
         if: always()
         run: |
-          echo "## Production Verify — ${{ inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "## Production Verify — ${DEPLOY_TAG}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.prod_health.conclusion }}" = "success" ]; then
             echo "✅ Production healthy — smoke tests passed" >> $GITHUB_STEP_SUMMARY
