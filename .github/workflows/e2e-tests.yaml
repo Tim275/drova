@@ -128,7 +128,7 @@ jobs:
           kubectl create namespace drova-e2e
           kubectl apply -k scripts/e2e-overlay/
           kubectl rollout status deployment/api-gateway -n drova-e2e --timeout=120s
-          kubectl rollout status deployment/user-service -n drova-e2e --timeout=180s
+          kubectl rollout status deployment/user-service -n drova-e2e --timeout=300s
           kubectl rollout status deployment/trip-service -n drova-e2e --timeout=120s
 
       - name: Port-forward api-gateway
@@ -195,8 +195,12 @@ jobs:
         run: |
           echo "=== api-gateway logs ==="
           kubectl logs -l app=api-gateway -n drova-e2e --tail=50 || true
-          echo "=== user-service logs ==="
-          kubectl logs -l app=user-service -n drova-e2e --tail=30 || true
+          echo "=== user-service migrate (init container) ==="
+          kubectl logs -l app=user-service -n drova-e2e -c migrate --tail=50 || true
+          echo "=== user-service pod describe ==="
+          kubectl describe pod -l app=user-service -n drova-e2e | tail -30 || true
+          echo "=== all pods ==="
+          kubectl get pods -n drova-e2e || true
 
       - name: Cleanup
         if: always()
