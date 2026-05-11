@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -155,6 +156,75 @@ func TestTripPreview(t *testing.T) {
 		t.Fatalf("trip preview: want 200, got %d", resp.StatusCode)
 	}
 	t.Log("✓ /trip/preview ok")
+}
+
+// TestCreateTrip — kompletter Rider-Flow: preview → trip starten → in History prüfen
+// Wird übersprungen wenn MAPBOX_TOKEN nicht gesetzt (kein Secret in PR)
+func TestCreateTrip(t *testing.T) {
+	if os.Getenv("MAPBOX_TOKEN") == "" {
+		t.Skip("MAPBOX_TOKEN not set — skipping trip creation")
+	}
+	token := login(t, seedRider, seedPassword)
+
+	// Schritt 1: Fare-Optionen holen
+	previewBody := `{"pickup":"Alexanderplatz, Berlin","dropoff":"Brandenburger Tor, Berlin"}`
+	previewResp := post(t, "/trip/preview", previewBody, authHeader(token))
+	defer previewResp.Body.Close()
+	if previewResp.StatusCode != http.StatusOK {
+		t.Fatalf("preview: want 200, got %d", previewResp.StatusCode)
+	}
+	var fares []map[string]any
+	if err := json.NewDecoder(previewResp.Body).Decode(&fares); err != nil {
+		t.Fatalf("preview decode failed: %v", err)
+	}
+	if len(fares) == 0 {
+		t.Fatal("preview: no fares returned")
+	}
+	fareID, ok := fares[0]["id"].(string)
+	if !ok || fareID == "" {
+		t.Fatalf("preview: no fare id in first option: %v", fares[0])
+	}
+	t.Logf("✓ preview ok, fareID=%s (%d options)", fareID, len(fares))
+
+	// Schritt 2: Trip mit der ersten Fare starten
+	startResp := post(t, "/trip/start", fmt.Sprintf(`{"fareID":%q}`, fareID), authHeader(token))
+	defer startResp.Body.Close()
+	if startResp.StatusCode != http.StatusCreated {
+		t.Fatalf("trip start: want 201, got %d", startResp.StatusCode)
+	}
+	var trip map[string]any
+	if err := json.NewDecoder(startResp.Body).Decode(&trip); err != nil {
+		t.Fatalf("trip start decode failed: %v", err)
+	}
+	tripID, _ := trip["id"].(string)
+	status, _ := trip["status"].(string)
+	if tripID == "" {
+		t.Fatalf("trip start: no id in response: %v", trip)
+	}
+	if status != "searching" {
+		t.Fatalf("trip start: want status=searching, got %q", status)
+	}
+	t.Logf("✓ trip created id=%s status=%s", tripID, status)
+
+	// Schritt 3: Trip erscheint in der History
+	histResp := get(t, "/trips/history", authHeader(token))
+	defer histResp.Body.Close()
+	if histResp.StatusCode != http.StatusOK {
+		t.Fatalf("history: want 200, got %d", histResp.StatusCode)
+	}
+	var trips []map[string]any
+	json.NewDecoder(histResp.Body).Decode(&trips)
+	found := false
+	for _, tr := range trips {
+		if tr["id"] == tripID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("trip %s not found in history (got %d trips)", tripID, len(trips))
+	}
+	t.Log("✓ trip appears in history")
 }
 
 // TestDriverLogin — Driver Seed-User funktioniert auch
