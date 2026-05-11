@@ -138,7 +138,7 @@ func (app *application) handleRefreshToken(w http.ResponseWriter, r *http.Reques
 
 	userID, role, err := app.refreshTokens.Validate(r.Context(), cookie.Value)
 	if err != nil {
-		http.SetCookie(w, &http.Cookie{Name: refreshCookieName, MaxAge: -1, Path: "/v1/auth/", Secure: secureCookie(), HttpOnly: true, SameSite: http.SameSiteStrictMode})
+		http.SetCookie(w, &http.Cookie{Name: refreshCookieName, MaxAge: -1, Path: "/v1/auth/", Secure: secureCookie(), HttpOnly: true, SameSite: http.SameSiteStrictMode}) //nolint:gosec
 		middleware.WriteError(w, http.StatusUnauthorized, "invalid or expired refresh token")
 		return
 	}
@@ -242,7 +242,7 @@ func (app *application) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie(refreshCookieName); err == nil {
 		_ = app.refreshTokens.Delete(r.Context(), cookie.Value)
 	}
-	http.SetCookie(w, &http.Cookie{Name: refreshCookieName, MaxAge: -1, Path: "/v1/auth/", Secure: secureCookie()})
+	http.SetCookie(w, &http.Cookie{Name: refreshCookieName, MaxAge: -1, Path: "/v1/auth/", Secure: secureCookie(), HttpOnly: true, SameSite: http.SameSiteStrictMode}) //nolint:gosec
 	middleware.WriteJSON(w, http.StatusOK, map[string]string{"message": "logged out"})
 }
 

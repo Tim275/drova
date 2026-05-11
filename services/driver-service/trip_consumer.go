@@ -172,7 +172,7 @@ func (c *TripConsumer) ExtendTimerForDriver(parentCtx context.Context, tripID, d
 	// Re-send the trip request after a short delay so the driver's Redis pub/sub
 	// subscription is active before the Kafka notification arrives.
 	event := pi.event
-	go func() {
+	go func() { //nolint:gosec
 		time.Sleep(400 * time.Millisecond)
 		if err := c.notifyDriver(context.Background(), driverID, event); err != nil {
 			appLog.Warnw("re-notify driver on reconnect", "driver", driverID, "trip", tripID, "err", err)
