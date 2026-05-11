@@ -278,14 +278,14 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		return nil, nil
 	})
 	if lsErr != nil {
-		appLog.Warnw("location stream open failed", "driver", userID, zap.Error(lsErr))
+		appLog.Warnw("location stream open failed", "driver", claims.UserID, zap.Error(lsErr))
 	} else {
-		appLog.Infow("location stream opened", "driver", userID)
+		appLog.Infow("location stream opened", "driver", claims.UserID)
 	}
 	defer func() {
 		if locationStream != nil {
 			_ = locationStream.CloseSend()
-			appLog.Infow("location stream closed", "driver", userID)
+			appLog.Infow("location stream closed", "driver", claims.UserID)
 		}
 	}()
 

@@ -150,7 +150,8 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 	if senderName == "" {
 		senderName = role
 	}
-	senderName = strings.NewReplacer("\n", " ", "\r", " ").Replace(senderName)
+	senderName = strings.ReplaceAll(strings.ReplaceAll(senderName, "\n", " "), "\r", " ")
+	role = strings.ReplaceAll(strings.ReplaceAll(role, "\n", " "), "\r", " ")
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {

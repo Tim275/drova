@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -79,6 +81,9 @@ func (s *MessageStore) GetMessages(ctx context.Context, tripID string, limit int
 // MarkAllRead marks all messages in a trip NOT sent by readerID as read.
 // Returns the timestamp used so callers can broadcast it.
 func (s *MessageStore) MarkAllRead(ctx context.Context, tripID, readerID string) (time.Time, error) {
+	if _, err := strconv.ParseInt(readerID, 10, 64); err != nil {
+		return time.Time{}, fmt.Errorf("invalid readerID")
+	}
 	now := time.Now().UTC()
 	_, err := s.coll.UpdateMany(ctx,
 		bson.M{
