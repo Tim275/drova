@@ -26,12 +26,12 @@ jobs:
 
     steps:
       - name: Checkout Actions Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           path: actions-repo
 
       - name: Checkout GitOps repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: Tim275/drova-gitops
           token: ${{ secrets.GITOPS_PAT }}
@@ -51,7 +51,7 @@ jobs:
             "${{ inputs.tag }}" \
             ./drova-gitops/overlays/staging/kustomization.yaml
 
-      - uses: EndBug/add-and-commit@v9
+      - uses: EndBug/add-and-commit@v10
         with:
           author_name: GitOps Bot
           author_email: gitops-bot@github.com
@@ -66,7 +66,7 @@ jobs:
             ./drova-gitops/overlays/production/kustomization.yaml
 
       - name: Create Production Pull Request
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITOPS_PAT }}
           path: ./drova-gitops
