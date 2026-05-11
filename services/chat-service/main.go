@@ -142,10 +142,15 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "tripID required", http.StatusBadRequest)
 		return
 	}
+	if len(tripID) > 64 || strings.ContainsAny(tripID, "\n\r\t $") {
+		http.Error(w, "invalid tripID", http.StatusBadRequest)
+		return
+	}
 	senderName := strings.TrimSpace(r.URL.Query().Get("name"))
 	if senderName == "" {
 		senderName = role
 	}
+	senderName = strings.NewReplacer("\n", " ", "\r", " ").Replace(senderName)
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
