@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - "v*"
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -19,8 +21,22 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  compute-tag:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.value }}
+    steps:
+      - id: tag
+        run: |
+          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            echo "value=$GITHUB_REF_NAME" >> $GITHUB_OUTPUT
+          else
+            echo "value=sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          fi
+
   build-and-push:
     name: Build and Push ${{ matrix.service }}
+    needs: compute-tag
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -69,7 +85,7 @@ jobs:
           file: ${{ matrix.dockerfile }}
           push: true
           tags: |
-            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.ref_name }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ needs.compute-tag.outputs.tag }}
             ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
@@ -85,7 +101,7 @@ jobs:
 
   security-scan:
     name: Trivy Scan ${{ matrix.service }}
-    needs: build-and-push
+    needs: [compute-tag, build-and-push]
     if: always() && needs.build-and-push.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -105,7 +121,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ github.ref_name }}
+          image-ref: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ needs.compute-tag.outputs.tag }}
           format: sarif
           output: trivy-${{ matrix.service }}.sarif
           severity: CRITICAL,HIGH
@@ -122,10 +138,10 @@ jobs:
 
   trigger_gitops:
     name: Trigger GitOps
-    needs: [build-and-push, security-scan]
+    needs: [compute-tag, build-and-push, security-scan]
     if: needs.build-and-push.result == 'success' && needs.security-scan.result == 'success'
     uses: ./.github/workflows/update-gitops.yaml
     with:
-      tag: ${{ github.ref_name }}
+      tag: ${{ needs.compute-tag.outputs.tag }}
     secrets:
       GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
