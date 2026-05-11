@@ -1,0 +1,5 @@
+[allowlist]
+  description = "E2E test credentials with dummy values"
+  paths = [
+    "scripts/e2e-overlay/test-credentials.yaml"
+  ]
