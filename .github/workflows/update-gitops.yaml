@@ -59,6 +59,35 @@ jobs:
           message: 'chore: deploy ${{ inputs.tag }} to staging'
           github_token: ${{ secrets.GITOPS_PAT }}
 
+      - name: Wait for staging rollout
+        run: |
+          echo "Waiting 90s for ArgoCD to sync staging..."
+          sleep 90
+
+      - name: Health-check staging
+        id: staging_health
+        run: |
+          URL="https://staging.drova.timourhomelab.org/health"
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -sf --max-time 10 -o /dev/null -w "%{http_code}" "$URL" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✓ Staging healthy (attempt $i)"
+              exit 0
+            fi
+            echo "Attempt $i: got $STATUS — retrying in 30s..."
+            sleep 30
+          done
+          echo "❌ Staging health-check failed after 5 attempts"
+          exit 1
+
+      - name: Rollback staging on failure
+        if: failure() && steps.staging_health.conclusion == 'failure'
+        run: |
+          cd drova-gitops
+          git revert HEAD --no-edit
+          git push
+          echo "❌ Staging rolled back to previous version"
+
       - name: Update production image tags
         run: |
           ./actions-repo/scripts/update_kustomize_tag \
