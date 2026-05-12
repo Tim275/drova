@@ -1,6 +1,7 @@
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Rate } from 'k6/metrics';
+import { b64encode } from 'k6/encoding';
 
 const errorRate = new Rate('errors');
 
@@ -32,7 +33,7 @@ export default function () {
 
   // Login endpoint — Basic Auth
   const login = http.post(`${BASE_URL}/v1/auth/token`, null, {
-    headers: { Authorization: 'Basic ' + btoa('rider@drova.local:Test1234!') },
+    headers: { Authorization: 'Basic ' + b64encode('rider@drova.local:Test1234!') },
   });
   check(login, { 'login 200': (r) => r.status === 200 });
   errorRate.add(login.status !== 200);
