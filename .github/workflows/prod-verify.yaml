@@ -52,7 +52,7 @@ jobs:
 
       - name: Checkout GitOps repository
         if: failure() && steps.prod_health.conclusion == 'failure'
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           repository: Tim275/drova-gitops
           token: ${{ secrets.GITOPS_PAT }}
