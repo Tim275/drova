@@ -38,7 +38,7 @@ jobs:
   test:
     name: Test Backend
     needs: check_paths
-    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
+    if: ${{ needs.check_paths.outputs.should_run == 'true' && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     env:
       GOFLAGS: "-mod=readonly"
@@ -143,7 +143,7 @@ jobs:
   e2e:
     name: E2E Smoke Tests
     needs: [check_paths, test]
-    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
+    if: ${{ needs.check_paths.outputs.should_run == 'true' && github.event_name == 'pull_request' }}
     uses: ./.github/workflows/e2e-tests.yaml
     secrets:
       GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
