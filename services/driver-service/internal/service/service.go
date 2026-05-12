@@ -1,41 +1,33 @@
-package main
+package service
 
 import (
 	"context"
 	"errors"
 	math "math/rand/v2"
 
+	"drova/services/driver-service/internal/domain"
+	pb "drova/shared/proto/driver"
+	"drova/shared/util"
+
 	"github.com/mmcloughlin/geohash"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
-
-	pb "drova/shared/proto/driver"
-	"drova/shared/util"
 )
 
-type DriverStore interface {
-	Upsert(ctx context.Context, d *pb.Driver) error
-}
-
 type Service struct {
-	store DriverStore
+	store domain.DriverStore
 	rdb   *redis.Client
 	log   *zap.SugaredLogger
 }
 
-func NewService(store DriverStore, rdb *redis.Client, log *zap.SugaredLogger) *Service {
+func NewService(store domain.DriverStore, rdb *redis.Client, log *zap.SugaredLogger) *Service {
 	return &Service{store: store, rdb: rdb, log: log}
 }
 
 var searchRadii = []float64{5, 25, 100, 500, 1500}
 
-func geoKey(packageSlug string) string {
-	return "drova:drivers:geo:" + packageSlug
-}
-
-func driverKey(driverID string) string {
-	return "drova:driver:" + driverID
-}
+func geoKey(packageSlug string) string { return "drova:drivers:geo:" + packageSlug }
+func driverKey(driverID string) string { return "drova:driver:" + driverID }
 
 func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, name string, lat, lng float64) (*pb.Driver, error) {
 	randomIndex := math.IntN(len(PredefinedRoutes))
@@ -159,7 +151,6 @@ func (s *Service) ClearBusy(ctx context.Context, driverID string) {
 		s.log.Warnw("ClearBusy failed", "driver", driverID, zap.Error(err))
 	}
 }
-
 
 func (s *Service) UpdateLocation(ctx context.Context, driverID string, lat, lng float64) {
 	if lat == 0 || lng == 0 {

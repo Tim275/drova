@@ -1,8 +1,8 @@
-package main
+package service
 
 import (
-	math "math/rand/v2"
 	"fmt"
+	math "math/rand/v2"
 )
 
 var PredefinedRoutes = [][][2]float64{

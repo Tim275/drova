@@ -1,12 +1,15 @@
-package main
+package grpc
 
 import (
 	"context"
 	"io"
 	"time"
 
+	"drova/services/driver-service/internal/events"
+	"drova/services/driver-service/internal/service"
 	pb "drova/shared/proto/driver"
 
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -14,12 +17,13 @@ import (
 
 type driverGrpcHandler struct {
 	pb.UnimplementedDriverServiceServer
-	service  *Service
-	consumer *TripConsumer
+	service  *service.Service
+	consumer *events.TripConsumer
+	log      *zap.SugaredLogger
 }
 
-func NewGrpcHandler(s *grpc.Server, service *Service, consumer *TripConsumer) {
-	handler := &driverGrpcHandler{service: service, consumer: consumer}
+func NewHandler(s *grpc.Server, svc *service.Service, consumer *events.TripConsumer, log *zap.SugaredLogger) {
+	handler := &driverGrpcHandler{service: svc, consumer: consumer, log: log}
 	pb.RegisterDriverServiceServer(s, handler)
 }
 
@@ -78,7 +82,7 @@ func (h *driverGrpcHandler) StreamLocation(stream grpc.ClientStreamingServer[pb.
 		}
 		if err != nil {
 			if driverID != "" {
-				h.service.log.Infow("location stream broken, unregistering driver", "driver", driverID)
+				h.log.Infow("location stream broken, unregistering driver", "driver", driverID)
 				h.service.UnregisterDriver(ctx, driverID)
 			}
 			return err

@@ -1,4 +1,4 @@
-package main
+package events
 
 import (
 	"context"
@@ -8,10 +8,11 @@ import (
 	"sync"
 	"time"
 
+	"drova/services/driver-service/internal/domain"
 	"drova/shared/messaging"
-	pb "drova/shared/proto/driver"
 
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
 const waitingTTL = 10 * time.Minute
@@ -19,13 +20,6 @@ const waitingTTL = 10 * time.Minute
 // responseTimeout is the window a driver has to accept a trip request.
 // Overridable in tests to avoid real 15s waits.
 var responseTimeout = 15 * time.Second
-
-// driverServicer is the subset of Service used by TripConsumer — allows unit testing without Redis.
-type driverServicer interface {
-	FindAvailableDrivers(ctx context.Context, packageSlug string, lat, lng float64, exclude []string) []*pb.Driver
-	SetBusy(ctx context.Context, driverID, tripID string)
-	ClearBusy(ctx context.Context, driverID string)
-}
 
 type pendingInfo struct {
 	event    messaging.TripCreatedEvent
@@ -35,26 +29,30 @@ type pendingInfo struct {
 
 type TripConsumer struct {
 	kafka   *messaging.Kafka
-	service driverServicer
+	service domain.DriverServicer
 	rdb     *redis.Client
+	log     *zap.SugaredLogger
 	pending sync.Map // tripID → pendingInfo (short-lived, in-memory is fine)
 }
 
-func NewTripConsumer(kafka *messaging.Kafka, service driverServicer, rdb *redis.Client) *TripConsumer {
-	return &TripConsumer{kafka: kafka, service: service, rdb: rdb}
+func NewTripConsumer(kafka *messaging.Kafka, service domain.DriverServicer, rdb *redis.Client, log *zap.SugaredLogger) *TripConsumer {
+	return &TripConsumer{kafka: kafka, service: service, rdb: rdb, log: log}
 }
+
+func geoKey(packageSlug string) string { return "drova:drivers:geo:" + packageSlug }
+func driverKey(driverID string) string { return "drova:driver:" + driverID }
 
 func (c *TripConsumer) waitingStore(ctx context.Context, event messaging.TripCreatedEvent) {
 	data, err := json.Marshal(event)
 	if err != nil {
-		appLog.Warnw("waiting store marshal", "trip", event.TripID, "err", err)
+		c.log.Warnw("waiting store marshal", "trip", event.TripID, "err", err)
 		return
 	}
 	pipe := c.rdb.Pipeline()
 	pipe.Set(ctx, "drv:waiting:"+event.TripID, data, waitingTTL)
 	pipe.SAdd(ctx, "drv:waiting:pkg:"+event.PackageSlug, event.TripID)
 	if _, err := pipe.Exec(ctx); err != nil {
-		appLog.Warnw("waiting store redis", "trip", event.TripID, "err", err)
+		c.log.Warnw("waiting store redis", "trip", event.TripID, "err", err)
 	}
 }
 
@@ -112,17 +110,17 @@ func (c *TripConsumer) handleFindAndNotifyDrivers(ctx context.Context, payload [
 		return fmt.Errorf("unmarshal trip event: %w", err)
 	}
 
-	appLog.Infow("trip search", "tripID", event.TripID, "package", event.PackageSlug, "type", msg.Type)
+	c.log.Infow("trip search", "tripID", event.TripID, "package", event.PackageSlug, "type", msg.Type)
 
 	drivers := c.service.FindAvailableDrivers(ctx, event.PackageSlug, event.Pickup.Lat, event.Pickup.Lng, event.ExcludeDriverIDs)
 	if len(drivers) == 0 {
-		appLog.Infow("no drivers available, queuing trip", "package", event.PackageSlug, "rider", event.UserID, "trip", event.TripID)
+		c.log.Infow("no drivers available, queuing trip", "package", event.PackageSlug, "rider", event.UserID, "trip", event.TripID)
 		c.waitingStore(ctx, event)
 		return c.publishNoDriversFound(ctx, event)
 	}
 
 	picked := drivers[0]
-	appLog.Infow("driver picked", "driver", picked.Id, "available", len(drivers), "package", event.PackageSlug)
+	c.log.Infow("driver picked", "driver", picked.Id, "available", len(drivers), "package", event.PackageSlug)
 
 	if err := c.notifyDriver(ctx, picked.Id, event); err != nil {
 		return err
@@ -153,7 +151,7 @@ func (c *TripConsumer) startResponseTimer(ctx context.Context, tripID, driverID 
 		c.pending.Store(tripID, pi) // restore — different driver owns this entry
 		return
 	}
-	appLog.Infow("driver timed out", "driver", driverID, "trip", tripID)
+	c.log.Infow("driver timed out", "driver", driverID, "trip", tripID)
 	// Use background context: timerCtx (ctx) must not be cancelled before cleanup finishes.
 	// pi.cancel() would cancel ctx, so we call it last.
 	bgCtx := context.Background()
@@ -179,7 +177,7 @@ func (c *TripConsumer) ExtendTimerForDriver(parentCtx context.Context, tripID, d
 		return false
 	}
 	pi.cancel() // stop old timer goroutine
-	appLog.Infow("timer extended on driver reconnect", "driver", driverID, "trip", tripID)
+	c.log.Infow("timer extended on driver reconnect", "driver", driverID, "trip", tripID)
 	c.spawnTimer(parentCtx, pi.event, driverID)
 	// Re-send the trip request after a short delay so the driver's Redis pub/sub
 	// subscription is active before the Kafka notification arrives.
@@ -187,7 +185,7 @@ func (c *TripConsumer) ExtendTimerForDriver(parentCtx context.Context, tripID, d
 	go func() { //nolint:gosec
 		time.Sleep(400 * time.Millisecond)
 		if err := c.notifyDriver(context.Background(), driverID, event); err != nil {
-			appLog.Warnw("re-notify driver on reconnect", "driver", driverID, "trip", tripID, "err", err)
+			c.log.Warnw("re-notify driver on reconnect", "driver", driverID, "trip", tripID, "err", err)
 		}
 	}()
 	return true
@@ -216,12 +214,12 @@ func (c *TripConsumer) handleDriverResponse(ctx context.Context, payload []byte)
 func (c *TripConsumer) handleTripCancelled(ctx context.Context, payload []byte) error {
 	var msg messaging.KafkaMessage
 	if err := json.Unmarshal(payload, &msg); err != nil {
-		appLog.Warnw("handleTripCancelled: unmarshal envelope", "err", err)
+		c.log.Warnw("handleTripCancelled: unmarshal envelope", "err", err)
 		return nil
 	}
 	var data messaging.TripCancelledEvent
 	if err := json.Unmarshal(msg.Data, &data); err != nil {
-		appLog.Warnw("handleTripCancelled: unmarshal data", "err", err)
+		c.log.Warnw("handleTripCancelled: unmarshal data", "err", err)
 		return nil
 	}
 	c.waitingDelete(ctx, data.TripID)
@@ -232,12 +230,12 @@ func (c *TripConsumer) handleTripCancelled(ctx context.Context, payload []byte) 
 		}
 		pi.cancel() // stop the 15s timer goroutine
 		c.service.ClearBusy(ctx, pi.driverID)
-		appLog.Infow("trip cancelled (pre-accept)", "trip", data.TripID, "driver", pi.driverID)
+		c.log.Infow("trip cancelled (pre-accept)", "trip", data.TripID, "driver", pi.driverID)
 		return nil
 	}
 	if data.DriverID != "" {
 		c.service.ClearBusy(ctx, data.DriverID)
-		appLog.Infow("trip cancelled (post-accept)", "trip", data.TripID, "driver", data.DriverID)
+		c.log.Infow("trip cancelled (post-accept)", "trip", data.TripID, "driver", data.DriverID)
 		go c.tryMatchFreedDriver(context.Background(), data.DriverID) //nolint:gosec
 	}
 	return nil
@@ -246,17 +244,17 @@ func (c *TripConsumer) handleTripCancelled(ctx context.Context, payload []byte) 
 func (c *TripConsumer) handleTripCompleted(ctx context.Context, payload []byte) error {
 	var msg messaging.KafkaMessage
 	if err := json.Unmarshal(payload, &msg); err != nil {
-		appLog.Warnw("handleTripCompleted: unmarshal envelope", "err", err)
+		c.log.Warnw("handleTripCompleted: unmarshal envelope", "err", err)
 		return nil
 	}
 	var data messaging.TripStatusEvent
 	if err := json.Unmarshal(msg.Data, &data); err != nil {
-		appLog.Warnw("handleTripCompleted: unmarshal data", "err", err)
+		c.log.Warnw("handleTripCompleted: unmarshal data", "err", err)
 		return nil
 	}
 	if data.DriverID != "" {
 		c.service.ClearBusy(ctx, data.DriverID)
-		appLog.Infow("trip completed, driver freed", "trip", data.TripID, "driver", data.DriverID)
+		c.log.Infow("trip completed, driver freed", "trip", data.TripID, "driver", data.DriverID)
 		go c.tryMatchFreedDriver(context.Background(), data.DriverID) //nolint:gosec
 	}
 	return nil
@@ -295,9 +293,9 @@ func (c *TripConsumer) TryMatchWaiting(ctx context.Context, packageSlug string, 
 			continue
 		}
 		picked := drivers[0]
-		appLog.Infow("matched waiting trip to new driver", "trip", event.TripID, "driver", picked.Id)
+		c.log.Infow("matched waiting trip to new driver", "trip", event.TripID, "driver", picked.Id)
 		if err := c.notifyDriver(ctx, picked.Id, *event); err != nil {
-			appLog.Warnw("notify driver failed, restoring waiting trip", "err", err)
+			c.log.Warnw("notify driver failed, restoring waiting trip", "err", err)
 			c.waitingStore(ctx, *event)
 			continue
 		}

@@ -1,24 +1,16 @@
-package main
+package events
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
+	"drova/services/driver-service/internal/domain"
 	"drova/shared/messaging"
 	pb "drova/shared/proto/driver"
 
 	"go.uber.org/zap"
 )
-
-func TestMain(m *testing.M) {
-	// appLog is a package-level var initialised in main(); set a no-op logger for tests.
-	appLog = zap.NewNop().Sugar()
-	os.Exit(m.Run())
-}
-
-// --- mock ---
 
 type mockDriverSvc struct {
 	clearBusyCalled bool
@@ -34,17 +26,13 @@ func (m *mockDriverSvc) ClearBusy(_ context.Context, driverID string) {
 	m.clearBusyID = driverID
 }
 
-// --- helpers ---
-
-func newTestConsumer(svc driverServicer) *TripConsumer {
-	return &TripConsumer{service: svc}
+func newTestConsumer(svc domain.DriverServicer) *TripConsumer {
+	return NewTripConsumer(nil, svc, nil, zap.NewNop().Sugar())
 }
 
 func testEvent(tripID string) messaging.TripCreatedEvent {
 	return messaging.TripCreatedEvent{TripID: tripID, UserID: "u1", PackageSlug: "economy"}
 }
-
-// --- tests ---
 
 // Context cancelled before the timer fires → function returns immediately.
 // Pending entry must NOT be deleted (cancel path leaves cleanup to the caller).
@@ -62,7 +50,7 @@ func TestStartResponseTimer_CancelPath(t *testing.T) {
 		close(done)
 	}()
 
-	cancel() // fire immediately
+	cancel()
 
 	select {
 	case <-done:

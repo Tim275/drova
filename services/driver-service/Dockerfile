@@ -6,7 +6,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -trimpath \
     -ldflags="-w -s" \
-    -o /out/driver-service ./services/driver-service
+    -o /out/driver-service ./services/driver-service/cmd
 
 FROM gcr.io/distroless/static-debian12:nonroot
 WORKDIR /app

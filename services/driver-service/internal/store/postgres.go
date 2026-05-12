@@ -4,6 +4,7 @@ import (
 	"context"
 
 	pb "drova/shared/proto/driver"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

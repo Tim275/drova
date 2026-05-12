@@ -10,12 +10,18 @@ import (
 	"syscall"
 	"time"
 
-	"drova/services/driver-service/store"
+	"drova/services/driver-service/internal/events"
+	drivergrpc "drova/services/driver-service/internal/grpc"
+	"drova/services/driver-service/internal/service"
+	"drova/services/driver-service/internal/store"
 	"drova/shared/env"
 	"drova/shared/logger"
 	"drova/shared/messaging"
 	"drova/shared/tracing"
 
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -28,8 +34,6 @@ var (
 	kafkaBrokers = env.GetString("KAFKA_BROKERS", "kafka:9092")
 )
 
-var appLog *zap.SugaredLogger
-
 func main() {
 	envStr := env.GetString("ENVIRONMENT", "development")
 
@@ -40,19 +44,19 @@ func main() {
 	})
 	defer stopTracer(context.Background())
 
-	appLog = logger.New(envStr, "driver-service")
-	defer appLog.Sync()
+	log := logger.New(envStr, "driver-service")
+	defer log.Sync()
 
 	if err != nil {
-		appLog.Warnw("tracing init failed", zap.Error(err))
+		log.Warnw("tracing init failed", zap.Error(err))
 	}
 
-	appLog.Infow("driver-service starting")
+	log.Infow("driver-service starting")
 
 	if err := runMigrations(env.GetString("DB_URL", ""), env.GetString("MIGRATIONS_PATH", "services/driver-service/migrations")); err != nil {
-		appLog.Fatalw("migrations failed", zap.Error(err))
+		log.Fatalw("migrations failed", zap.Error(err))
 	}
-	appLog.Infow("migrations completed")
+	log.Infow("migrations completed")
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
 		os.Exit(0)
 	}
@@ -72,12 +76,12 @@ func main() {
 
 	lis, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
-		appLog.Fatalw("listen failed", zap.Error(err))
+		log.Fatalw("listen failed", zap.Error(err))
 	}
 
 	poolCfg, err := pgxpool.ParseConfig(pgxURL(env.GetString("DB_URL", "")))
 	if err != nil {
-		appLog.Fatalw("db config", zap.Error(err))
+		log.Fatalw("db config", zap.Error(err))
 	}
 	poolCfg.MaxConns = 10
 	poolCfg.MinConns = 2
@@ -85,45 +89,42 @@ func main() {
 
 	db, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
-		appLog.Fatalw("db connect", zap.Error(err))
+		log.Fatalw("db connect", zap.Error(err))
 	}
 	defer db.Close()
 
-	rdb := newRedisClient(
-		env.GetString("REDIS_URL", "redis:6379"),
-		env.GetString("REDIS_PASSWORD", ""),
-	)
+	rdb := newRedisClient(env.GetString("REDIS_URL", "redis:6379"), env.GetString("REDIS_PASSWORD", ""), log)
 
 	pgStore := store.NewPostgresStore(db)
-	svc := NewService(pgStore, rdb, appLog)
+	svc := service.NewService(pgStore, rdb, log)
 
-	consumer := NewTripConsumer(kafka, svc, rdb)
+	consumer := events.NewTripConsumer(kafka, svc, rdb, log)
 	consumer.Start(ctx)
 
-	grpcServer := grpcserver.NewServer(append(tracing.WithTracingInterceptors(),
+	grpcSrv := grpcserver.NewServer(append(tracing.WithTracingInterceptors(),
 		grpcserver.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
 			MinTime:             30 * time.Second,
 			PermitWithoutStream: true,
 		}),
 	)...)
-	NewGrpcHandler(grpcServer, svc, consumer)
+	drivergrpc.NewHandler(grpcSrv, svc, consumer, log)
 
-	appLog.Infow("driver-service ready", "addr", grpcAddr)
+	log.Infow("driver-service ready", "addr", grpcAddr)
 
 	go func() {
-		if err := grpcServer.Serve(lis); err != nil {
-			appLog.Errorw("grpc serve failed", zap.Error(err))
+		if err := grpcSrv.Serve(lis); err != nil {
+			log.Errorw("grpc serve failed", zap.Error(err))
 			cancel()
 		}
 	}()
 
 	<-ctx.Done()
-	appLog.Infow("driver-service shutting down")
+	log.Infow("driver-service shutting down")
 	kafka.Wait()
-	grpcServer.GracefulStop()
+	grpcSrv.GracefulStop()
 }
 
-func newRedisClient(addr, password string) *redis.Client {
+func newRedisClient(addr, password string, log *zap.SugaredLogger) *redis.Client {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     addr,
 		Password: password,
@@ -131,7 +132,7 @@ func newRedisClient(addr, password string) *redis.Client {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	if err := rdb.Ping(ctx).Err(); err != nil {
-		appLog.Fatalw("redis connect failed", "err", err)
+		log.Fatalw("redis connect failed", "err", err)
 	}
 	return rdb
 }
@@ -145,4 +146,19 @@ func pgxURL(dbURL string) string {
 	q.Del("x-migrations-table")
 	u.RawQuery = q.Encode()
 	return u.String()
+}
+
+func runMigrations(dbURL, migrationsPath string) error {
+	stripped := strings.TrimPrefix(dbURL, "postgresql://")
+	stripped = strings.TrimPrefix(stripped, "postgres://")
+	migrateURL := "pgx5://" + stripped
+	m, err := migrate.New("file://"+migrationsPath, migrateURL)
+	if err != nil {
+		return err
+	}
+	defer m.Close()
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return err
+	}
+	return nil
 }
