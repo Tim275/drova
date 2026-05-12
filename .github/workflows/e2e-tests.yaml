@@ -137,7 +137,7 @@ jobs:
       - name: Create namespace + deploy
         run: |
           kubectl create namespace drova-e2e
-          kubectl apply -k scripts/e2e-overlay/
+          kubectl apply -k deploy/e2e/
           kubectl rollout status deployment/api-gateway -n drova-e2e --timeout=120s
           kubectl rollout status deployment/user-service -n drova-e2e --timeout=300s
           kubectl rollout status deployment/trip-service -n drova-e2e --timeout=120s
@@ -173,7 +173,7 @@ jobs:
             -e E2E_TOKEN="" \
             --out json=k6-results.json \
             --no-thresholds \
-            scripts/k6/load-test.js
+            tests/load/load-test.js
 
       - name: Upload k6 results
         if: always()
