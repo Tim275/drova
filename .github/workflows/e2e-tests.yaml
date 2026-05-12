@@ -52,6 +52,12 @@ jobs:
           until docker exec postgres pg_isready -U drova 2>/dev/null; do sleep 2; done
           echo "✓ Postgres ready"
 
+          echo "Creating per-service databases..."
+          docker exec postgres psql -U drova -c "CREATE DATABASE drova_trips;"
+          docker exec postgres psql -U drova -c "CREATE DATABASE drova_payments;"
+          docker exec postgres psql -U drova -c "CREATE DATABASE drova_drivers;"
+          echo "✓ Databases created"
+
           echo "Waiting for Redis..."
           until docker exec redis redis-cli ping 2>/dev/null | grep -q PONG; do sleep 2; done
           echo "✓ Redis ready"
@@ -193,14 +199,20 @@ jobs:
       - name: Show logs on failure
         if: failure()
         run: |
+          echo "=== all pods ==="
+          kubectl get pods -n drova-e2e || true
           echo "=== api-gateway logs ==="
           kubectl logs -l app=api-gateway -n drova-e2e --tail=50 || true
           echo "=== user-service migrate (init container) ==="
           kubectl logs -l app=user-service -n drova-e2e -c migrate --tail=50 || true
           echo "=== user-service pod describe ==="
           kubectl describe pod -l app=user-service -n drova-e2e | tail -30 || true
-          echo "=== all pods ==="
-          kubectl get pods -n drova-e2e || true
+          echo "=== trip-service migrate (init container) ==="
+          kubectl logs -l app=trip-service -n drova-e2e -c migrate --tail=50 || true
+          echo "=== trip-service pod describe ==="
+          kubectl describe pod -l app=trip-service -n drova-e2e | tail -30 || true
+          echo "=== trip-service logs ==="
+          kubectl logs -l app=trip-service -n drova-e2e --tail=50 || true
 
       - name: Cleanup
         if: always()
