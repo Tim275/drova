@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.2](https://github.com/Tim275/drova/compare/v0.16.1...v0.16.2) (2026-05-12)
+
+
+### Bug Fixes
+
+* strip CRLF from email recipient to prevent header injection ([58aa9a2](https://github.com/Tim275/drova/commit/58aa9a29017c33c093973634cc587cf282fdb633))
+
 ## [0.16.1](https://github.com/Tim275/drova/compare/v0.16.0...v0.16.1) (2026-05-12)
 
 
