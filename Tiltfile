@@ -21,7 +21,7 @@ docker_build_with_restart(
 # --- Driver Service ---
 local_resource(
     'driver-service-compile',
-    cmd='CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/driver-service ./services/driver-service',
+    cmd='CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/driver-service ./services/driver-service/cmd',
     deps=['./services/driver-service', './shared'],
     dir='.',
 )
