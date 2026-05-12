@@ -20,44 +20,57 @@ jobs:
     name: E2E Smoke Tests
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: drova
-          POSTGRES_PASSWORD: drova
-          POSTGRES_DB: drova
-        options: >-
-          --health-cmd "pg_isready -U drova -d drova"
-          --health-interval 5s
-          --health-retries 10
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-retries 10
-      kafka:
-        image: confluentinc/cp-kafka:7.6.0
-        env:
-          KAFKA_NODE_ID: 1
-          KAFKA_PROCESS_ROLES: broker,controller
-          KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
-          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://172.17.0.1:9092
-          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
-          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-          CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
-      mongo:
-        image: mongo:7
-        options: >-
-          --health-cmd "mongosh --eval 'db.runCommand({ ping: 1 })'"
-          --health-interval 5s
-          --health-retries 10
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Start infrastructure (host network)
+        run: |
+          # All containers on host network so k3d pods reach them at 172.17.0.1
+          docker run -d --network host --name postgres \
+            -e POSTGRES_USER=drova -e POSTGRES_PASSWORD=drova -e POSTGRES_DB=drova \
+            postgres:17-alpine
+
+          docker run -d --network host --name redis \
+            redis:7-alpine
+
+          docker run -d --network host --name kafka \
+            -e KAFKA_NODE_ID=1 \
+            -e KAFKA_PROCESS_ROLES=broker,controller \
+            -e KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093 \
+            -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://172.17.0.1:9092 \
+            -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@127.0.0.1:9093 \
+            -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER \
+            -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+            -e CLUSTER_ID=MkU3OEVBNTcwNTJENDM2Qk \
+            confluentinc/cp-kafka:7.6.0
+
+          docker run -d --network host --name mongo \
+            mongo:7
+
+          echo "Waiting for Postgres..."
+          until docker exec postgres pg_isready -U drova 2>/dev/null; do sleep 2; done
+          echo "✓ Postgres ready"
+
+          echo "Creating per-service databases..."
+          docker exec postgres psql -U drova -c "CREATE DATABASE drova_trips;"
+          docker exec postgres psql -U drova -c "CREATE DATABASE drova_payments;"
+          docker exec postgres psql -U drova -c "CREATE DATABASE drova_drivers;"
+          echo "✓ Databases created"
+
+          echo "Waiting for Redis..."
+          until docker exec redis redis-cli ping 2>/dev/null | grep -q PONG; do sleep 2; done
+          echo "✓ Redis ready"
+
+          echo "Waiting for Kafka..."
+          for i in {1..40}; do
+            if nc -z 127.0.0.1 9092 2>/dev/null; then echo "✓ Kafka ready"; break; fi
+            sleep 3
+          done
+
+          echo "Waiting for MongoDB..."
+          until docker exec mongo mongosh --eval 'db.runCommand({ping:1})' 2>/dev/null | grep -q ok; do sleep 2; done
+          echo "✓ MongoDB ready"
 
       - name: Checkout drova-gitops
         uses: actions/checkout@v4
@@ -76,6 +89,11 @@ jobs:
 
       - name: Create k3d cluster
         run: |
+          for i in 1 2 3; do
+            docker pull ghcr.io/k3d-io/k3d-tools:5.7.4 && break
+            echo "Pull attempt $i failed, retrying in 15s..."
+            sleep 15
+          done
           k3d cluster create drova-e2e \
             --no-lb \
             --k3s-arg "--disable=traefik@server:0" \
@@ -95,10 +113,10 @@ jobs:
         run: |
           for svc in api-gateway user-service trip-service driver-service payment-service chat-service; do
             echo "Building $svc..."
-            docker build -t ghcr.io/tim275/drova/$svc:e2e \
+            docker build -t ghcr.io/tim275/drova/$svc:latest \
               -f services/$svc/Dockerfile . -q
           done
-          docker build -t ghcr.io/tim275/drova/frontend:e2e \
+          docker build -t ghcr.io/tim275/drova/frontend:latest \
             -f frontend/Dockerfile frontend/ -q
 
       - name: Pull images from GHCR (release mode)
@@ -107,13 +125,13 @@ jobs:
           for svc in api-gateway user-service trip-service driver-service payment-service chat-service frontend; do
             docker pull ghcr.io/tim275/drova/$svc:${{ inputs.tag }}
             docker tag ghcr.io/tim275/drova/$svc:${{ inputs.tag }} \
-                       ghcr.io/tim275/drova/$svc:e2e
+                       ghcr.io/tim275/drova/$svc:latest
           done
 
       - name: Load images into k3d
         run: |
           for svc in api-gateway user-service trip-service driver-service payment-service chat-service frontend; do
-            k3d image import ghcr.io/tim275/drova/$svc:e2e -c drova-e2e
+            k3d image import ghcr.io/tim275/drova/$svc:latest -c drova-e2e
           done
 
       - name: Create namespace + deploy
@@ -121,7 +139,7 @@ jobs:
           kubectl create namespace drova-e2e
           kubectl apply -k scripts/e2e-overlay/
           kubectl rollout status deployment/api-gateway -n drova-e2e --timeout=120s
-          kubectl rollout status deployment/user-service -n drova-e2e --timeout=120s
+          kubectl rollout status deployment/user-service -n drova-e2e --timeout=300s
           kubectl rollout status deployment/trip-service -n drova-e2e --timeout=120s
 
       - name: Port-forward api-gateway
@@ -140,13 +158,70 @@ jobs:
           MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
         run: go test -v -tags=e2e -timeout 3m ./tests/e2e/...
 
+      - name: Install k6
+        run: |
+          K6_VERSION=0.55.0
+          curl -fsSL "https://github.com/grafana/k6/releases/download/v${K6_VERSION}/k6-v${K6_VERSION}-linux-amd64.tar.gz" \
+            | tar xz
+          sudo mv "k6-v${K6_VERSION}-linux-amd64/k6" /usr/local/bin/k6
+          k6 version
+
+      - name: Run k6 load test
+        run: |
+          k6 run \
+            -e BASE_URL=http://localhost:8081 \
+            -e E2E_TOKEN="" \
+            --out json=k6-results.json \
+            --no-thresholds \
+            scripts/k6/load-test.js
+
+      - name: Upload k6 results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: k6-results
+          path: k6-results.json
+          retention-days: 7
+
+      - name: OWASP ZAP DAST scan
+        run: |
+          mkdir -p zap-report
+          chmod 777 zap-report
+          docker run --network host \
+            -v "$(pwd)/zap-report:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
+            -t http://localhost:8081 \
+            -r zap-report.html \
+            -J zap-report.json \
+            -I
+        continue-on-error: true
+
+      - name: Upload ZAP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-dast-report
+          path: zap-report/
+          retention-days: 14
+
       - name: Show logs on failure
         if: failure()
         run: |
+          echo "=== all pods ==="
+          kubectl get pods -n drova-e2e || true
           echo "=== api-gateway logs ==="
           kubectl logs -l app=api-gateway -n drova-e2e --tail=50 || true
-          echo "=== user-service logs ==="
-          kubectl logs -l app=user-service -n drova-e2e --tail=30 || true
+          echo "=== user-service migrate (init container) ==="
+          kubectl logs -l app=user-service -n drova-e2e -c migrate --tail=50 || true
+          echo "=== user-service pod describe ==="
+          kubectl describe pod -l app=user-service -n drova-e2e | tail -30 || true
+          echo "=== trip-service migrate (init container) ==="
+          kubectl logs -l app=trip-service -n drova-e2e -c migrate --tail=50 || true
+          echo "=== trip-service pod describe ==="
+          kubectl describe pod -l app=trip-service -n drova-e2e | tail -30 || true
+          echo "=== trip-service logs ==="
+          kubectl logs -l app=trip-service -n drova-e2e --tail=50 || true
 
       - name: Cleanup
         if: always()

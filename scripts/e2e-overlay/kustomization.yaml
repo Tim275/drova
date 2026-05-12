@@ -18,7 +18,7 @@ patches:
   - patch: |-
       - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
-        value: IfNotPresent
+        value: Never
     target:
       kind: Deployment
   # Not needed for smoke tests — avoids pulling 300MB image

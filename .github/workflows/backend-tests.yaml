@@ -2,6 +2,8 @@ name: Backend Tests
 
 on:
   pull_request:
+  push:
+    branches: [main]
 
 concurrency:
   group: backend-tests-${{ github.event.pull_request.number || github.ref }}
@@ -36,7 +38,7 @@ jobs:
   test:
     name: Test Backend
     needs: check_paths
-    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
+    if: ${{ needs.check_paths.outputs.should_run == 'true' && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     env:
       GOFLAGS: "-mod=readonly"
@@ -59,6 +61,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Secrets scan
         uses: gitleaks/gitleaks-action@v2
@@ -88,6 +92,16 @@ jobs:
 
       - name: Run unit tests
         run: go test -race -count=1 -timeout 3m -coverprofile=coverage.out ./...
+
+      - name: Coverage gate
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | tr -d '%')
+          echo "Coverage: ${COVERAGE}%"
+          if awk "BEGIN {exit !($COVERAGE < 4)}"; then
+            echo "❌ Coverage ${COVERAGE}% is below threshold of 4%"
+            exit 1
+          fi
+          echo "✓ Coverage ${COVERAGE}% meets threshold"
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -129,7 +143,7 @@ jobs:
   e2e:
     name: E2E Smoke Tests
     needs: [check_paths, test]
-    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
+    if: ${{ needs.check_paths.outputs.should_run == 'true' && github.event_name == 'pull_request' }}
     uses: ./.github/workflows/e2e-tests.yaml
     secrets:
       GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
@@ -153,15 +167,15 @@ jobs:
           cache: false
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: go
           queries: security-and-quality
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@v4
 
       - name: Perform analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:go"
