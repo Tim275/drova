@@ -82,7 +82,7 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v7
         with:
-          version: v2.12.1
+          version: v2.12.2
           args: --timeout=5m
 
       - name: Vulnerability check
