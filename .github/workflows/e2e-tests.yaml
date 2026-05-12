@@ -102,10 +102,10 @@ jobs:
         run: |
           for svc in api-gateway user-service trip-service driver-service payment-service chat-service; do
             echo "Building $svc..."
-            docker build -t ghcr.io/tim275/drova/$svc:e2e \
+            docker build -t ghcr.io/tim275/drova/$svc:latest \
               -f services/$svc/Dockerfile . -q
           done
-          docker build -t ghcr.io/tim275/drova/frontend:e2e \
+          docker build -t ghcr.io/tim275/drova/frontend:latest \
             -f frontend/Dockerfile frontend/ -q
 
       - name: Pull images from GHCR (release mode)
@@ -114,13 +114,13 @@ jobs:
           for svc in api-gateway user-service trip-service driver-service payment-service chat-service frontend; do
             docker pull ghcr.io/tim275/drova/$svc:${{ inputs.tag }}
             docker tag ghcr.io/tim275/drova/$svc:${{ inputs.tag }} \
-                       ghcr.io/tim275/drova/$svc:e2e
+                       ghcr.io/tim275/drova/$svc:latest
           done
 
       - name: Load images into k3d
         run: |
           for svc in api-gateway user-service trip-service driver-service payment-service chat-service frontend; do
-            k3d image import ghcr.io/tim275/drova/$svc:e2e -c drova-e2e
+            k3d image import ghcr.io/tim275/drova/$svc:latest -c drova-e2e
           done
 
       - name: Create namespace + deploy
