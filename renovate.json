@@ -21,7 +21,9 @@
   "fetchChangeLogs": "branch",
   "assigneesFromCodeOwners": true,
   "reviewersFromCodeOwners": true,
-  "schedule": ["* * * * *"],
+  "schedule": [
+    "* * * * *"
+  ],
   "timezone": "Europe/Berlin",
   "prConcurrentLimit": 0,
   "prHourlyLimit": 0,
@@ -35,7 +37,10 @@
   "rebaseLabel": "rebase",
   "stopUpdatingLabel": "stop-updating",
   "semanticCommits": "enabled",
-  "labels": ["renovate", "dependencies"],
+  "labels": [
+    "renovate",
+    "dependencies"
+  ],
   "prHeader": "📦 Drova Dependency Update — review labels for risk classification.",
   "enabledManagers": [
     "gomod",
@@ -61,14 +66,18 @@
       "priority-critical",
       "fast-track"
     ],
-    "schedule": ["at any time"],
+    "schedule": [
+      "at any time"
+    ],
     "automerge": false,
     "minimumReleaseAge": "0 days",
     "prCreation": "immediate"
   },
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["before 5am on sunday"],
+    "schedule": [
+      "before 5am on sunday"
+    ],
     "automerge": false
   },
   "packageRules": [
@@ -314,5 +323,8 @@
       "semanticCommitType": "feat",
       "semanticCommitScope": "deps"
     }
+  ],
+  "gitIgnoredAuthors": [
+    "tim275@users.noreply.github.com"
   ]
 }
