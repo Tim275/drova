@@ -252,13 +252,12 @@
       ]
     },
     {
-      "description": "TIER 3 — Major (any manager): 14d soak + manual review + dashboard approval",
+      "description": "TIER 3 — Major (any manager): 14d soak + manual review (PRs auto-created)",
       "matchUpdateTypes": [
         "major"
       ],
       "minimumReleaseAge": "14 days",
       "automerge": false,
-      "dependencyDashboardApproval": true,
       "labels": [
         "major",
         "breaking-change",
