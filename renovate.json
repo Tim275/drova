@@ -1,0 +1,292 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:best-practices",
+    ":dependencyDashboard",
+    ":semanticCommits",
+    ":separateMajorReleases",
+    "helpers:pinGitHubActionDigests",
+    "group:goOpenapi",
+    "group:linters",
+    "group:monorepos",
+    "group:recommended"
+  ],
+  "configMigration": true,
+  "forkProcessing": "disabled",
+  "platformCommit": true,
+  "automergeStrategy": "squash",
+  "internalChecksAsSuccess": true,
+  "transitiveRemediation": true,
+  "separateMinorPatch": true,
+  "separateMultipleMajor": true,
+  "fetchChangeLogs": "branch",
+  "assigneesFromCodeOwners": true,
+  "reviewersFromCodeOwners": true,
+  "schedule": ["* * * * *"],
+  "timezone": "Europe/Berlin",
+  "prConcurrentLimit": 20,
+  "prHourlyLimit": 5,
+  "branchConcurrentLimit": 25,
+  "dependencyDashboard": true,
+  "dependencyDashboardApproval": false,
+  "dependencyDashboardTitle": "🔄 Drova Renovate Dashboard",
+  "dependencyDashboardOSVVulnerabilitySummary": "all",
+  "osvVulnerabilityAlerts": true,
+  "rebaseWhen": "behind-base-branch",
+  "rebaseLabel": "rebase",
+  "stopUpdatingLabel": "stop-updating",
+  "semanticCommits": "enabled",
+  "labels": ["renovate", "dependencies"],
+  "prHeader": "📦 Drova Dependency Update — review labels for risk classification.",
+  "enabledManagers": [
+    "gomod",
+    "dockerfile",
+    "docker-compose",
+    "github-actions",
+    "regex"
+  ],
+  "postUpdateOptions": [
+    "gomodTidy",
+    "gomodUpdateImportPaths"
+  ],
+  "ignorePaths": [
+    "**/vendor/**",
+    "**/node_modules/**",
+    "deploy/**"
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": [
+      "security",
+      "vulnerability",
+      "priority-critical",
+      "fast-track"
+    ],
+    "schedule": ["at any time"],
+    "automerge": false,
+    "minimumReleaseAge": "0 days",
+    "prCreation": "immediate"
+  },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 5am on sunday"],
+    "automerge": false
+  },
+  "packageRules": [
+    {
+      "description": "UNIVERSAL BLOCK: K8s-core (Talos manages cluster, NOT this repo)",
+      "matchPackageNames": [
+        "/^kubernetes$/",
+        "/^k8s.io/",
+        "/registry.k8s.io/kube-/",
+        "/etcd-io/etcd/"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "CRITICAL: Stripe SDK (Payment Service) — 7d soak, MANUAL review only",
+      "matchPackageNames": [
+        "/stripe-go/",
+        "/stripe/"
+      ],
+      "minimumReleaseAge": "7 days",
+      "automerge": false,
+      "dependencyDashboardApproval": true,
+      "labels": [
+        "payment",
+        "critical-infrastructure",
+        "manual-review-required",
+        "high-risk"
+      ],
+      "prBodyNotes": [
+        "⚠️ PAYMENT-CRITICAL: Stripe-SDK update. Review CHANGELOG for breaking API changes, run e2e payment tests locally, plan rollback before merge."
+      ]
+    },
+    {
+      "description": "MESSAGING: gRPC + Kafka + Avro — 5d soak, manual review",
+      "matchPackageNames": [
+        "/google.golang.org/grpc/",
+        "/segmentio/kafka-go/",
+        "/IBM/sarama/",
+        "/hamba/avro/"
+      ],
+      "minimumReleaseAge": "5 days",
+      "automerge": false,
+      "labels": [
+        "messaging",
+        "medium-risk"
+      ]
+    },
+    {
+      "description": "DATA: Postgres (pgx), MongoDB, Redis drivers — 5d soak",
+      "matchPackageNames": [
+        "/jackc/pgx/",
+        "/jackc/pgconn/",
+        "/go.mongodb.org/mongo-driver/",
+        "/redis/go-redis/",
+        "/golang-migrate/"
+      ],
+      "minimumReleaseAge": "5 days",
+      "automerge": false,
+      "labels": [
+        "database",
+        "stateful",
+        "medium-risk"
+      ]
+    },
+    {
+      "description": "SECURITY-RELEVANT: JWT, Crypto, Auth-libs — 5d soak",
+      "matchPackageNames": [
+        "/golang-jwt/",
+        "/^golang.org/x/crypto$/",
+        "/go-playground/validator/"
+      ],
+      "minimumReleaseAge": "5 days",
+      "automerge": false,
+      "labels": [
+        "security",
+        "manual-review-required"
+      ]
+    },
+    {
+      "description": "OBSERVABILITY: OTel libs — 3d soak, can auto-merge patches",
+      "matchPackageNames": [
+        "/^go.opentelemetry.io/"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "minimumReleaseAge": "3 days",
+      "automerge": true,
+      "labels": [
+        "observability",
+        "auto-merge"
+      ]
+    },
+    {
+      "description": "STDLIB-EXTENSIONS: golang.org/x/* — 5d soak (rolls breaking changes silently)",
+      "matchPackageNames": [
+        "/^golang.org/x/"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "minimumReleaseAge": "5 days",
+      "labels": [
+        "stdlib"
+      ]
+    },
+    {
+      "description": "BASE-IMAGES: golang, alpine, distroless — 3d soak",
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchPackageNames": [
+        "golang",
+        "alpine",
+        "/distroless/",
+        "scratch",
+        "nginx"
+      ],
+      "minimumReleaseAge": "3 days",
+      "labels": [
+        "base-image"
+      ]
+    },
+    {
+      "description": "LOCAL-DEV STACK (docker-compose.yaml): aggressive — only dev-env affected",
+      "matchManagers": [
+        "docker-compose"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ],
+      "minimumReleaseAge": "1 day",
+      "automerge": true,
+      "labels": [
+        "dev-stack",
+        "auto-merge"
+      ]
+    },
+    {
+      "description": "TIER 0 — Digest updates: no soak",
+      "matchUpdateTypes": [
+        "digest"
+      ],
+      "minimumReleaseAge": "0 days",
+      "labels": [
+        "digest",
+        "low-risk"
+      ]
+    },
+    {
+      "description": "TIER 1 — Patch (gomod default): 2d soak + auto-merge (testet von CI)",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "minimumReleaseAge": "2 days",
+      "automerge": true,
+      "labels": [
+        "patch",
+        "low-risk",
+        "auto-merge"
+      ]
+    },
+    {
+      "description": "TIER 2 — Minor (gomod default): 5d soak, manual review",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "minimumReleaseAge": "5 days",
+      "automerge": false,
+      "labels": [
+        "minor",
+        "medium-risk"
+      ]
+    },
+    {
+      "description": "TIER 3 — Major (any manager): 14d soak + manual review + dashboard approval",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "minimumReleaseAge": "14 days",
+      "automerge": false,
+      "dependencyDashboardApproval": true,
+      "labels": [
+        "major",
+        "breaking-change",
+        "high-risk",
+        "manual-review-required"
+      ],
+      "prBodyNotes": [
+        "⚠️ MAJOR version update — review CHANGELOG, run full test-suite locally, check breaking-changes section, plan rollback before merge."
+      ]
+    },
+    {
+      "description": "GITHUB-ACTIONS: 2d soak + auto-merge for patches/minors",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor",
+        "digest"
+      ],
+      "minimumReleaseAge": "2 days",
+      "automerge": true,
+      "labels": [
+        "github-actions",
+        "ci",
+        "auto-merge"
+      ]
+    }
+  ]
+}
