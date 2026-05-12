@@ -25,7 +25,6 @@
   "prConcurrentLimit": 0,
   "prHourlyLimit": 0,
   "branchConcurrentLimit": 0,
-  "repositoryCache": "disabled",
   "dependencyDashboard": true,
   "dependencyDashboardApproval": false,
   "dependencyDashboardTitle": "🔄 Drova Renovate Dashboard",
