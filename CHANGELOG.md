@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.16.1](https://github.com/Tim275/drova/compare/v0.16.0...v0.16.1) (2026-05-12)
+
+
+### Bug Fixes
+
+* complete e2e-overlay for k3d CI ([06bc5ac](https://github.com/Tim275/drova/commit/06bc5ac1fc9468b8186e017ddf16794a809eb44d))
+* declare GITOPS_PAT secret in e2e-tests workflow_call ([2692226](https://github.com/Tim275/drova/commit/269222635fde516e10437aff3cba4f1576234f0c))
+* workflow_dispatch tag handling ([d5e6aa7](https://github.com/Tim275/drova/commit/d5e6aa72ee9696501f3803a45b9ce4d0ce7ee325))
+* workflow-level permissions for reusable workflow ([cced5d9](https://github.com/Tim275/drova/commit/cced5d967122836ce5c91db743e86ba2f3eb4fa1))
+
 ## [0.16.0](https://github.com/Tim275/drova/compare/v0.15.0...v0.16.0) (2026-05-11)
 
 
