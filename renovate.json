@@ -285,6 +285,34 @@
         "ci",
         "auto-merge"
       ]
+    },
+    {
+      "description": "RELEASE-PLEASE INTEGRATION: code-affecting deps use fix:/feat: prefix → triggers version bump → new image build → GitOps deploy",
+      "matchManagers": [
+        "gomod",
+        "dockerfile"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor",
+        "digest",
+        "pin",
+        "pinDigest"
+      ],
+      "semanticCommitType": "fix",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "description": "RELEASE-PLEASE INTEGRATION: major code-deps → feat: prefix (minor version bump v0.x → v0.x+1)",
+      "matchManagers": [
+        "gomod",
+        "dockerfile"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "semanticCommitType": "feat",
+      "semanticCommitScope": "deps"
     }
   ]
 }
