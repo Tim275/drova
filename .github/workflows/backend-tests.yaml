@@ -2,8 +2,6 @@ name: Backend Tests
 
 on:
   pull_request:
-  push:
-    branches: [main]
 
 concurrency:
   group: backend-tests-${{ github.event.pull_request.number || github.ref }}
@@ -38,7 +36,7 @@ jobs:
   test:
     name: Test Backend
     needs: check_paths
-    if: ${{ needs.check_paths.outputs.should_run == 'true' && github.event_name == 'pull_request' }}
+    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
     runs-on: ubuntu-latest
     env:
       GOFLAGS: "-mod=readonly"
@@ -143,7 +141,7 @@ jobs:
   e2e:
     name: E2E Smoke Tests
     needs: [check_paths, test]
-    if: ${{ needs.check_paths.outputs.should_run == 'true' && github.event_name == 'pull_request' }}
+    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
     uses: ./.github/workflows/e2e-tests.yaml
     secrets:
       GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
