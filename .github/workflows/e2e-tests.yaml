@@ -89,6 +89,11 @@ jobs:
 
       - name: Create k3d cluster
         run: |
+          for i in 1 2 3; do
+            docker pull ghcr.io/k3d-io/k3d-tools:5.7.4 && break
+            echo "Pull attempt $i failed, retrying in 15s..."
+            sleep 15
+          done
           k3d cluster create drova-e2e \
             --no-lb \
             --k3s-arg "--disable=traefik@server:0" \
