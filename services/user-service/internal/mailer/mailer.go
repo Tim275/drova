@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/smtp"
 	"os"
+	"strings"
 )
 
 type Mailer struct {
@@ -51,6 +52,7 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 }
 
 func (m *Mailer) SendActivation(toEmail, token string) error {
+	toEmail = strings.ReplaceAll(strings.ReplaceAll(toEmail, "\r", ""), "\n", "")
 	link := fmt.Sprintf("%s/v1/users/activate/%s", m.baseURL, token)
 
 	html := fmt.Sprintf(`<!DOCTYPE html>
