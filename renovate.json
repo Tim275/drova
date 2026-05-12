@@ -13,6 +13,7 @@
   ],
   "configMigration": true,
   "forkProcessing": "disabled",
+  "platformCommit": "enabled",
   "automergeStrategy": "squash",
   "internalChecksAsSuccess": true,
   "separateMinorPatch": true,
