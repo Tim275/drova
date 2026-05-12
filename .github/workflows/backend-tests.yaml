@@ -2,6 +2,8 @@ name: Backend Tests
 
 on:
   pull_request:
+  push:
+    branches: [main]
 
 concurrency:
   group: backend-tests-${{ github.event.pull_request.number || github.ref }}
@@ -165,15 +167,15 @@ jobs:
           cache: false
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@v4
         with:
           languages: go
           queries: security-and-quality
 
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+        uses: github/codeql-action/autobuild@v4
 
       - name: Perform analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@v4
         with:
           category: "/language:go"
