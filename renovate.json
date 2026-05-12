@@ -15,7 +15,6 @@
   "forkProcessing": "disabled",
   "automergeStrategy": "squash",
   "internalChecksAsSuccess": true,
-  "transitiveRemediation": true,
   "separateMinorPatch": true,
   "separateMultipleMajor": true,
   "fetchChangeLogs": "branch",
@@ -42,7 +41,7 @@
     "dockerfile",
     "docker-compose",
     "github-actions",
-    "regex"
+    "custom.regex"
   ],
   "postUpdateOptions": [
     "gomodTidy",
