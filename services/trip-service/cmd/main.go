@@ -22,6 +22,7 @@ import (
 	"drova/shared/tracing"
 	pbu "drova/shared/proto/user"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 	grpcserver "google.golang.org/grpc"
@@ -66,13 +67,15 @@ func main() {
 	kafka := messaging.NewKafka(strings.Split(kafkaBrokers, ","))
 	defer kafka.Close()
 
-	poolCfg, err := pgxpool.ParseConfig(pgxURL(env.GetString("DB_URL", "")))
+	poolURL := env.GetString("POOL_URL", env.GetString("DB_URL", ""))
+	poolCfg, err := pgxpool.ParseConfig(pgxURL(poolURL))
 	if err != nil {
 		log.Fatalw("db config", zap.Error(err))
 	}
 	poolCfg.MaxConns = 10
 	poolCfg.MinConns = 2
 	poolCfg.MaxConnIdleTime = 15 * time.Minute
+	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
 	db, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {

@@ -22,6 +22,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -79,13 +80,15 @@ func main() {
 		log.Fatalw("listen failed", zap.Error(err))
 	}
 
-	poolCfg, err := pgxpool.ParseConfig(pgxURL(env.GetString("DB_URL", "")))
+	poolURL := env.GetString("POOL_URL", env.GetString("DB_URL", ""))
+	poolCfg, err := pgxpool.ParseConfig(pgxURL(poolURL))
 	if err != nil {
 		log.Fatalw("db config", zap.Error(err))
 	}
 	poolCfg.MaxConns = 10
 	poolCfg.MinConns = 2
 	poolCfg.MaxConnIdleTime = 15 * time.Minute
+	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
 	db, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {

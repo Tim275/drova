@@ -20,6 +20,7 @@ import (
 	"drova/shared/messaging"
 	"drova/shared/tracing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
@@ -67,13 +68,15 @@ func main() {
 		log.Fatalw("STRIPE_SECRET_KEY is required")
 	}
 
-	poolCfg, err := pgxpool.ParseConfig(stripMigrateParams(env.GetString("DB_URL", "")))
+	poolURL := env.GetString("POOL_URL", env.GetString("DB_URL", ""))
+	poolCfg, err := pgxpool.ParseConfig(stripMigrateParams(poolURL))
 	if err != nil {
 		log.Fatalw("db config", zap.Error(err))
 	}
 	poolCfg.MaxConns = 10
 	poolCfg.MinConns = 2
 	poolCfg.MaxConnIdleTime = 15 * time.Minute
+	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
 	db, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {

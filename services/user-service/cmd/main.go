@@ -21,6 +21,7 @@ import (
 	"drova/shared/tracing"
 	pb "drova/shared/proto/user"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -64,13 +65,15 @@ func main() {
 		return
 	}
 
-	poolCfg, err := pgxpool.ParseConfig(env.GetString("DB_URL", ""))
+	poolURL := env.GetString("POOL_URL", env.GetString("DB_URL", ""))
+	poolCfg, err := pgxpool.ParseConfig(poolURL)
 	if err != nil {
 		log.Fatalw("db config", zap.Error(err))
 	}
 	poolCfg.MaxConns = 25
 	poolCfg.MinConns = 5
 	poolCfg.MaxConnIdleTime = 15 * time.Minute
+	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
 	db, err := pgxpool.NewWithConfig(context.Background(), poolCfg)
 	if err != nil {
