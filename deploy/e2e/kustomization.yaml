@@ -17,10 +17,22 @@ patches:
       kind: Deployment
   - patch: |-
       - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Rollout
+  - patch: |-
+      - op: replace
         path: /spec/template/spec/containers/0/imagePullPolicy
         value: Never
     target:
       kind: Deployment
+  - patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/imagePullPolicy
+        value: Never
+    target:
+      kind: Rollout
   # Not needed for smoke tests — avoids pulling 300MB image
   - patch: |-
       - op: replace
