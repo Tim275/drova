@@ -2,19 +2,6 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: api-gateway
-spec:
-  template:
-    spec:
-      containers:
-        - name: api-gateway
-          env:
-            - name: KAFKA_TLS_CA_CERT
-              value: ""
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
   name: trip-service
 spec:
   template:
