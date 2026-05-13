@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.17.0](https://github.com/Tim275/drova/compare/v0.16.2...v0.17.0) (2026-05-13)
+
+
+### Features
+
+* use POOL_URL + SimpleProtocol for PgBouncer ([#76](https://github.com/Tim275/drova/issues/76)) ([b3e3904](https://github.com/Tim275/drova/commit/b3e39042787aac4c5518618500081d57da4a590f))
+
 ## [0.16.2](https://github.com/Tim275/drova/compare/v0.16.1...v0.16.2) (2026-05-12)
 
 
