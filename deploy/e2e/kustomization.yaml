@@ -5,6 +5,8 @@ resources:
   - ../../drova-gitops/base
   - configmap.yaml
   - test-credentials.yaml
+  # Simple Deployment replaces the Rollout for api-gateway in e2e
+  - api-gateway-e2e.yaml
 
 namespace: drova-e2e
 
@@ -15,10 +17,11 @@ patches:
         value: 1
     target:
       kind: Deployment
+  # Rollout disabled in e2e — api-gateway-e2e.yaml provides a simple Deployment instead
   - patch: |-
       - op: replace
         path: /spec/replicas
-        value: 1
+        value: 0
     target:
       kind: Rollout
   - patch: |-
@@ -27,20 +30,6 @@ patches:
         value: Never
     target:
       kind: Deployment
-  - patch: |-
-      - op: replace
-        path: /spec/template/spec/containers/0/imagePullPolicy
-        value: Never
-    target:
-      kind: Rollout
-  # Canary steps (3m pauses + Prometheus analysis) would never complete in CI
-  - patch: |-
-      - op: replace
-        path: /spec/strategy/canary/steps
-        value: []
-    target:
-      kind: Rollout
-      name: api-gateway
   # Not needed for smoke tests — avoids pulling 300MB image
   - patch: |-
       - op: replace

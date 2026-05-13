@@ -1,17 +1,4 @@
 ---
-apiVersion: argoproj.io/v1alpha1
-kind: Rollout
-metadata:
-  name: api-gateway
-spec:
-  template:
-    spec:
-      containers:
-        - name: api-gateway
-          env:
-            - name: KAFKA_TLS_CA_CERT
-              value: ""
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
