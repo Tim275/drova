@@ -219,8 +219,10 @@ jobs:
         run: |
           echo "=== all pods ==="
           kubectl get pods -n drova-e2e || true
+          echo "=== argo-rollouts controller logs ==="
+          kubectl logs -n argo-rollouts -l app.kubernetes.io/name=argo-rollouts --tail=30 || true
           echo "=== api-gateway rollout ==="
-          kubectl describe rollout api-gateway -n drova-e2e | tail -30 || true
+          kubectl get rollout api-gateway -n drova-e2e -o yaml | tail -40 || true
           echo "=== api-gateway logs ==="
           kubectl logs -l app=api-gateway -n drova-e2e --tail=50 || true
           echo "=== user-service migrate (init container) ==="
