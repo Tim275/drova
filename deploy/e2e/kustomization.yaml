@@ -33,6 +33,14 @@ patches:
         value: Never
     target:
       kind: Rollout
+  # Canary steps (3m pauses + Prometheus analysis) would never complete in CI
+  - patch: |-
+      - op: replace
+        path: /spec/strategy/canary/steps
+        value: []
+    target:
+      kind: Rollout
+      name: api-gateway
   # Not needed for smoke tests — avoids pulling 300MB image
   - patch: |-
       - op: replace

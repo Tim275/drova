@@ -100,6 +100,14 @@ jobs:
             --wait
           kubectl cluster-info
 
+      - name: Install Argo Rollouts
+        run: |
+          kubectl create namespace argo-rollouts
+          kubectl apply -n argo-rollouts \
+            -f https://github.com/argoproj/argo-rollouts/releases/download/v1.7.2/install.yaml
+          kubectl rollout status deployment/argo-rollouts -n argo-rollouts --timeout=120s
+          echo "✓ Argo Rollouts ready"
+
       - name: Login to GHCR
         if: inputs.tag != ''
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
@@ -138,7 +146,7 @@ jobs:
         run: |
           kubectl create namespace drova-e2e
           kubectl apply -k deploy/e2e/
-          kubectl rollout status deployment/api-gateway -n drova-e2e --timeout=120s
+          kubectl wait pod -l app=api-gateway -n drova-e2e --for=condition=Ready --timeout=120s
           kubectl rollout status deployment/user-service -n drova-e2e --timeout=300s
           kubectl rollout status deployment/trip-service -n drova-e2e --timeout=120s
 
