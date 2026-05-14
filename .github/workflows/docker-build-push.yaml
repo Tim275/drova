@@ -105,12 +105,17 @@ jobs:
               break
             fi
           done
-          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
           if [ "$CHANGED" = "false" ]; then
-            echo "⏭ ${{ matrix.service }}: keine Änderungen seit $PREV_TAG — re-tag statt rebuild"
+            if ! docker manifest inspect ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${PREV_TAG} > /dev/null 2>&1; then
+              echo "🔄 ${{ matrix.service }}:${PREV_TAG} fehlt in Registry — rebuild"
+              CHANGED=true
+            else
+              echo "⏭ ${{ matrix.service }}: keine Änderungen seit $PREV_TAG — re-tag"
+            fi
           else
             echo "🔨 ${{ matrix.service }}: Änderungen gefunden — rebuild"
           fi
+          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
 
       - name: Build and Push
         id: build
