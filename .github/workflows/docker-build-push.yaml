@@ -132,12 +132,11 @@ jobs:
         run: |
           CRANE_VERSION="v0.21.5"
           CRANE_FILENAME="go-containerregistry_Linux_x86_64.tar.gz"
-          CRANE_URL="https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/${CRANE_FILENAME}"
+          BASE_URL="https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}"
           cd /tmp
-          curl -sL "${CRANE_URL}" -o "${CRANE_FILENAME}"
-          curl -sL "${CRANE_URL}.sha256" -o crane.sha256
-          sha256sum --check --ignore-missing crane.sha256
-          tar xz crane -f "${CRANE_FILENAME}"
+          curl -sL "${BASE_URL}/${CRANE_FILENAME}" -o "${CRANE_FILENAME}"
+          curl -sL "${BASE_URL}/checksums.txt" | grep "${CRANE_FILENAME}" | sha256sum --check
+          tar xzf "${CRANE_FILENAME}" crane
           sudo mv crane /usr/local/bin/crane
 
       - name: Re-tag unchanged image
