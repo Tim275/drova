@@ -20,7 +20,7 @@ import (
 	pbu "drova/shared/proto/user"
 
 	"github.com/redis/go-redis/v9"
-	"github.com/sony/gobreaker"
+	"github.com/sony/gobreaker/v2"
 	"github.com/stripe/stripe-go/v81"
 	"github.com/stripe/stripe-go/v81/webhook"
 	"go.uber.org/zap"
@@ -59,7 +59,9 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, contracts.APIResponse{Data: "i am alive"})
 }
 
-func handleReadyz(kafka interface{ Ping(ctx context.Context) error }) http.HandlerFunc {
+func handleReadyz(kafka interface {
+	Ping(ctx context.Context) error
+}) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if err := kafka.Ping(r.Context()); err != nil {
 			appLog.Warnw("readyz: kafka unreachable", "err", err)

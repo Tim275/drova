@@ -3,7 +3,7 @@ package grpc_clients
 import (
 	"time"
 
-	"github.com/sony/gobreaker"
+	"github.com/sony/gobreaker/v2"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
