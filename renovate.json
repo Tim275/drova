@@ -14,6 +14,7 @@
   "configMigration": true,
   "forkProcessing": "disabled",
   "platformCommit": "enabled",
+  "gitIgnoredAuthors": ["tim275@users.noreply.github.com"],
   "automergeStrategy": "squash",
   "internalChecksAsSuccess": true,
   "separateMinorPatch": true,
