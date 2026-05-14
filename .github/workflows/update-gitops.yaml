@@ -40,8 +40,10 @@ jobs:
 
       - name: Install yq
         run: |
-          sudo wget -qO /usr/local/bin/yq \
-            https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          YQ_VERSION="v4.44.3"
+          YQ_URL="https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          sudo curl -sL "${YQ_URL}" -o /usr/local/bin/yq
+          echo "ecd74e6e4a6e60e10a0905bd1df14af48afee2dc50f5651bd0a8d1d3f8e01e36  /usr/local/bin/yq" | sha256sum --check
           sudo chmod +x /usr/local/bin/yq
 
       - name: Update staging image tags
@@ -59,11 +61,42 @@ jobs:
           message: 'chore: deploy ${{ inputs.tag }} to staging'
           github_token: ${{ secrets.GITOPS_PAT }}
 
-      - name: Soak — wait for ArgoCD staging sync
+      - name: Wait for ArgoCD to pick up staging commit
         run: |
-          echo "Waiting 90s for ArgoCD to sync staging..."
+          echo "Waiting 90s for ArgoCD to detect and begin syncing..."
           sleep 90
-          echo "✓ Soak complete"
+
+      - name: Staging health check
+        id: staging_health
+        run: |
+          STAGING_URL="${{ vars.STAGING_HEALTH_URL || 'https://staging.drova.timourhomelab.org' }}"
+          MAX_ATTEMPTS=12
+          INTERVAL=20
+
+          echo "Polling ${STAGING_URL}/health (max ${MAX_ATTEMPTS} attempts, ${INTERVAL}s interval)..."
+
+          for i in $(seq 1 $MAX_ATTEMPTS); do
+            STATUS=$(curl -sf --max-time 10 -o /dev/null -w "%{http_code}" "${STAGING_URL}/health" 2>/dev/null || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✓ Staging healthy after attempt ${i} ($(( (i-1) * INTERVAL + 90 ))s total)"
+              exit 0
+            fi
+            echo "  [${i}/${MAX_ATTEMPTS}] HTTP ${STATUS} — retrying in ${INTERVAL}s..."
+            sleep $INTERVAL
+          done
+
+          echo "❌ Staging not healthy after $(( MAX_ATTEMPTS * INTERVAL + 90 ))s — triggering rollback"
+          exit 1
+
+      - name: Auto-rollback staging
+        if: failure() && steps.staging_health.conclusion == 'failure'
+        run: |
+          cd drova-gitops
+          git config user.name "GitOps Bot"
+          git config user.email "gitops-bot@github.com"
+          git revert HEAD --no-edit
+          git push
+          echo "❌ Staging rolled back to previous tag — production PR NOT created"
 
       - name: Update production image tags
         run: |
@@ -86,6 +119,8 @@ jobs:
             Updates all 7 drova service image tags to `${{ inputs.tag }}` in production.
 
             Release: https://github.com/Tim275/drova/releases/tag/${{ inputs.tag }}
+
+            **Staging health check passed** — `/health` returned 200 before this PR was created.
 
             **After merging:** run [Production Verify](https://github.com/Tim275/drova/actions/workflows/prod-verify.yaml) with tag `${{ inputs.tag }}` to confirm production health and auto-rollback if needed.
           labels: |
