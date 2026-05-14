@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.1](https://github.com/Tim275/drova/compare/v0.18.0...v0.18.1) (2026-05-14)
+
+
+### Bug Fixes
+
+* crane sha check + cosign v4 ([2985bef](https://github.com/Tim275/drova/commit/2985befedfddfd9ce2873235ea366d63daf9b2ff))
+
 ## [0.18.0](https://github.com/Tim275/drova/compare/v0.17.1...v0.18.0) (2026-05-14)
 
 
