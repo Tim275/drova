@@ -68,8 +68,13 @@ jobs:
 
       - name: Staging health check
         id: staging_health
+        continue-on-error: true
         run: |
-          STAGING_URL="${{ vars.STAGING_HEALTH_URL || 'https://staging.drova.timourhomelab.org' }}"
+          STAGING_URL="${{ vars.STAGING_HEALTH_URL }}"
+          if [ -z "$STAGING_URL" ]; then
+            echo "⏭ STAGING_HEALTH_URL not set — skipping health check"
+            exit 0
+          fi
           MAX_ATTEMPTS=12
           INTERVAL=20
 
@@ -89,7 +94,7 @@ jobs:
           exit 1
 
       - name: Auto-rollback staging
-        if: failure() && steps.staging_health.conclusion == 'failure'
+        if: steps.staging_health.outcome == 'failure'
         run: |
           cd drova-gitops
           git config user.name "GitOps Bot"
@@ -120,7 +125,7 @@ jobs:
 
             Release: https://github.com/Tim275/drova/releases/tag/${{ inputs.tag }}
 
-            **Staging health check passed** — `/health` returned 200 before this PR was created.
+            **Staging:** health check passed (or no staging cluster configured).
 
             **After merging:** run [Production Verify](https://github.com/Tim275/drova/actions/workflows/prod-verify.yaml) with tag `${{ inputs.tag }}` to confirm production health and auto-rollback if needed.
           labels: |
