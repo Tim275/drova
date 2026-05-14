@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.18.0](https://github.com/Tim275/drova/compare/v0.17.1...v0.18.0) (2026-05-14)
+
+
+### Features
+
+* crane to prevent building images... ([#84](https://github.com/Tim275/drova/issues/84)) ([d8d7edb](https://github.com/Tim275/drova/commit/d8d7edb4e6e7d0471579810e6c5094463871a9fe))
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/segmentio/kafka-go to v0.4.51 ([#83](https://github.com/Tim275/drova/issues/83)) ([da2b3de](https://github.com/Tim275/drova/commit/da2b3deeb205add7a7446b33a63af89e454f331e))
+* **renovate:** use real renovate[bot] commit-author email ([17f8294](https://github.com/Tim275/drova/commit/17f8294d1dd94af23fd24ebf9e2bbbadde2d90c4))
+
 ## [0.17.1](https://github.com/Tim275/drova/compare/v0.17.0...v0.17.1) (2026-05-14)
 
 
