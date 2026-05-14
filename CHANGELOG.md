@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.2](https://github.com/Tim275/drova/compare/v0.18.1...v0.18.2) (2026-05-14)
+
+
+### Bug Fixes
+
+* crane checksums.txt statt sha256 ([f611181](https://github.com/Tim275/drova/commit/f6111814951dcfc2d6b32f9fdbf88d3e9bd31f7c))
+
 ## [0.18.1](https://github.com/Tim275/drova/compare/v0.18.0...v0.18.1) (2026-05-14)
 
 
