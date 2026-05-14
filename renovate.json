@@ -284,15 +284,20 @@
       ]
     },
     {
-      "description": "GITHUB-ACTIONS: 2d soak + auto-merge for patches/minors",
+      "description": "GITHUB-ACTIONS + custom.regex: CI-only tools → chore(ci): → kein Release",
       "matchManagers": [
-        "github-actions"
+        "github-actions",
+        "custom.regex"
       ],
       "matchUpdateTypes": [
         "patch",
         "minor",
-        "digest"
+        "digest",
+        "pin",
+        "pinDigest"
       ],
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "ci",
       "minimumReleaseAge": "2 days",
       "automerge": true,
       "labels": [
