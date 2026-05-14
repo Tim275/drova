@@ -177,6 +177,7 @@ jobs:
           k6 run \
             -e BASE_URL=http://localhost:8081 \
             -e E2E_TOKEN="" \
+            -e K6_DURATION_THRESHOLD="p(95)<15000" \
             --out json=k6-results.json \
             tests/load/load-test.js
 
