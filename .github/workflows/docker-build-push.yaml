@@ -130,13 +130,15 @@ jobs:
       - name: Install crane (for re-tagging)
         if: steps.changed.outputs.changed == 'false'
         run: |
-          CRANE_VERSION="v0.20.2"
-          CRANE_URL="https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz"
-          curl -sL "${CRANE_URL}" -o /tmp/crane.tar.gz
-          curl -sL "${CRANE_URL}.sha256" -o /tmp/crane.tar.gz.sha256
-          sha256sum --check /tmp/crane.tar.gz.sha256
-          tar xz -C /tmp crane -f /tmp/crane.tar.gz
-          sudo mv /tmp/crane /usr/local/bin/crane
+          CRANE_VERSION="v0.21.5"
+          CRANE_FILENAME="go-containerregistry_Linux_x86_64.tar.gz"
+          CRANE_URL="https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/${CRANE_FILENAME}"
+          cd /tmp
+          curl -sL "${CRANE_URL}" -o "${CRANE_FILENAME}"
+          curl -sL "${CRANE_URL}.sha256" -o crane.sha256
+          sha256sum --check --ignore-missing crane.sha256
+          tar xz crane -f "${CRANE_FILENAME}"
+          sudo mv crane /usr/local/bin/crane
 
       - name: Re-tag unchanged image
         id: retag
@@ -157,7 +159,7 @@ jobs:
           fi
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@3454372f43399081ed03b604cb2d021dabca52bb # v3.8.2
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Sign image
         run: |
