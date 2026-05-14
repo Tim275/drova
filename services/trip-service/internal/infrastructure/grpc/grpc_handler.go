@@ -86,7 +86,7 @@ func (h *gRPCHandler) GetTripsByUser(ctx context.Context, req *pb.GetTripsReques
 		item := &pb.TripHistoryItem{
 			Id:              t.ID,
 			Status:          t.Status,
-			Rating:          int32(t.Rating),
+			Rating:          int32(t.Rating), // #nosec G115 -- rating is 1-5, safely fits int32
 			CreatedAt:       t.CreatedAt,
 			DriverName:      t.DriverName,
 			DriverPlate:     t.DriverPlate,
