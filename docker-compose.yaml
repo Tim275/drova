@@ -119,7 +119,7 @@ services:
     restart: unless-stopped
 
   prometheus:
-    image: prom/prometheus:v2.52.0@sha256:5c435642ca4d8427ca26f4901c11114023004709037880cd7860d5b7176aa731
+    image: prom/prometheus:v2.55.1@sha256:2659f4c2ebb718e7695cb9b25ffa7d6be64db013daba13e05c875451cf51b0d3
     ports:
       - "127.0.0.1:9090:9090"
     volumes:
