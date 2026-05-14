@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -345,11 +344,7 @@ func handleRegister(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if gatewayRdb != nil {
-		ip := r.Header.Get("X-Forwarded-For")
-		if ip == "" {
-			ip, _, _ = net.SplitHostPort(r.RemoteAddr)
-		}
-		key := "rl:register:" + ip
+		key := "rl:register:" + realIP(r)
 		count, err := gatewayRdb.Incr(r.Context(), key).Result()
 		if err == nil {
 			if count == 1 {

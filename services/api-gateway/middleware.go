@@ -78,6 +78,17 @@ end
 return 0
 `)
 
+func realIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		return xff
+	}
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return ip
+}
+
 func gatewayRateLimit(rdb *redis.Client) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -85,11 +96,7 @@ func gatewayRateLimit(rdb *redis.Client) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			ip, _, err := net.SplitHostPort(r.RemoteAddr)
-			if err != nil {
-				ip = r.RemoteAddr
-			}
-			key := fmt.Sprintf("rl:gw:%s", ip)
+			key := fmt.Sprintf("rl:gw:%s", realIP(r))
 			now := time.Now().UnixMilli()
 			allowed, err := slidingWindowScript.Run(
 				r.Context(), rdb,
