@@ -171,10 +171,9 @@
         "patch"
       ],
       "minimumReleaseAge": "3 days",
-      "automerge": true,
+      "automerge": false,
       "labels": [
-        "observability",
-        "auto-merge"
+        "observability"
       ]
     },
     {
@@ -218,10 +217,9 @@
         "minor"
       ],
       "minimumReleaseAge": "1 day",
-      "automerge": true,
+      "automerge": false,
       "labels": [
-        "dev-stack",
-        "auto-merge"
+        "dev-stack"
       ]
     },
     {
@@ -244,11 +242,10 @@
         "patch"
       ],
       "minimumReleaseAge": "2 days",
-      "automerge": true,
+      "automerge": false,
       "labels": [
         "patch",
-        "low-risk",
-        "auto-merge"
+        "low-risk"
       ]
     },
     {
@@ -294,15 +291,14 @@
         "digest"
       ],
       "minimumReleaseAge": "2 days",
-      "automerge": true,
+      "automerge": false,
       "labels": [
         "github-actions",
-        "ci",
-        "auto-merge"
+        "ci"
       ]
     },
     {
-      "description": "RELEASE-PLEASE: Routine patches + digests/pins → chore: → kein Release (kein Noise)",
+      "description": "RELEASE-PLEASE: Routine patches + digests/pins \u2192 chore: \u2192 kein Release (kein Noise)",
       "matchManagers": [
         "gomod",
         "dockerfile"
@@ -317,7 +313,7 @@
       "semanticCommitScope": "deps"
     },
     {
-      "description": "RELEASE-PLEASE: Minor/Major bumps → feat: → Minor-Release (bewusste Entscheidung)",
+      "description": "RELEASE-PLEASE: Minor/Major bumps \u2192 feat: \u2192 Minor-Release (bewusste Entscheidung)",
       "matchManagers": [
         "gomod",
         "dockerfile"
@@ -330,7 +326,7 @@
       "semanticCommitScope": "deps"
     },
     {
-      "description": "RELEASE-PLEASE: CVE/Security alerts → fix: → auto-release (überschreibt chore oben)",
+      "description": "RELEASE-PLEASE: CVE/Security alerts \u2192 fix: \u2192 auto-release (\u00fcberschreibt chore oben)",
       "matchManagers": [
         "gomod",
         "dockerfile"
@@ -339,5 +335,7 @@
       "semanticCommitType": "fix",
       "semanticCommitScope": "deps"
     }
-  ]
+  ],
+  "automerge": false,
+  "platformAutomerge": false
 }
