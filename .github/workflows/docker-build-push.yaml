@@ -120,6 +120,7 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
+          sbom: true
           tags: |
             ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ steps.tag.outputs.TAG }}
             ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:latest
