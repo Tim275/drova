@@ -144,7 +144,7 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:10.4.19@sha256:a9043254ba16fb10945cc27333963dfd08eccbb43b51f1222d831cc564e3a1f4
+    image: grafana/grafana:12.4.3@sha256:2e986801428cd689c2358605289c90ab37d2b39e24808874971f54c99bcdc412
     ports:
       - "127.0.0.1:3000:3000"
     environment:
