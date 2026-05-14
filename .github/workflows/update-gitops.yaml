@@ -40,8 +40,10 @@ jobs:
 
       - name: Install yq
         run: |
-          sudo wget -qO /usr/local/bin/yq \
-            https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          YQ_VERSION="v4.44.3"
+          YQ_URL="https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
+          sudo curl -sL "${YQ_URL}" -o /usr/local/bin/yq
+          echo "ecd74e6e4a6e60e10a0905bd1df14af48afee2dc50f5651bd0a8d1d3f8e01e36  /usr/local/bin/yq" | sha256sum --check
           sudo chmod +x /usr/local/bin/yq
 
       - name: Update staging image tags
@@ -61,8 +63,8 @@ jobs:
 
       - name: Soak — wait for ArgoCD staging sync
         run: |
-          echo "Waiting 90s for ArgoCD to sync staging..."
-          sleep 90
+          echo "Waiting 300s for ArgoCD to sync staging..."
+          sleep 300
           echo "✓ Soak complete"
 
       - name: Update production image tags

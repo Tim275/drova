@@ -302,31 +302,41 @@
       ]
     },
     {
-      "description": "RELEASE-PLEASE INTEGRATION: code-affecting deps use fix:/feat: prefix \u2192 triggers version bump \u2192 new image build \u2192 GitOps deploy",
+      "description": "RELEASE-PLEASE: Routine patches + digests/pins → chore: → kein Release (kein Noise)",
       "matchManagers": [
         "gomod",
         "dockerfile"
       ],
       "matchUpdateTypes": [
         "patch",
-        "minor",
         "digest",
         "pin",
         "pinDigest"
       ],
-      "semanticCommitType": "fix",
+      "semanticCommitType": "chore",
       "semanticCommitScope": "deps"
     },
     {
-      "description": "RELEASE-PLEASE INTEGRATION: major code-deps \u2192 feat: prefix (minor version bump v0.x \u2192 v0.x+1)",
+      "description": "RELEASE-PLEASE: Minor/Major bumps → feat: → Minor-Release (bewusste Entscheidung)",
       "matchManagers": [
         "gomod",
         "dockerfile"
       ],
       "matchUpdateTypes": [
+        "minor",
         "major"
       ],
       "semanticCommitType": "feat",
+      "semanticCommitScope": "deps"
+    },
+    {
+      "description": "RELEASE-PLEASE: CVE/Security alerts → fix: → auto-release (überschreibt chore oben)",
+      "matchManagers": [
+        "gomod",
+        "dockerfile"
+      ],
+      "isVulnerabilityAlert": true,
+      "semanticCommitType": "fix",
       "semanticCommitScope": "deps"
     }
   ]

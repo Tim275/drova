@@ -2,8 +2,6 @@ name: Backend Tests
 
 on:
   pull_request:
-  push:
-    branches: [main]
 
 concurrency:
   group: backend-tests-${{ github.event.pull_request.number || github.ref }}
