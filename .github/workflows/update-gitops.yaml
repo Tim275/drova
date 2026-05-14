@@ -40,10 +40,10 @@ jobs:
 
       - name: Install yq
         run: |
-          YQ_VERSION="v4.44.3"
+          YQ_VERSION="v4.53.2"
           YQ_URL="https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64"
           sudo curl -sL "${YQ_URL}" -o /usr/local/bin/yq
-          echo "ecd74e6e4a6e60e10a0905bd1df14af48afee2dc50f5651bd0a8d1d3f8e01e36  /usr/local/bin/yq" | sha256sum --check
+          echo "d56bf5c6819e8e696340c312bd70f849dc1678a7cda9c2ad63eebd906371d56b  /usr/local/bin/yq" | sha256sum --check
           sudo chmod +x /usr/local/bin/yq
 
       - name: Update staging image tags
