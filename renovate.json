@@ -217,6 +217,8 @@
         "patch",
         "minor"
       ],
+      "semanticCommitType": "chore",
+      "semanticCommitScope": "dev",
       "minimumReleaseAge": "1 day",
       "automerge": true,
       "labels": [
