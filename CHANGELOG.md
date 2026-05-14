@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.17.1](https://github.com/Tim275/drova/compare/v0.17.0...v0.17.1) (2026-05-14)
+
+
+### Bug Fixes
+
+* **renovate:** add gitIgnoredAuthors to unblock v43 abort ([#79](https://github.com/Tim275/drova/issues/79)) ([45056c8](https://github.com/Tim275/drova/commit/45056c883132b99b301e069fcba2af08285d1a24))
+* **renovate:** add real commit-author email to gitIgnoredAuthors ([ba8ecbd](https://github.com/Tim275/drova/commit/ba8ecbd8f2aff47be9711d5f28557803db375107))
+
 ## [0.17.0](https://github.com/Tim275/drova/compare/v0.16.2...v0.17.0) (2026-05-13)
 
 
