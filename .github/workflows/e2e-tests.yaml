@@ -178,7 +178,6 @@ jobs:
             -e BASE_URL=http://localhost:8081 \
             -e E2E_TOKEN="" \
             --out json=k6-results.json \
-            --no-thresholds \
             tests/load/load-test.js
 
       - name: Upload k6 results

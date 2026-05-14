@@ -38,28 +38,37 @@ jobs:
           - service: api-gateway
             dockerfile: services/api-gateway/Dockerfile
             context: .
+            paths: "services/api-gateway shared go.mod go.sum"
           - service: user-service
             dockerfile: services/user-service/Dockerfile
             context: .
+            paths: "services/user-service shared go.mod go.sum"
           - service: trip-service
             dockerfile: services/trip-service/Dockerfile
             context: .
+            paths: "services/trip-service shared go.mod go.sum"
           - service: driver-service
             dockerfile: services/driver-service/Dockerfile
             context: .
+            paths: "services/driver-service shared go.mod go.sum"
           - service: payment-service
             dockerfile: services/payment-service/Dockerfile
             context: .
+            paths: "services/payment-service shared go.mod go.sum"
           - service: chat-service
             dockerfile: services/chat-service/Dockerfile
             context: .
+            paths: "services/chat-service shared go.mod go.sum"
           - service: frontend
             dockerfile: frontend/Dockerfile
             context: frontend
+            paths: "frontend"
 
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
 
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
@@ -79,8 +88,33 @@ jobs:
             echo "TAG=${{ inputs.tag }}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Check if service changed since last tag
+        id: changed
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "prev_tag=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+          CHANGED=false
+          for path in ${{ matrix.paths }}; do
+            if git diff --name-only "$PREV_TAG" HEAD | grep -q "^$path"; then
+              CHANGED=true
+              break
+            fi
+          done
+          echo "changed=$CHANGED" >> $GITHUB_OUTPUT
+          if [ "$CHANGED" = "false" ]; then
+            echo "⏭ ${{ matrix.service }}: keine Änderungen seit $PREV_TAG — re-tag statt rebuild"
+          else
+            echo "🔨 ${{ matrix.service }}: Änderungen gefunden — rebuild"
+          fi
+
       - name: Build and Push
         id: build
+        if: steps.changed.outputs.changed == 'true'
         uses: docker/build-push-action@ca052bb54ab0790a636c9b5f226502c73d547a25 # v5
         with:
           context: ${{ matrix.context }}
@@ -92,13 +126,42 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
+      - name: Install crane (for re-tagging)
+        if: steps.changed.outputs.changed == 'false'
+        run: |
+          CRANE_VERSION="v0.20.2"
+          CRANE_URL="https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz"
+          curl -sL "${CRANE_URL}" -o /tmp/crane.tar.gz
+          curl -sL "${CRANE_URL}.sha256" -o /tmp/crane.tar.gz.sha256
+          sha256sum --check /tmp/crane.tar.gz.sha256
+          tar xz -C /tmp crane -f /tmp/crane.tar.gz
+          sudo mv /tmp/crane /usr/local/bin/crane
+
+      - name: Re-tag unchanged image
+        id: retag
+        if: steps.changed.outputs.changed == 'false'
+        run: |
+          crane tag ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ steps.changed.outputs.prev_tag }} ${{ steps.tag.outputs.TAG }}
+          crane tag ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ steps.changed.outputs.prev_tag }} latest
+          DIGEST=$(crane digest ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ steps.tag.outputs.TAG }})
+          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+
+      - name: Collect digest
+        id: digest
+        run: |
+          if [ "${{ steps.changed.outputs.changed }}" = "true" ]; then
+            echo "value=${{ steps.build.outputs.digest }}" >> $GITHUB_OUTPUT
+          else
+            echo "value=${{ steps.retag.outputs.digest }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: Install Cosign
         uses: sigstore/cosign-installer@3454372f43399081ed03b604cb2d021dabca52bb # v3.8.2
 
       - name: Sign image
         run: |
           cosign sign --yes \
-            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}@${{ steps.build.outputs.digest }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}@${{ steps.digest.outputs.value }}
 
   trigger_gitops:
     name: Trigger GitOps
