@@ -15,6 +15,8 @@
   "forkProcessing": "disabled",
   "platformCommit": "enabled",
   "gitIgnoredAuthors": [
+    "29139614+renovate[bot]@users.noreply.github.com",
+    "noreply@github.com",
     "tim275@users.noreply.github.com",
     "sagichdirnicht259@outlook.de"
   ],
