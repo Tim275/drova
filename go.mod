@@ -14,7 +14,7 @@ require (
 	github.com/redis/go-redis/v9 v9.19.0
 	github.com/segmentio/kafka-go v0.4.51
 	github.com/sony/gobreaker v1.0.0
-	github.com/stripe/stripe-go/v81 v81.4.0
+	github.com/stripe/stripe-go/v82 v82.0.0
 	go.mongodb.org/mongo-driver v1.17.9
 	go.opentelemetry.io/contrib/bridges/otelzap v0.18.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.68.0

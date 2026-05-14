@@ -7,8 +7,8 @@ import (
 	"drova/services/payment-service/internal/domain"
 	"drova/services/payment-service/pkg/types"
 
-	stripego "github.com/stripe/stripe-go/v81"
-	"github.com/stripe/stripe-go/v81/checkout/session"
+	stripego "github.com/stripe/stripe-go/v82"
+	"github.com/stripe/stripe-go/v82/checkout/session"
 )
 
 type stripeClient struct {
