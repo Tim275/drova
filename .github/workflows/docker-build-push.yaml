@@ -163,6 +163,13 @@ jobs:
           cosign sign --yes \
             ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}@${{ steps.digest.outputs.value }}
 
+      - name: Attest build provenance (SLSA L3)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
+          subject-digest: ${{ steps.digest.outputs.value }}
+          push-to-registry: true
+
   trigger_gitops:
     name: Trigger GitOps
     needs: build-and-push
