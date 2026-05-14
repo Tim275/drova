@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.4](https://github.com/Tim275/drova/compare/v0.18.3...v0.18.4) (2026-05-14)
+
+
+### Bug Fixes
+
+* yq v4.53.2 + sha256 ([80ca41b](https://github.com/Tim275/drova/commit/80ca41be2498299e6b16b1923f3bed2eada30084))
+
 ## [0.18.3](https://github.com/Tim275/drova/compare/v0.18.2...v0.18.3) (2026-05-14)
 
 
