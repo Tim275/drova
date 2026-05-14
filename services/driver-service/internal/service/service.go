@@ -30,7 +30,7 @@ func geoKey(packageSlug string) string { return "drova:drivers:geo:" + packageSl
 func driverKey(driverID string) string { return "drova:driver:" + driverID }
 
 func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, name string, lat, lng float64) (*pb.Driver, error) {
-	randomIndex := math.IntN(len(PredefinedRoutes))
+	randomIndex := math.IntN(len(PredefinedRoutes)) // #nosec G404 -- route index, not security-sensitive
 	randomPlate := GenerateRandomPlate()
 	randomAvatar := util.GetRandomAvatar(randomIndex)
 

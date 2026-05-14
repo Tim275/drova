@@ -33,8 +33,8 @@ var PredefinedRoutes = [][][2]float64{
 var letters = []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
 
 func GenerateRandomPlate() string {
-	city := string([]rune{letters[math.IntN(len(letters))], letters[math.IntN(len(letters))]})
-	letters2 := string([]rune{letters[math.IntN(len(letters))], letters[math.IntN(len(letters))]})
-	numbers := math.IntN(9000) + 1000
+	city := string([]rune{letters[math.IntN(len(letters))], letters[math.IntN(len(letters))]})     // #nosec G404 -- display-only, not security-sensitive
+	letters2 := string([]rune{letters[math.IntN(len(letters))], letters[math.IntN(len(letters))]}) // #nosec G404
+	numbers := math.IntN(9000) + 1000                                                              // #nosec G404
 	return fmt.Sprintf("%s-%s %d", city, letters2, numbers)
 }
