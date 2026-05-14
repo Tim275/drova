@@ -14,7 +14,10 @@
   "configMigration": true,
   "forkProcessing": "disabled",
   "platformCommit": "enabled",
-  "gitIgnoredAuthors": ["tim275@users.noreply.github.com"],
+  "gitIgnoredAuthors": [
+    "tim275@users.noreply.github.com",
+    "sagichdirnicht259@outlook.de"
+  ],
   "automergeStrategy": "squash",
   "internalChecksAsSuccess": true,
   "separateMinorPatch": true,
@@ -22,22 +25,27 @@
   "fetchChangeLogs": "branch",
   "assigneesFromCodeOwners": true,
   "reviewersFromCodeOwners": true,
-  "schedule": ["* * * * *"],
+  "schedule": [
+    "* * * * *"
+  ],
   "timezone": "Europe/Berlin",
   "prConcurrentLimit": 0,
   "prHourlyLimit": 0,
   "branchConcurrentLimit": 0,
   "dependencyDashboard": true,
   "dependencyDashboardApproval": false,
-  "dependencyDashboardTitle": "🔄 Drova Renovate Dashboard",
+  "dependencyDashboardTitle": "\ud83d\udd04 Drova Renovate Dashboard",
   "dependencyDashboardOSVVulnerabilitySummary": "all",
   "osvVulnerabilityAlerts": true,
   "rebaseWhen": "behind-base-branch",
   "rebaseLabel": "rebase",
   "stopUpdatingLabel": "stop-updating",
   "semanticCommits": "enabled",
-  "labels": ["renovate", "dependencies"],
-  "prHeader": "📦 Drova Dependency Update — review labels for risk classification.",
+  "labels": [
+    "renovate",
+    "dependencies"
+  ],
+  "prHeader": "\ud83d\udce6 Drova Dependency Update \u2014 review labels for risk classification.",
   "enabledManagers": [
     "gomod",
     "dockerfile",
@@ -62,14 +70,18 @@
       "priority-critical",
       "fast-track"
     ],
-    "schedule": ["at any time"],
+    "schedule": [
+      "at any time"
+    ],
     "automerge": false,
     "minimumReleaseAge": "0 days",
     "prCreation": "immediate"
   },
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["before 5am on sunday"],
+    "schedule": [
+      "before 5am on sunday"
+    ],
     "automerge": false
   },
   "packageRules": [
@@ -84,7 +96,7 @@
       "enabled": false
     },
     {
-      "description": "CRITICAL: Stripe SDK (Payment Service) — 7d soak, MANUAL review only",
+      "description": "CRITICAL: Stripe SDK (Payment Service) \u2014 7d soak, MANUAL review only",
       "matchPackageNames": [
         "/stripe-go/",
         "/stripe/"
@@ -99,11 +111,11 @@
         "high-risk"
       ],
       "prBodyNotes": [
-        "⚠️ PAYMENT-CRITICAL: Stripe-SDK update. Review CHANGELOG for breaking API changes, run e2e payment tests locally, plan rollback before merge."
+        "\u26a0\ufe0f PAYMENT-CRITICAL: Stripe-SDK update. Review CHANGELOG for breaking API changes, run e2e payment tests locally, plan rollback before merge."
       ]
     },
     {
-      "description": "MESSAGING: gRPC + Kafka + Avro — 5d soak, manual review",
+      "description": "MESSAGING: gRPC + Kafka + Avro \u2014 5d soak, manual review",
       "matchPackageNames": [
         "/google.golang.org/grpc/",
         "/segmentio/kafka-go/",
@@ -118,7 +130,7 @@
       ]
     },
     {
-      "description": "DATA: Postgres (pgx), MongoDB, Redis drivers — 5d soak",
+      "description": "DATA: Postgres (pgx), MongoDB, Redis drivers \u2014 5d soak",
       "matchPackageNames": [
         "/jackc/pgx/",
         "/jackc/pgconn/",
@@ -135,7 +147,7 @@
       ]
     },
     {
-      "description": "SECURITY-RELEVANT: JWT, Crypto, Auth-libs — 5d soak",
+      "description": "SECURITY-RELEVANT: JWT, Crypto, Auth-libs \u2014 5d soak",
       "matchPackageNames": [
         "/golang-jwt/",
         "/^golang.org/x/crypto$/",
@@ -149,7 +161,7 @@
       ]
     },
     {
-      "description": "OBSERVABILITY: OTel libs — 3d soak, can auto-merge patches",
+      "description": "OBSERVABILITY: OTel libs \u2014 3d soak, can auto-merge patches",
       "matchPackageNames": [
         "/^go.opentelemetry.io/"
       ],
@@ -164,7 +176,7 @@
       ]
     },
     {
-      "description": "STDLIB-EXTENSIONS: golang.org/x/* — 5d soak (rolls breaking changes silently)",
+      "description": "STDLIB-EXTENSIONS: golang.org/x/* \u2014 5d soak (rolls breaking changes silently)",
       "matchPackageNames": [
         "/^golang.org/x/"
       ],
@@ -178,7 +190,7 @@
       ]
     },
     {
-      "description": "BASE-IMAGES: golang, alpine, distroless — 3d soak",
+      "description": "BASE-IMAGES: golang, alpine, distroless \u2014 3d soak",
       "matchManagers": [
         "dockerfile"
       ],
@@ -195,7 +207,7 @@
       ]
     },
     {
-      "description": "LOCAL-DEV STACK (docker-compose.yaml): aggressive — only dev-env affected",
+      "description": "LOCAL-DEV STACK (docker-compose.yaml): aggressive \u2014 only dev-env affected",
       "matchManagers": [
         "docker-compose"
       ],
@@ -211,7 +223,7 @@
       ]
     },
     {
-      "description": "TIER 0 — Digest updates: no soak",
+      "description": "TIER 0 \u2014 Digest updates: no soak",
       "matchUpdateTypes": [
         "digest"
       ],
@@ -222,7 +234,7 @@
       ]
     },
     {
-      "description": "TIER 1 — Patch (gomod default): 2d soak + auto-merge (testet von CI)",
+      "description": "TIER 1 \u2014 Patch (gomod default): 2d soak + auto-merge (testet von CI)",
       "matchManagers": [
         "gomod"
       ],
@@ -238,7 +250,7 @@
       ]
     },
     {
-      "description": "TIER 2 — Minor (gomod default): 5d soak, manual review",
+      "description": "TIER 2 \u2014 Minor (gomod default): 5d soak, manual review",
       "matchManagers": [
         "gomod"
       ],
@@ -253,7 +265,7 @@
       ]
     },
     {
-      "description": "TIER 3 — Major (any manager): 14d soak + manual review (PRs auto-created)",
+      "description": "TIER 3 \u2014 Major (any manager): 14d soak + manual review (PRs auto-created)",
       "matchUpdateTypes": [
         "major"
       ],
@@ -266,7 +278,7 @@
         "manual-review-required"
       ],
       "prBodyNotes": [
-        "⚠️ MAJOR version update — review CHANGELOG, run full test-suite locally, check breaking-changes section, plan rollback before merge."
+        "\u26a0\ufe0f MAJOR version update \u2014 review CHANGELOG, run full test-suite locally, check breaking-changes section, plan rollback before merge."
       ]
     },
     {
@@ -288,7 +300,7 @@
       ]
     },
     {
-      "description": "RELEASE-PLEASE INTEGRATION: code-affecting deps use fix:/feat: prefix → triggers version bump → new image build → GitOps deploy",
+      "description": "RELEASE-PLEASE INTEGRATION: code-affecting deps use fix:/feat: prefix \u2192 triggers version bump \u2192 new image build \u2192 GitOps deploy",
       "matchManagers": [
         "gomod",
         "dockerfile"
@@ -304,7 +316,7 @@
       "semanticCommitScope": "deps"
     },
     {
-      "description": "RELEASE-PLEASE INTEGRATION: major code-deps → feat: prefix (minor version bump v0.x → v0.x+1)",
+      "description": "RELEASE-PLEASE INTEGRATION: major code-deps \u2192 feat: prefix (minor version bump v0.x \u2192 v0.x+1)",
       "matchManagers": [
         "gomod",
         "dockerfile"
