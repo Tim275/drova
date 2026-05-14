@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.3](https://github.com/Tim275/drova/compare/v0.18.2...v0.18.3) (2026-05-14)
+
+
+### Bug Fixes
+
+* rebuild wenn image fehlt ([23a9220](https://github.com/Tim275/drova/commit/23a9220fb035c64625baed70e14a43df943ecda6))
+
 ## [0.18.2](https://github.com/Tim275/drova/compare/v0.18.1...v0.18.2) (2026-05-14)
 
 
