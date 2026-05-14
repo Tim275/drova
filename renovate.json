@@ -309,31 +309,20 @@
       ]
     },
     {
-      "description": "RELEASE-PLEASE: Routine patches + digests/pins → chore: → kein Release (kein Noise)",
+      "description": "RELEASE-PLEASE: Alle Dependency-Updates → chore: → kein Release (Entwickler entscheidet)",
       "matchManagers": [
         "gomod",
         "dockerfile"
       ],
       "matchUpdateTypes": [
         "patch",
+        "minor",
+        "major",
         "digest",
         "pin",
         "pinDigest"
       ],
       "semanticCommitType": "chore",
-      "semanticCommitScope": "deps"
-    },
-    {
-      "description": "RELEASE-PLEASE: Minor/Major bumps → feat: → Minor-Release (bewusste Entscheidung)",
-      "matchManagers": [
-        "gomod",
-        "dockerfile"
-      ],
-      "matchUpdateTypes": [
-        "minor",
-        "major"
-      ],
-      "semanticCommitType": "feat",
       "semanticCommitScope": "deps"
     },
     {
