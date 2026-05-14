@@ -1,0 +1,39 @@
+name: gosec
+
+on:
+  pull_request:
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/gosec.yaml'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  scan:
+    name: gosec Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install gosec
+        run: |
+          GOSEC_VERSION="v2.21.4"
+          curl -sL "https://github.com/securego/gosec/releases/download/${GOSEC_VERSION}/gosec_2.21.4_linux_amd64.tar.gz" -o /tmp/gosec.tar.gz
+          curl -sL "https://github.com/securego/gosec/releases/download/${GOSEC_VERSION}/gosec_2.21.4_checksums.txt" -o /tmp/gosec-checksums.txt
+          grep linux_amd64 /tmp/gosec-checksums.txt | sed 's@gosec_2.21.4_linux_amd64.tar.gz@/tmp/gosec.tar.gz@' | sha256sum --check
+          tar xzf /tmp/gosec.tar.gz -C /tmp gosec
+          sudo mv /tmp/gosec /usr/local/bin/gosec
+      - name: Run gosec
+        run: gosec -fmt sarif -out gosec.sarif -no-fail -severity medium ./...
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e # v4
+        with:
+          sarif_file: gosec.sarif
+          category: gosec
