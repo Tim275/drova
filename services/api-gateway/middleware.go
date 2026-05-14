@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"net"
 	"net/http"
 	"time"
 
@@ -63,48 +61,6 @@ func securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
-var slidingWindowScript = redis.NewScript(`
-local key    = KEYS[1]
-local now    = tonumber(ARGV[1])
-local window = tonumber(ARGV[2])
-local limit  = tonumber(ARGV[3])
-redis.call('ZREMRANGEBYSCORE', key, '-inf', now - window)
-local count = redis.call('ZCARD', key)
-if count < limit then
-  redis.call('ZADD', key, now, now .. ':' .. math.random(1,999999))
-  redis.call('PEXPIRE', key, window)
-  return 1
-end
-return 0
-`)
-
-func gatewayRateLimit(rdb *redis.Client) func(http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if rdb == nil {
-				next.ServeHTTP(w, r)
-				return
-			}
-			ip, _, err := net.SplitHostPort(r.RemoteAddr)
-			if err != nil {
-				ip = r.RemoteAddr
-			}
-			key := fmt.Sprintf("rl:gw:%s", ip)
-			now := time.Now().UnixMilli()
-			allowed, err := slidingWindowScript.Run(
-				r.Context(), rdb,
-				[]string{key},
-				now, 1000, 30,
-			).Int()
-			if err != nil || allowed == 0 {
-				w.Header().Set("Retry-After", "1")
-				http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
-}
 
 func newRedisClient(addr, password string) *redis.Client {
 	rdb := redis.NewClient(&redis.Options{
