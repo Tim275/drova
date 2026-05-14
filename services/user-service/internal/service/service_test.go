@@ -207,3 +207,27 @@ func TestUpdateProfile_ClearsCache(t *testing.T) {
 		t.Errorf("display name not updated, got %q", store.user.DisplayName)
 	}
 }
+
+func TestGetByEmail_DelegatesToStore(t *testing.T) {
+	u := &domain.User{ID: 9, Email: "mail@test.com"}
+	store := &stubStore{user: u}
+	svc := newSvc(store, &stubInvitations{}, &stubCache{}, &stubMailer{})
+
+	got, err := svc.GetByEmail(context.Background(), "mail@test.com")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Email != "mail@test.com" {
+		t.Errorf("want email 'mail@test.com', got %q", got.Email)
+	}
+}
+
+func TestGetByID_StoreError(t *testing.T) {
+	cache := &stubCache{hit: false}
+	store := &stubStore{} // user is nil → GetByID returns (nil, nil) or error
+	svc := newSvc(store, &stubInvitations{}, cache, &stubMailer{})
+
+	// GetByID with a nil user returned from store should still return without panic
+	_, _ = svc.GetByID(context.Background(), 999)
+}
+

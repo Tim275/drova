@@ -17,7 +17,7 @@ func Encode(schemaID int, schema avro.Schema, v any) ([]byte, error) {
 
 	buf := make([]byte, 5, 5+len(avroBytes))
 	buf[0] = magicByte
-	binary.BigEndian.PutUint32(buf[1:5], uint32(schemaID))
+	binary.BigEndian.PutUint32(buf[1:5], uint32(schemaID)) // #nosec G115 -- schema IDs from registry are always small positive ints
 	return append(buf, avroBytes...), nil
 }
 

@@ -10,3 +10,5 @@ coverage.out
 local/k8s/secrets.yaml
 .claude/
 .lean-ctx/
+coverage_gw.out
+drova-gitops/

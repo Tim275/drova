@@ -18,8 +18,9 @@ type noopUsers struct{}
 func (n *noopUsers) GetRiderInfo(_ context.Context, _ string) (string, string) { return "", "" }
 
 type fakeRepo struct {
-	fares map[string]*domain.RideFareModel
-	trips map[string]*domain.TripModel
+	fares     map[string]*domain.RideFareModel
+	trips     map[string]*domain.TripModel
+	createErr error
 }
 
 func newFakeRepo() *fakeRepo {
@@ -41,6 +42,9 @@ func (f *fakeRepo) GetRideFareByID(_ context.Context, id string) (*domain.RideFa
 	return fare, nil
 }
 func (f *fakeRepo) CreateTrip(_ context.Context, t *domain.TripModel) (*domain.TripModel, error) {
+	if f.createErr != nil {
+		return nil, f.createErr
+	}
 	f.trips[t.ID] = t
 	return t, nil
 }

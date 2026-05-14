@@ -21,6 +21,7 @@ permissions:
   pull-requests: write
   id-token: write
   attestations: write
+  security-events: write
 
 env:
   REGISTRY: ghcr.io
@@ -176,6 +177,25 @@ jobs:
           subject-name: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
           subject-digest: ${{ steps.digest.outputs.value }}
           push-to-registry: true
+
+      - name: Scan image with Trivy
+        if: steps.changed.outputs.changed == 'true'
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: "${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ steps.tag.outputs.TAG }}"
+          format: "sarif"
+          output: "trivy-${{ matrix.service }}.sarif"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+      - name: Upload Trivy SARIF
+        if: steps.changed.outputs.changed == 'true' && !cancelled()
+        uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e # v4
+        with:
+          sarif_file: "trivy-${{ matrix.service }}.sarif"
+          category: "trivy-${{ matrix.service }}"
 
   trigger_gitops:
     name: Trigger GitOps
