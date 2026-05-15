@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.5](https://github.com/Tim275/drova/compare/v0.18.4...v0.18.5) (2026-05-15)
+
+
+### Bug Fixes
+
+* remove broken app-layer rate limit ([#100](https://github.com/Tim275/drova/issues/100)) ([1896e37](https://github.com/Tim275/drova/commit/1896e37efcd1c5050333ca8d9150ea411abb26bb))
+
 ## [0.18.4](https://github.com/Tim275/drova/compare/v0.18.3...v0.18.4) (2026-05-14)
 
 
