@@ -90,7 +90,7 @@ jobs:
           fi
 
       - name: Setup crane
-        uses: imjasonh/setup-crane@31b88efe9de28ae0ffa220711af4b408e8b3e496 # v0.4
+        uses: imjasonh/setup-crane@31b88efe9de28ae0ffa220711af4b60be9435f6e # v0.4
 
       - name: Check if service changed since last tag
         id: changed
@@ -163,7 +163,7 @@ jobs:
             ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}@${{ steps.digest.outputs.value }}
 
       - name: Attest build provenance (SLSA L3)
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
           subject-name: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
           subject-digest: ${{ steps.digest.outputs.value }}
