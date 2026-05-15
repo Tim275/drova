@@ -33,29 +33,13 @@ jobs:
               - 'go.sum'
               - '.github/workflows/backend-tests.yaml'
 
-  test:
-    name: Test Backend
+  lint:
+    name: Lint & Security Scan
     needs: check_paths
     if: ${{ needs.check_paths.outputs.should_run == 'true' && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     env:
       GOFLAGS: "-mod=readonly"
-
-    services:
-      postgres:
-        image: postgres:17-alpine@sha256:c7526c0f6c3f30260a563d7bcf8ad778effac59a44f8ffa86678c35418338609
-        env:
-          POSTGRES_USER: drova
-          POSTGRES_PASSWORD: drova
-          POSTGRES_DB: drova_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U drova -d drova_test"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -88,6 +72,38 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
           govulncheck ./...
 
+  test:
+    name: Unit & Integration Tests
+    needs: check_paths
+    if: ${{ needs.check_paths.outputs.should_run == 'true' && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    env:
+      GOFLAGS: "-mod=readonly"
+
+    services:
+      postgres:
+        image: postgres:17-alpine@sha256:c7526c0f6c3f30260a563d7bcf8ad778effac59a44f8ffa86678c35418338609
+        env:
+          POSTGRES_USER: drova
+          POSTGRES_PASSWORD: drova
+          POSTGRES_DB: drova_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U drova -d drova_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
       - name: Run unit tests
         run: go test -race -count=1 -timeout 3m -coverprofile=coverage.out ./...
 
@@ -114,6 +130,23 @@ jobs:
           TEST_DB_URL: postgres://drova:drova@localhost:5432/drova_test?sslmode=disable
           MIGRATIONS_PATH: ${{ github.workspace }}/services/user-service/migrations
         run: go test -race -count=1 -tags=integration -timeout 2m ./...
+
+  docker:
+    name: Docker Build & Scan
+    needs: check_paths
+    if: ${{ needs.check_paths.outputs.should_run == 'true' && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    env:
+      GOFLAGS: "-mod=readonly"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
 
       - name: Build all services
         run: |
@@ -147,7 +180,7 @@ jobs:
 
   e2e:
     name: E2E Smoke Tests
-    needs: [check_paths, test]
+    needs: [check_paths, lint, test, docker]
     if: ${{ needs.check_paths.outputs.should_run == 'true' && github.event_name == 'pull_request' }}
     uses: ./.github/workflows/e2e-tests.yaml
     secrets:
