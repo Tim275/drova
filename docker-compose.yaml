@@ -96,14 +96,13 @@ services:
     restart: unless-stopped
 
   jaeger:
-    image: jaegertracing/all-in-one:1.57@sha256:8f165334f418ca53691ce358c19b4244226ed35c5d18408c5acf305af2065fb9
+    image: jaegertracing/jaeger:2.8.0@sha256:af1598dfd0a7800a370e88064e24c5d562cfcbbd2c2748e6ae1f1126be88dd4b
     ports:
-      - "127.0.0.1:16686:16686"   # UI
-      - "127.0.0.1:14268:14268"   # Thrift HTTP
-      - "127.0.0.1:4317:4317"     # OTLP gRPC (for otel-collector → jaeger)
-    environment:
-      COLLECTOR_OTLP_ENABLED: "true"
-    command: ["--query.max-clock-skew-adjustment=5ms"]
+      - "127.0.0.1:16688:16686"   # UI + Query API (16688 avoids conflict with K8s SSH tunnel on 16686)
+      - "127.0.0.1:14268:14268"   # Jaeger Thrift HTTP (backwards compat)
+    volumes:
+      - ./infra/local/jaeger.yaml:/etc/jaeger/config.yaml
+    command: ["--config", "/etc/jaeger/config.yaml"]
     restart: unless-stopped
 
   otel-collector:
