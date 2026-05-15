@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.7](https://github.com/Tim275/drova/compare/v0.18.6...v0.18.7) (2026-05-15)
+
+
+### Bug Fixes
+
+* jsonb cast for ride fare route field ([21b1b20](https://github.com/Tim275/drova/commit/21b1b208d3f0ec6c19bb9a69e4324a194e7c11c6))
+
 ## [0.18.6](https://github.com/Tim275/drova/compare/v0.18.5...v0.18.6) (2026-05-15)
 
 
