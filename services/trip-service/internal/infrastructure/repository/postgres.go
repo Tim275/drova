@@ -46,7 +46,7 @@ func (r *pgRepository) SaveRideFare(ctx context.Context, f *domain.RideFareModel
 		                         pickup_lat, pickup_lng, dropoff_lat, dropoff_lng,
 		                         distance_meters, duration_seconds)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
-		f.ID, f.UserID, f.PackageSlug, f.TotalPriceInCents, routeJSON, f.ExpiresAt,
+		f.ID, f.UserID, f.PackageSlug, f.TotalPriceInCents, string(routeJSON), f.ExpiresAt,
 		f.RiderName, f.RiderAvatar,
 		f.PickupAddress, f.DropoffAddress,
 		f.PickupLat, f.PickupLng, f.DropoffLat, f.DropoffLng,
