@@ -178,7 +178,7 @@ jobs:
           output: "trivy-${{ matrix.service }}.sarif"
           exit-code: "1"
           ignore-unfixed: true
-          vuln-type: "os,library"
+          pkg-types: "os,library"
           severity: "CRITICAL,HIGH"
 
       - name: Upload Trivy SARIF

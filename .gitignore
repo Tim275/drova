@@ -12,3 +12,4 @@ local/k8s/secrets.yaml
 .lean-ctx/
 coverage_gw.out
 drova-gitops/
+.gitlab-ci.yml
