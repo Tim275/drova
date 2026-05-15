@@ -12,8 +12,8 @@ import (
 // ── mocks ────────────────────────────────────────────────────────────────────
 
 type stubStore struct {
-	user    *domain.User
-	createErr error
+	user        *domain.User
+	createErr   error
 	activateErr error
 }
 
@@ -230,4 +230,3 @@ func TestGetByID_StoreError(t *testing.T) {
 	// GetByID with a nil user returned from store should still return without panic
 	_, _ = svc.GetByID(context.Background(), 999)
 }
-

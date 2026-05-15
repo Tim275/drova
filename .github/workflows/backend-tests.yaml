@@ -68,6 +68,9 @@ jobs:
           version: v2.12.2
           args: --timeout=5m
 
+      - name: pre-commit
+        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+
       - name: Vulnerability check
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.1.4

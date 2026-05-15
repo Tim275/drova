@@ -9,12 +9,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
 	"drova/services/trip-service/internal/domain"
 	tripTypes "drova/services/trip-service/pkg/types"
 	"drova/shared/env"
 	pbd "drova/shared/proto/driver"
 	"drova/shared/types"
+	"github.com/google/uuid"
 )
 
 var mapboxToken = env.GetString("MAPBOX_TOKEN", "")
@@ -116,12 +116,12 @@ func (s *service) GenerateTripFares(ctx context.Context, rideFares []*domain.Rid
 			Route:             route,
 			ExpiresAt:         time.Now().Add(domain.FareExpiryDuration),
 			// Addresses carried over from the preview request via rideFares[0]
-			PickupAddress:  rideFares[0].PickupAddress,
-			DropoffAddress: rideFares[0].DropoffAddress,
-			PickupLat:      rideFares[0].PickupLat,
-			PickupLng:      rideFares[0].PickupLng,
-			DropoffLat:     rideFares[0].DropoffLat,
-			DropoffLng:     rideFares[0].DropoffLng,
+			PickupAddress:   rideFares[0].PickupAddress,
+			DropoffAddress:  rideFares[0].DropoffAddress,
+			PickupLat:       rideFares[0].PickupLat,
+			PickupLng:       rideFares[0].PickupLng,
+			DropoffLat:      rideFares[0].DropoffLat,
+			DropoffLng:      rideFares[0].DropoffLng,
 			DistanceMeters:  distMeters,
 			DurationSeconds: durSecs,
 		}
@@ -198,4 +198,3 @@ func getBaseFares() []*domain.RideFareModel {
 		{PackageSlug: "business", TotalPriceInCents: 1500},
 	}
 }
-

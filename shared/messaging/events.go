@@ -77,9 +77,9 @@ type PaymentStatusUpdate struct {
 }
 
 type DriverLocationData struct {
-	Lat      float64 `json:"lat"`
-	Lng      float64 `json:"lng"`
-	RiderID  string  `json:"rider_id"`
+	Lat     float64 `json:"lat"`
+	Lng     float64 `json:"lng"`
+	RiderID string  `json:"rider_id"`
 }
 
 type TripStatusEvent struct {

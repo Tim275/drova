@@ -189,4 +189,3 @@ func TestGrpcErrToHTTP_UnknownFallsToInternalError(t *testing.T) {
 		t.Errorf("want 500, got %d", w.Code)
 	}
 }
-

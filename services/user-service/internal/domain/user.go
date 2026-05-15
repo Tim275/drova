@@ -44,7 +44,7 @@ func (p *password) Matches(plain string) (bool, error) {
 	return comparePassword(p.hash, plain)
 }
 
-func (p *password) Hash() []byte    { return p.hash }
+func (p *password) Hash() []byte     { return p.hash }
 func (p *password) SetHash(h []byte) { p.hash = h }
 
 type UserStore interface {
