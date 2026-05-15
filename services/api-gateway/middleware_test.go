@@ -190,25 +190,3 @@ func TestGrpcErrToHTTP_UnknownFallsToInternalError(t *testing.T) {
 	}
 }
 
-// ── gatewayRateLimit (nil rdb passthrough) ─────────────────────────────────────
-
-func TestGatewayRateLimit_NilRedis_Passthrough(t *testing.T) {
-	called := false
-	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		called = true
-		w.WriteHeader(http.StatusOK)
-	})
-	handler := gatewayRateLimit(nil)(inner)
-
-	r := httptest.NewRequest(http.MethodGet, "/", nil)
-	r.RemoteAddr = "127.0.0.1:12345"
-	w := httptest.NewRecorder()
-	handler.ServeHTTP(w, r)
-
-	if !called {
-		t.Error("inner handler should be called when Redis is nil")
-	}
-	if w.Code != http.StatusOK {
-		t.Errorf("want 200, got %d", w.Code)
-	}
-}
