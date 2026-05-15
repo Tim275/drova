@@ -61,7 +61,6 @@ func securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
-
 func newRedisClient(addr, password string) *redis.Client {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     addr,

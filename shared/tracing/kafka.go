@@ -57,4 +57,3 @@ func StartKafkaConsumerSpan(ctx context.Context, topic, groupID string) (context
 	)
 	return ctx, func() { span.End() }
 }
-

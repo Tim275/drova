@@ -73,10 +73,10 @@ func main() {
 	}
 
 	kafkaClient.RegisterSchemas(context.Background(), map[string]avro.Schema{
-		"trip-created-value":           schema.SchemaTripCreated,
-		"trip-status-event-value":      schema.SchemaTripStatus,
-		"driver-trip-request-value":    schema.SchemaDriverTripRequest,
-		"payment-status-update-value":  schema.SchemaPaymentStatusUpdate,
+		"trip-created-value":          schema.SchemaTripCreated,
+		"trip-status-event-value":     schema.SchemaTripStatus,
+		"driver-trip-request-value":   schema.SchemaDriverTripRequest,
+		"payment-status-update-value": schema.SchemaPaymentStatusUpdate,
 	})
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -136,8 +136,8 @@ func main() {
 	mux.Handle("POST /webhook/stripe", tracing.WrapHandlerFunc(handleStripeWebhook, "POST /webhook/stripe"))
 
 	server := &http.Server{
-		Addr: httpAddr,
-		Handler: tracing.WrapHandler(requestID(securityHeaders(mux)), "api-gateway"),
+		Addr:              httpAddr,
+		Handler:           tracing.WrapHandler(requestID(securityHeaders(mux)), "api-gateway"),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,

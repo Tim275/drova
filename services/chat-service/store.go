@@ -87,9 +87,9 @@ func (s *MessageStore) MarkAllRead(ctx context.Context, tripID, readerID string)
 	now := time.Now().UTC()
 	_, err := s.coll.UpdateMany(ctx,
 		bson.M{
-			"trip_id":   tripID,
-			"sender_id": bson.M{"$ne": readerID},
-			"read_at":   nil,
+			"trip_id":    tripID,
+			"sender_id":  bson.M{"$ne": readerID},
+			"read_at":    nil,
 			"deleted_at": nil,
 		},
 		bson.M{"$set": bson.M{"read_at": now}},

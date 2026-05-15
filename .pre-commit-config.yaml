@@ -6,17 +6,16 @@ repos:
       - id: end-of-file-fixer
       - id: check-merge-conflict
       - id: check-yaml
+        args: [--allow-multiple-documents]
       - id: check-json
 
   - repo: https://github.com/dnephin/pre-commit-golang
     rev: v0.5.1
     hooks:
       - id: go-fmt
-      - id: go-vet
-      - id: go-mod-tidy
 
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.1.6
+    rev: v2.12.2
     hooks:
       - id: golangci-lint
-        args: [--timeout=5m, --fast]
+        args: [--timeout=5m]

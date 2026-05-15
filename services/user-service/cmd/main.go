@@ -18,8 +18,8 @@ import (
 	"drova/services/user-service/internal/store"
 	"drova/shared/env"
 	"drova/shared/logger"
-	"drova/shared/tracing"
 	pb "drova/shared/proto/user"
+	"drova/shared/tracing"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
