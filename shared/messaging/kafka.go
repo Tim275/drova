@@ -223,7 +223,7 @@ func (k *Kafka) consumeLoop(ctx context.Context, topic, groupID string, handler 
 			if ctx.Err() != nil {
 				return
 			}
-			jitter := time.Duration(rand.Int64N(int64(fetchBackoff / 4)))
+			jitter := time.Duration(rand.Int64N(int64(fetchBackoff / 4))) //nolint:gosec // jitter for backoff timing, not security-sensitive
 			wait := fetchBackoff + jitter
 			log.Printf("error fetching message from %s: %v (retry in %v)", topic, err, wait)
 			select {
