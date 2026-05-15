@@ -168,6 +168,11 @@ jobs:
           docker build -t drova-chat-service:latest    -f services/chat-service/Dockerfile    . -q
           docker build -t drova-frontend:latest        -f frontend/Dockerfile frontend/        -q
 
+      - name: Install Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sh -s -- -b /usr/local/bin v0.63.0
+
       - name: Trivy scan all images
         run: |
           FAILED=0
