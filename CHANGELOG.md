@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.6](https://github.com/Tim275/drova/compare/v0.18.5...v0.18.6) (2026-05-15)
+
+
+### Bug Fixes
+
+* kafka consumer backoff ([276d49c](https://github.com/Tim275/drova/commit/276d49c78a743e6a73e32642a9e758dbc8ce802e))
+
 ## [0.18.5](https://github.com/Tim275/drova/compare/v0.18.4...v0.18.5) (2026-05-15)
 
 
