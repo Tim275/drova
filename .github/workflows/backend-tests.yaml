@@ -124,10 +124,17 @@ jobs:
           CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/payment-service/cmd
           CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/chat-service
 
-      - name: Build Docker image
-        run: docker build -t drova-api-gateway:latest -f services/api-gateway/Dockerfile .
+      - name: Build Docker images (all services)
+        run: |
+          docker build -t drova-api-gateway:latest    -f services/api-gateway/Dockerfile    . -q
+          docker build -t drova-user-service:latest   -f services/user-service/Dockerfile   . -q
+          docker build -t drova-trip-service:latest   -f services/trip-service/Dockerfile   . -q
+          docker build -t drova-driver-service:latest -f services/driver-service/Dockerfile . -q
+          docker build -t drova-payment-service:latest -f services/payment-service/Dockerfile . -q
+          docker build -t drova-chat-service:latest   -f services/chat-service/Dockerfile   . -q
+          docker build -t drova-frontend:latest       -f frontend/Dockerfile frontend/       -q
 
-      - name: Run Trivy vulnerability scanner
+      - name: Trivy — api-gateway
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: "drova-api-gateway:latest"
@@ -136,7 +143,66 @@ jobs:
           ignore-unfixed: true
           vuln-type: "os,library"
           severity: "CRITICAL,HIGH"
-          # set exit-code: "0" above to make non-blocking during dependency updates
+
+      - name: Trivy — user-service
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: "drova-user-service:latest"
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+      - name: Trivy — trip-service
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: "drova-trip-service:latest"
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+      - name: Trivy — driver-service
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: "drova-driver-service:latest"
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+      - name: Trivy — payment-service
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: "drova-payment-service:latest"
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+      - name: Trivy — chat-service
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: "drova-chat-service:latest"
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
+
+      - name: Trivy — frontend
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: "drova-frontend:latest"
+          format: "table"
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: "os,library"
+          severity: "CRITICAL,HIGH"
 
   e2e:
     name: E2E Smoke Tests

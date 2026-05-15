@@ -104,12 +104,14 @@ jobs:
           echo "❌ Staging rolled back to previous tag — production PR NOT created"
 
       - name: Update production image tags
+        if: steps.staging_health.outcome != 'failure'
         run: |
           ./actions-repo/scripts/update_kustomize_tag \
             "${{ inputs.tag }}" \
             ./drova-gitops/overlays/production/kustomization.yaml
 
       - name: Create Production Pull Request
+        if: steps.staging_health.outcome != 'failure'
         uses: peter-evans/create-pull-request@c5a7806660adbe173f04e3e038b0ccdcd758773c # v6
         with:
           token: ${{ secrets.GITOPS_PAT }}
