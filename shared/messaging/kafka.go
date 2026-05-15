@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand/v2"
 	"os"
 	"strconv"
 	"sync"
@@ -210,15 +211,32 @@ func (k *Kafka) consumeLoop(ctx context.Context, topic, groupID string, handler 
 
 	retryCfg := retry.DefaultConfig()
 
+	const (
+		fetchBackoffInit = 1 * time.Second
+		fetchBackoffMax  = 30 * time.Second
+	)
+	fetchBackoff := fetchBackoffInit
+
 	for {
 		msg, err := reader.FetchMessage(ctx)
 		if err != nil {
 			if ctx.Err() != nil {
 				return
 			}
-			log.Printf("error fetching message from %s: %v", topic, err)
+			jitter := time.Duration(rand.Int64N(int64(fetchBackoff / 4)))
+			wait := fetchBackoff + jitter
+			log.Printf("error fetching message from %s: %v (retry in %v)", topic, err, wait)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(wait):
+			}
+			if fetchBackoff < fetchBackoffMax {
+				fetchBackoff = min(fetchBackoff*2, fetchBackoffMax)
+			}
 			continue
 		}
+		fetchBackoff = fetchBackoffInit
 
 		headers := make(map[string][]byte, len(msg.Headers))
 		for _, h := range msg.Headers {
