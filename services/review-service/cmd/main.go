@@ -47,7 +47,7 @@ func main() {
 	kafka := messaging.NewKafka(strings.Split(kafkaBrokers, ","))
 	defer kafka.Close()
 
-	_ = kafka // Kafka consumer will be wired here (trip.event.completed listener)
+	_ = kafka
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
