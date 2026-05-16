@@ -32,8 +32,10 @@ func (r *Room) leave(role string) {
 func (r *Room) broadcast(data []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	for _, conn := range r.conns {
-		_ = conn.WriteMessage(websocket.TextMessage, data)
+	for role, conn := range r.conns {
+		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+			delete(r.conns, role)
+		}
 	}
 }
 

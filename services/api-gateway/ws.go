@@ -22,6 +22,19 @@ const (
 	wsPongWait     = 35 * time.Second
 )
 
+func sendWSError(conn *websocket.Conn, mu *sync.Mutex, message string) {
+	msg, err := json.Marshal(contracts.WSMessage{
+		Type: contracts.WSEventError,
+		Data: map[string]string{"message": message},
+	})
+	if err != nil {
+		return
+	}
+	mu.Lock()
+	conn.WriteMessage(websocket.TextMessage, msg) //nolint:errcheck
+	mu.Unlock()
+}
+
 var riderConnManager = messaging.NewConnectionManager()
 var driverConnManager = messaging.NewConnectionManager()
 
@@ -87,7 +100,10 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 	defer riderConnManager.Remove(userID)
 
 	var wmu sync.Mutex
-	go subscribeUserWS(r.Context(), "ws:rider:"+userID, conn, &wmu)
+	go func() {
+		subscribeUserWS(r.Context(), "ws:rider:"+userID, conn, &wmu)
+		conn.Close()
+	}()
 
 	go func() {
 		ticker := time.NewTicker(wsPingInterval)
@@ -156,6 +172,7 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			if err := kafkaClient.PublishMessage(r.Context(), messaging.TopicTripCancelled, payload); err != nil {
 				appLog.Errorw("publish trip cancel", zap.Error(err))
+				sendWSError(conn, &wmu, "Cancel failed, please retry")
 			}
 			appLog.Infow("trip cancelled", "rider", userID, "trip", cancelData.TripID)
 		}
@@ -326,7 +343,12 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	go subscribeUserWS(r.Context(), "ws:driver:"+userID, conn, &wmu)
+	go func() {
+		subscribeUserWS(r.Context(), "ws:driver:"+userID, conn, &wmu)
+		// If the subscriber exits for any reason (e.g. write error on a half-open connection),
+		// force-close the WS so the browser receives onclose and auto-reconnects with a fresh subscription.
+		conn.Close()
+	}()
 
 	for {
 		_, message, err := conn.ReadMessage()
@@ -434,6 +456,7 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			if err := kafkaClient.PublishMessage(r.Context(), messaging.TopicDriverTripResponse, payload); err != nil {
 				appLog.Errorw("publish driver response", zap.Error(err))
+				sendWSError(conn, &wmu, "Failed to submit response, please retry")
 			}
 
 		case contracts.DriverCmdTripCancel:
@@ -466,6 +489,7 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			if err := kafkaClient.PublishMessage(r.Context(), messaging.TopicTripCancelled, payload); err != nil {
 				appLog.Errorw("publish driver cancel", zap.Error(err))
+				sendWSError(conn, &wmu, "Cancel failed, please retry")
 			}
 			appLog.Infow("driver cancelled trip", "driver", userID, "trip", cancelData.TripID)
 
@@ -520,6 +544,7 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			if err := kafkaClient.PublishMessage(r.Context(), kafkaTopic, payload); err != nil {
 				appLog.Errorw("publish driver status", "type", driverMsg.Type, zap.Error(err))
+				sendWSError(conn, &wmu, "Status update failed, please retry")
 			}
 			appLog.Infow("driver status", "driver", userID, "type", driverMsg.Type, "trip", statusData.TripID)
 

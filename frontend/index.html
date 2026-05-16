@@ -1333,6 +1333,9 @@
         previousDriverPos = d;
         updateRiderETA(d.lat, d.lng);
         updateLiveRoute(d.lat, d.lng);
+      } else if (msg.type === 'error') {
+        const errMsg = (msg.data && msg.data.message) ? msg.data.message : 'Action failed, please retry';
+        setTripStatus('Error', errMsg, false);
       } else if (msg.type === 'payment.event.session_created') {
         const d = msg.data;
         const drv = window.lastAssignedDriver || {};
@@ -1986,6 +1989,9 @@
         currentTripRequest = null;
         document.getElementById('chatBtnDriver').style.display = 'none';
         setStatus('Trip cancelled by rider. Waiting for new requests...');
+      } else if (msg.type === 'error') {
+        const errMsg = (msg.data && msg.data.message) ? msg.data.message : 'Action failed, please retry';
+        setStatus('Error: ' + errMsg);
       }
     };
 

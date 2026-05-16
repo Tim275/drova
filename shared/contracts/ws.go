@@ -1,6 +1,8 @@
 package contracts
 
 const (
+	WSEventError = "error"
+
 	DriverCmdRegister    = "driver.cmd.register"
 	DriverCmdTripRequest = "driver.cmd.trip_request"
 	DriverCmdTripAccept  = "driver.cmd.trip_accept"

@@ -101,7 +101,7 @@ func main() {
 	publisher := events.NewTripEventPublisher(kafka, log)
 
 	pgRepo := repository.NewPostgresRepository(db)
-	svc := service.NewService(pgRepo, userInfoProvider)
+	svc := service.NewService(pgRepo, userInfoProvider, nil)
 
 	driverConsumer := events.NewDriverConsumer(kafka, svc, log)
 	paymentConsumer := events.NewPaymentConsumer(kafka, svc, log)

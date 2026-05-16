@@ -55,6 +55,12 @@ type UserInfoProvider interface {
 	GetRiderInfo(ctx context.Context, userID string) (name, avatar string)
 }
 
+// RouteCache caches Mapbox Directions API responses to avoid repeated external calls.
+type RouteCache interface {
+	Get(ctx context.Context, key string) (*tripTypes.MapboxRouteResponse, bool)
+	Set(ctx context.Context, key string, route *tripTypes.MapboxRouteResponse)
+}
+
 type TripService interface {
 	CreateTrip(ctx context.Context, fare *RideFareModel) (*TripModel, error)
 	GetRoute(ctx context.Context, pickup, destination *types.Coordinate) (*tripTypes.MapboxRouteResponse, error)

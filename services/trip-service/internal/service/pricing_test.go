@@ -165,7 +165,7 @@ func TestEstimateFareRoute(t *testing.T) {
 }
 
 func TestEstimatePackagesPriceWithRoute_AllPackages(t *testing.T) {
-	svc := NewService(newFakeRepo(), &noopUsers{})
+	svc := NewService(newFakeRepo(), &noopUsers{}, nil)
 	fares := svc.EstimatePackagesPriceWithRoute(route(10_000, 600))
 
 	wantPackages := []string{"economy", "comfort", "van", "business"}
@@ -183,7 +183,7 @@ func TestEstimatePackagesPriceWithRoute_AllPackages(t *testing.T) {
 }
 
 func TestEstimatePackagesPriceWithRoute_PriceOrdering(t *testing.T) {
-	svc := NewService(newFakeRepo(), &noopUsers{})
+	svc := NewService(newFakeRepo(), &noopUsers{}, nil)
 	fares := svc.EstimatePackagesPriceWithRoute(route(10_000, 600))
 
 	for i := 1; i < len(fares); i++ {
@@ -198,7 +198,7 @@ func TestEstimatePackagesPriceWithRoute_PriceOrdering(t *testing.T) {
 
 func TestGetAndValidateFare(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, &noopUsers{})
+	svc := NewService(repo, &noopUsers{}, nil)
 
 	validFare := &domain.RideFareModel{
 		ID:        "fare-1",

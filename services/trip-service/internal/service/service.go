@@ -15,6 +15,7 @@ import (
 	pbd "drova/shared/proto/driver"
 	"drova/shared/types"
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 )
 
 var mapboxToken = env.GetString("MAPBOX_TOKEN", "")
@@ -24,10 +25,11 @@ var httpClient = &http.Client{Timeout: 10 * time.Second}
 type service struct {
 	repo  domain.TripRepository
 	users domain.UserInfoProvider
+	cache domain.RouteCache
 }
 
-func NewService(repo domain.TripRepository, users domain.UserInfoProvider) domain.TripService {
-	return &service{repo: repo, users: users}
+func NewService(repo domain.TripRepository, users domain.UserInfoProvider, cache domain.RouteCache) domain.TripService {
+	return &service{repo: repo, users: users, cache: cache}
 }
 
 func (s *service) CreateTrip(ctx context.Context, fare *domain.RideFareModel) (*domain.TripModel, error) {
@@ -49,7 +51,20 @@ func (s *service) CreateTrip(ctx context.Context, fare *domain.RideFareModel) (*
 	return s.repo.CreateTrip(ctx, trip)
 }
 
+func routeCacheKey(pickup, dest *types.Coordinate) string {
+	// 4 decimal places ≈ 11m precision — good enough to reuse route responses.
+	return fmt.Sprintf("mapbox:route:%.4f:%.4f:%.4f:%.4f",
+		pickup.Latitude, pickup.Longitude, dest.Latitude, dest.Longitude)
+}
+
 func (s *service) GetRoute(ctx context.Context, pickup, destination *types.Coordinate) (*tripTypes.MapboxRouteResponse, error) {
+	cacheKey := routeCacheKey(pickup, destination)
+	if s.cache != nil {
+		if cached, ok := s.cache.Get(ctx, cacheKey); ok {
+			return cached, nil
+		}
+	}
+
 	routeURL := fmt.Sprintf(
 		"https://api.mapbox.com/directions/v5/mapbox/driving/%f,%f;%f,%f?overview=full&geometries=geojson&access_token=%s",
 		pickup.Longitude, pickup.Latitude,
@@ -82,6 +97,10 @@ func (s *service) GetRoute(ctx context.Context, pickup, destination *types.Coord
 		return nil, fmt.Errorf("no routes found for given coordinates")
 	}
 
+	if s.cache != nil {
+		s.cache.Set(ctx, cacheKey, &route)
+	}
+
 	return &route, nil
 }
 
@@ -106,7 +125,7 @@ func (s *service) GenerateTripFares(ctx context.Context, rideFares []*domain.Rid
 
 	fares := make([]*domain.RideFareModel, len(rideFares))
 	for i, f := range rideFares {
-		fare := &domain.RideFareModel{
+		fares[i] = &domain.RideFareModel{
 			ID:                uuid.New().String(),
 			UserID:            userID,
 			RiderName:         riderName,
@@ -115,20 +134,27 @@ func (s *service) GenerateTripFares(ctx context.Context, rideFares []*domain.Rid
 			TotalPriceInCents: f.TotalPriceInCents,
 			Route:             route,
 			ExpiresAt:         time.Now().Add(domain.FareExpiryDuration),
-			// Addresses carried over from the preview request via rideFares[0]
-			PickupAddress:   rideFares[0].PickupAddress,
-			DropoffAddress:  rideFares[0].DropoffAddress,
-			PickupLat:       rideFares[0].PickupLat,
-			PickupLng:       rideFares[0].PickupLng,
-			DropoffLat:      rideFares[0].DropoffLat,
-			DropoffLng:      rideFares[0].DropoffLng,
-			DistanceMeters:  distMeters,
-			DurationSeconds: durSecs,
+			PickupAddress:     rideFares[0].PickupAddress,
+			DropoffAddress:    rideFares[0].DropoffAddress,
+			PickupLat:         rideFares[0].PickupLat,
+			PickupLng:         rideFares[0].PickupLng,
+			DropoffLat:        rideFares[0].DropoffLat,
+			DropoffLng:        rideFares[0].DropoffLng,
+			DistanceMeters:    distMeters,
+			DurationSeconds:   durSecs,
 		}
-		if err := s.repo.SaveRideFare(ctx, fare); err != nil {
-			return nil, fmt.Errorf("failed to save trip fare: %w", err)
-		}
-		fares[i] = fare
+	}
+
+	// Write all 4 fares in parallel — they're independent inserts.
+	g, gCtx := errgroup.WithContext(ctx)
+	for _, fare := range fares {
+		fare := fare
+		g.Go(func() error {
+			return s.repo.SaveRideFare(gCtx, fare)
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, fmt.Errorf("save ride fare: %w", err)
 	}
 	return fares, nil
 }

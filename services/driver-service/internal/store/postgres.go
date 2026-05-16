@@ -16,11 +16,12 @@ func NewPostgresStore(db *pgxpool.Pool) *PgStore {
 
 func (s *PgStore) Upsert(ctx context.Context, d *pb.Driver) error {
 	_, err := s.db.Exec(ctx, `
-		INSERT INTO drivers (id, name, package_slug, car_plate, profile_picture, last_seen)
-		VALUES ($1, $2, $3, $4, $5, NOW())
+		INSERT INTO drivers (id, name, package_slug, car_plate, profile_picture, last_seen, is_active)
+		VALUES ($1, $2, $3, $4, $5, NOW(), true)
 		ON CONFLICT (id) DO UPDATE SET
 			name      = EXCLUDED.name,
-			last_seen = NOW()`,
+			last_seen = NOW(),
+			is_active = true`,
 		d.Id, d.Name, d.PackageSlug, d.CarPlate, d.ProfilePicture,
 	)
 	return err
