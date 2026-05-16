@@ -1246,6 +1246,7 @@
         const d = msg.data;
         window.lastAssignedDriver = d;
         activeTripDriverID = d.id || '';
+        if (d.trip_id) activeTripID = d.trip_id;
         currentTripPhase = 'accepted';
         if (pickupMarker) pickupMarker.setDraggable(false);
         if (destinationMarker) destinationMarker.setDraggable(false);
@@ -2129,7 +2130,7 @@
     const target = currentTripPhase === 'in_progress' ? destinationCoords : pickupCoords;
     if (!target || !map.getSource('route')) return;
     try {
-      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${driverLng},${driverLat};${target.longitude},${target.latitude}?geometries=geojson&access_token=${mapboxgl.accessToken}`;
+      const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${driverLng},${driverLat};${target.longitude},${target.latitude}?overview=full&geometries=geojson&access_token=${mapboxgl.accessToken}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.routes && data.routes[0]) {
