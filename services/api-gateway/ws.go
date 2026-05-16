@@ -66,14 +66,9 @@ func subscribeUserWS(ctx context.Context, channel string, conn *websocket.Conn, 
 }
 
 func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
-	tokenStr := r.URL.Query().Get("token")
-	claims, err := parseGatewayToken(tokenStr)
+	claims, err := resolveWSAuth(r)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	if isBlacklisted(r.Context(), claims.ID) {
-		http.Error(w, "token revoked", http.StatusUnauthorized)
 		return
 	}
 
@@ -180,14 +175,9 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
-	tokenStr := r.URL.Query().Get("token")
-	claims, err := parseGatewayToken(tokenStr)
+	claims, err := resolveWSAuth(r)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	if isBlacklisted(r.Context(), claims.ID) {
-		http.Error(w, "token revoked", http.StatusUnauthorized)
 		return
 	}
 

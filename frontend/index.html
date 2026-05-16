@@ -824,27 +824,47 @@
 
   // Auth state
   let currentUser = null;
+  let _accessToken = null;
+  let _refreshPromise = null;
 
-  function authToken() { return localStorage.getItem('drova_token'); }
+  function authToken() { return _accessToken; }
+
+  function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  async function getWsTicket() {
+    const t = await ensureFreshToken();
+    if (!t) return null;
+    try {
+      const res = await fetch('/ws/ticket', { headers: { 'Authorization': 'Bearer ' + t } });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.ticket || null;
+    } catch (_) { return null; }
+  }
 
   async function ensureFreshToken() {
-    const token = authToken();
+    if (_refreshPromise) return _refreshPromise;
+    const token = _accessToken;
     if (token) {
       try {
         const payload = JSON.parse(atob(token.split('.')[1]));
-        // Refresh if token expires within 60 seconds
         if (payload.exp && (payload.exp - Date.now() / 1000) > 60) return token;
       } catch (_) {}
     }
-    try {
-      const res = await fetch('/v1/auth/refresh', { method: 'POST', credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
-        localStorage.setItem('drova_token', data.token);
-        return data.token;
-      }
-    } catch (_) {}
-    return token; // fallback to existing token
+    _refreshPromise = (async () => {
+      try {
+        const res = await fetch('/v1/auth/refresh', { method: 'POST', credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          _accessToken = data.token;
+          return data.token;
+        }
+      } catch (_) {}
+      return token;
+    })().finally(() => { _refreshPromise = null; });
+    return _refreshPromise;
   }
 
   async function initApp() {
@@ -855,7 +875,7 @@
       const res = await fetch('/v1/users/me', {
         headers: { 'Authorization': 'Bearer ' + token }
       });
-      if (!res.ok) { localStorage.clear(); showAuth(); return; }
+      if (!res.ok) { localStorage.clear(); _accessToken = null; showAuth(); return; }
       const data = await res.json();
       currentUser = {
         id: String(data.id), email: data.email, role: data.role,
@@ -931,7 +951,7 @@
       const data = await res.json();
       if (!res.ok) { showAuthErr(data.error || 'Login failed.'); return; }
 
-      localStorage.setItem('drova_token', data.token);
+      _accessToken = data.token;
 
       const meRes = await fetch('/v1/users/me', {
         headers: { 'Authorization': 'Bearer ' + data.token }
@@ -942,7 +962,6 @@
         name: me.display_name || '', avatarUrl: me.avatar_url || '',
         phone: me.phone || '', address: me.address || '',
       };
-      localStorage.setItem('drova_user', JSON.stringify(currentUser));
 
       navigateByRole();
     } catch (_) { showAuthErr('Network error. Please try again.'); }
@@ -1004,6 +1023,7 @@
     document.getElementById('mapscreen').style.display = 'none';
     document.getElementById('welcome').classList.remove('active');
     localStorage.clear();
+    _accessToken = null;
     currentUser = null;
     showAuth();
   }
@@ -1113,7 +1133,7 @@
     await startDriverScreen();
     document.getElementById('dsOffline').style.display = 'none';
     document.getElementById('dsOnline').style.display = 'flex';
-    connectDriverWS(pkg, name);
+    await connectDriverWS(pkg, name);
   }
 
   // App state
@@ -1164,7 +1184,16 @@
             const parts = f.place_name.split(',');
             const main  = parts[0];
             const sub   = parts.slice(1).join(',').trim();
-            item.innerHTML = `<div class="ac-item-main">${main}</div>${sub ? `<div class="ac-item-sub">${sub}</div>` : ''}`;
+            const mainEl = document.createElement('div');
+            mainEl.className = 'ac-item-main';
+            mainEl.textContent = main;
+            item.appendChild(mainEl);
+            if (sub) {
+              const subEl = document.createElement('div');
+              subEl.className = 'ac-item-sub';
+              subEl.textContent = sub;
+              item.appendChild(subEl);
+            }
             item.addEventListener('mousedown', (e) => {
               e.preventDefault();
               input.value = f.place_name;
@@ -1226,10 +1255,12 @@
   let riderWsReconnectTimer = null;
 
   let _riderHeartbeat = null;
-  function connectRiderWS() {
+  async function connectRiderWS() {
     if (ws && ws.readyState === WebSocket.OPEN) return;
+    const ticket = await getWsTicket();
+    if (!ticket) { return; }
     const _scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-    ws = new WebSocket(`${_scheme}://${location.host}/ws/riders?userID=${currentUser.id}&token=${encodeURIComponent(authToken())}`);
+    ws = new WebSocket(`${_scheme}://${location.host}/ws/riders?userID=${currentUser.id}&ticket=${encodeURIComponent(ticket)}`);
 
     ws.onopen = () => {
       if (_riderHeartbeat) clearInterval(_riderHeartbeat);
@@ -1931,12 +1962,14 @@
     if (locationWatchId !== null) { navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
   }
 
-  function connectDriverWS(pkg, driverName) {
+  async function connectDriverWS(pkg, driverName) {
     driverReconnectPkg = pkg;
     const wsName = driverName || currentUser.name || currentUser.email.split('@')[0];
     const driverAvatar = currentUser.avatarUrl || defaultAvatar(wsName);
+    const ticket = await getWsTicket();
+    if (!ticket) { setStatus('Auth error — please reload'); return; }
     const _wsSchemeD = location.protocol === 'https:' ? 'wss' : 'ws';
-    ws = new WebSocket(`${_wsSchemeD}://${location.host}/ws/drivers?userID=${currentUser.id}&packageSlug=${pkg}&name=${encodeURIComponent(wsName)}&avatarUrl=${encodeURIComponent(driverAvatar)}&token=${encodeURIComponent(authToken())}`);
+    ws = new WebSocket(`${_wsSchemeD}://${location.host}/ws/drivers?userID=${currentUser.id}&packageSlug=${pkg}&name=${encodeURIComponent(wsName)}&avatarUrl=${encodeURIComponent(driverAvatar)}&ticket=${encodeURIComponent(ticket)}`);
 
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
@@ -2078,14 +2111,18 @@
     const price = data.price_cents ? ` · €${(data.price_cents / 100).toFixed(2)}` : '';
     const box = document.getElementById('tripRequestInfo');
 
-    const pickupHint  = data.pickup_address  || '<em>loading...</em>';
-    const destHint    = data.dropoff_address || '<em>loading...</em>';
+    const pickupHint  = data.pickup_address  || null;
+    const destHint    = data.dropoff_address || null;
 
-    box.innerHTML =
-      `<strong>Package:</strong> ${data.package_slug}${price}<br>` +
-      `<strong>Distance:</strong> ~${km} km<br>` +
-      `<strong>Pickup:</strong> ${pickupHint}<br>` +
-      `<strong>Destination:</strong> ${destHint}`;
+    function renderTripInfoBox(pkg, dist, pickup, dest) {
+      box.innerHTML =
+        `<strong>Package:</strong> ${esc(pkg)}${price}<br>` +
+        `<strong>Distance:</strong> ~${esc(dist)} km<br>` +
+        `<strong>Pickup:</strong> ${pickup ? esc(pickup) : '<em>loading...</em>'}<br>` +
+        `<strong>Destination:</strong> ${dest ? esc(dest) : '<em>loading...</em>'}`;
+    }
+
+    renderTripInfoBox(data.package_slug, km, pickupHint, destHint);
     document.getElementById('tripRequest').style.display = 'block';
     setStatus('New trip request received.');
 
@@ -2095,11 +2132,7 @@
           data.pickup_address  ? Promise.resolve(data.pickup_address)  : reverseGeocode(data.pickup.lng, data.pickup.lat),
           data.dropoff_address ? Promise.resolve(data.dropoff_address) : reverseGeocode(data.destination.lng, data.destination.lat),
         ]);
-        box.innerHTML =
-          `<strong>Package:</strong> ${data.package_slug}${price}<br>` +
-          `<strong>Distance:</strong> ~${km} km<br>` +
-          `<strong>Pickup:</strong> ${pickupAddr}<br>` +
-          `<strong>Destination:</strong> ${destAddr}`;
+        renderTripInfoBox(data.package_slug, km, pickupAddr, destAddr);
       } catch (_) {}
     }
   }
@@ -2333,15 +2366,15 @@
       document.getElementById('historyList').innerHTML = trips.map(t => {
         const date = t.createdAt ? new Date(t.createdAt * 1000).toLocaleDateString('en-US', { day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
         const stars = t.rating ? '★'.repeat(t.rating) + '☆'.repeat(5 - t.rating) : '';
-        const statusLabel = statusLabels[t.status] || t.status;
+        const statusLabel = esc(statusLabels[t.status] || t.status);
         return `
           <div class="history-item">
             <div class="history-item-top">
-              <span class="history-pkg">${pkgNames[t.packageSlug] || t.packageSlug}</span>
+              <span class="history-pkg">${esc(pkgNames[t.packageSlug] || t.packageSlug)}</span>
               <span class="history-price">€${(t.priceCents / 100).toFixed(2)}</span>
             </div>
-            <div class="history-meta">${date}${t.driverName ? ` · ${t.driverName}` : ''}${t.driverPlate ? ` · ${t.driverPlate}` : ''}</div>
-            <span class="history-status ${t.status}">${statusLabel}</span>
+            <div class="history-meta">${esc(date)}${t.driverName ? ` · ${esc(t.driverName)}` : ''}${t.driverPlate ? ` · ${esc(t.driverPlate)}` : ''}</div>
+            <span class="history-status ${esc(t.status)}">${statusLabel}</span>
             ${stars ? `<div class="history-stars">${stars}</div>` : ''}
           </div>`;
       }).join('');
@@ -2358,13 +2391,8 @@
     const overlay = document.getElementById('driverhistoryoverlay');
     overlay.style.display = 'flex';
     document.getElementById('driverHistoryList').innerHTML = '<p style="color:#6b7280;font-size:14px;">Loading...</p>';
-    const drvID = registeredDriverID || currentUser?.id;
-    if (!drvID) {
-      document.getElementById('driverHistoryList').innerHTML = '<p style="color:#6b7280;font-size:14px;">No trips yet.</p>';
-      return;
-    }
     try {
-      const res = await fetch(`/trips/driver-history?driverID=${encodeURIComponent(drvID)}`, {
+      const res = await fetch(`/trips/driver-history`, {
         headers: { 'Authorization': 'Bearer ' + authToken() }
       });
       const trips = await res.json();
@@ -2380,19 +2408,20 @@
       const pkgNames = { economy: 'Economy', comfort: 'Comfort', van: 'Van', business: 'Business' };
       document.getElementById('driverHistoryList').innerHTML = trips.map(t => {
         const date = t.createdAt ? new Date(t.createdAt * 1000).toLocaleDateString('en-US', { day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
-        const statusLabel = statusLabels[t.status] || t.status;
-        const riderAvatar = t.riderAvatar || defaultAvatar(t.riderName || 'Rider');
+        const statusLabel = esc(statusLabels[t.status] || t.status);
+        const riderName = t.riderName || 'Rider';
+        const fallbackAvatar = defaultAvatar(riderName);
         return `
           <div class="history-item">
             <div class="history-item-top">
-              <span class="history-pkg">${pkgNames[t.packageSlug] || t.packageSlug}</span>
+              <span class="history-pkg">${esc(pkgNames[t.packageSlug] || t.packageSlug)}</span>
               <span class="history-price">€${(t.priceCents / 100).toFixed(2)}</span>
             </div>
             <div class="history-meta" style="display:flex;align-items:center;gap:6px;margin-top:4px;">
-              <img src="${riderAvatar}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;" onerror="this.src='${defaultAvatar(t.riderName || 'Rider')}'">
-              <span>${t.riderName || 'Rider'} · ${date}</span>
+              <img src="${esc(fallbackAvatar)}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;" onerror="this.src='${esc(fallbackAvatar)}'">
+              <span>${esc(riderName)} · ${esc(date)}</span>
             </div>
-            <span class="history-status ${t.status}">${statusLabel}</span>
+            <span class="history-status ${esc(t.status)}">${statusLabel}</span>
           </div>`;
       }).join('');
     } catch (e) {
@@ -2422,11 +2451,12 @@
           ? new Date(t.createdAt * 1000).toLocaleDateString('en-US', { day:'2-digit', month:'short', year:'numeric' })
           : '—';
         const amount = t.priceCents ? `€${(t.priceCents / 100).toFixed(2)}` : '—';
-        const pkg = pkgNames[t.packageSlug] || t.packageSlug || 'Trip';
+        const pkg = esc(pkgNames[t.packageSlug] || t.packageSlug || 'Trip');
         const badgeClass = t.status === 'paid' ? 'paid' : 'completed';
         const badgeLabel = t.status === 'paid' ? '✓ Paid' : '✓ Completed';
         const stars = t.rating ? '★'.repeat(t.rating) + '☆'.repeat(5 - t.rating) : '';
-        const driverAvatar = t.driverAvatar || defaultAvatar(t.driverName || 'Driver');
+        const driverName = t.driverName || '';
+        const fallbackAvatar = defaultAvatar(driverName || 'Driver');
         return `
           <div class="receipt">
             <div class="receipt-top">
@@ -2434,22 +2464,22 @@
                 <div class="receipt-pkg-dot"></div>
                 ${pkg}
               </div>
-              <div class="receipt-amount">${amount}</div>
+              <div class="receipt-amount">${esc(amount)}</div>
             </div>
-            ${t.driverName ? `
+            ${driverName ? `
             <div class="receipt-driver">
-              <img src="${driverAvatar}" alt="">
+              <img src="${esc(fallbackAvatar)}" alt="" onerror="this.src='${esc(fallbackAvatar)}'">
               <div>
-                <div class="receipt-driver-name">${t.driverName}</div>
-                ${t.driverPlate ? `<div class="receipt-driver-plate">${t.driverPlate}</div>` : ''}
+                <div class="receipt-driver-name">${esc(driverName)}</div>
+                ${t.driverPlate ? `<div class="receipt-driver-plate">${esc(t.driverPlate)}</div>` : ''}
               </div>
             </div>` : ''}
             <div class="receipt-footer">
               <div>
-                <div class="receipt-date">${date}</div>
+                <div class="receipt-date">${esc(date)}</div>
                 ${stars ? `<div class="receipt-stars">${stars}</div>` : ''}
               </div>
-              <span class="receipt-badge ${badgeClass}">${badgeLabel}</span>
+              <span class="receipt-badge ${esc(badgeClass)}">${esc(badgeLabel)}</span>
             </div>
           </div>`;
       }).join('');
@@ -2586,12 +2616,12 @@
 
     if (chatWs) { chatWs.close(); chatWs = null; }
 
-    const freshToken = await ensureFreshToken();
-    const token = encodeURIComponent(freshToken || '');
+    const chatTicket = await getWsTicket();
+    if (!chatTicket) { appendChatInfo('Auth error — please reload'); return; }
     const _wsSchemeC = location.protocol === 'https:' ? 'wss' : 'ws';
     const _chatHost = location.protocol === 'https:' ? location.host : `${location.hostname}:8084`;
     chatWs = new WebSocket(
-      `${_wsSchemeC}://${_chatHost}/ws/chat?tripID=${chatTripID}&userID=${currentUser.id}&token=${token}`
+      `${_wsSchemeC}://${_chatHost}/ws/chat?tripID=${chatTripID}&userID=${currentUser.id}&ticket=${encodeURIComponent(chatTicket)}`
     );
 
     chatWs.onopen = () => {

@@ -130,6 +130,9 @@ func main() {
 	mux.Handle("POST /trip/rate", tracing.WrapHandlerFunc(enableCORS(requireAuth(handleTripRate)), "POST /trip/rate"))
 	mux.HandleFunc("OPTIONS /trip/rate", enableCORS(handleOptions))
 
+	// WebSocket ticket (single-use 30s token, keeps JWT out of WS URL)
+	mux.HandleFunc("GET /ws/ticket", enableCORS(requireAuth(handleWsTicket)))
+
 	// WebSocket + Stripe
 	mux.Handle("/ws/drivers", tracing.WrapHandlerFunc(handleDriversWebSocket, "/ws/drivers"))
 	mux.Handle("/ws/riders", tracing.WrapHandlerFunc(handleRidersWebSocket, "/ws/riders"))
