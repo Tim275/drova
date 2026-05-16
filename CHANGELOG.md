@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.9](https://github.com/Tim275/drova/compare/v0.18.8...v0.18.9) (2026-05-16)
+
+
+### Bug Fixes
+
+* chat and some hardening ([#189](https://github.com/Tim275/drova/issues/189)) ([3f92449](https://github.com/Tim275/drova/commit/3f92449d0911e2ff497cbb969108b7e47952cc73))
+
 ## [0.18.8](https://github.com/Tim275/drova/compare/v0.18.7...v0.18.8) (2026-05-16)
 
 
