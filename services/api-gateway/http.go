@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -153,17 +155,42 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, contracts.APIResponse{Data: result})
 }
 
+func handleWsTicket(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFromContext(r.Context())
+	if claims == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if gatewayRdb == nil {
+		http.Error(w, "tickets unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		appLog.Errorw("ticket rand", zap.Error(err))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	ticket := hex.EncodeToString(b)
+	value := fmt.Sprintf("%d|%s|%s", claims.UserID, claims.Role, claims.ID)
+	if err := gatewayRdb.Set(r.Context(), "wstkt:"+ticket, value, 30*time.Second).Err(); err != nil {
+		appLog.Errorw("ticket store", zap.Error(err))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"ticket": ticket})
+}
+
 func handleTripHistory(w http.ResponseWriter, r *http.Request) {
-	tokenStr := tokenFromRequest(r)
-	claims, err := parseGatewayToken(tokenStr)
-	if err != nil {
+	claims := claimsFromContext(r.Context())
+	if claims == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 	userID := fmt.Sprintf("%d", claims.UserID)
 
 	var resp interface{}
-	_, err = grpc_clients.TripBreaker.Execute(func() (interface{}, error) {
+	_, histErr := grpc_clients.TripBreaker.Execute(func() (interface{}, error) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 		res, err := grpc_clients.TripClient.GetTripsByUser(ctx, &pbt.GetTripsRequest{Id: userID})
@@ -173,12 +200,12 @@ func handleTripHistory(w http.ResponseWriter, r *http.Request) {
 		resp = res.GetTrips()
 		return nil, nil
 	})
-	if err != nil {
-		if err == gobreaker.ErrOpenState {
+	if histErr != nil {
+		if histErr == gobreaker.ErrOpenState {
 			http.Error(w, "trip service temporarily unavailable", http.StatusServiceUnavailable)
 			return
 		}
-		appLog.Errorw("trip history", zap.Error(err))
+		appLog.Errorw("trip history", zap.Error(histErr))
 		http.Error(w, "trip service unavailable", http.StatusServiceUnavailable)
 		return
 	}
@@ -186,11 +213,12 @@ func handleTripHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDriverHistory(w http.ResponseWriter, r *http.Request) {
-	driverID := r.URL.Query().Get("driverID")
-	if driverID == "" {
-		http.Error(w, "driverID required", http.StatusBadRequest)
+	claims := claimsFromContext(r.Context())
+	if claims == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
+	driverID := fmt.Sprintf("%d", claims.UserID)
 
 	var resp interface{}
 	_, err := grpc_clients.TripBreaker.Execute(func() (interface{}, error) {
@@ -411,15 +439,14 @@ func handleActivate(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleGetMe(w http.ResponseWriter, r *http.Request) {
-	tokenStr := tokenFromRequest(r)
-	claims, err := parseGatewayToken(tokenStr)
-	if err != nil {
+	claims := claimsFromContext(r.Context())
+	if claims == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	var u *pbu.UserResponse
-	_, err = grpc_clients.UserBreaker.Execute(func() (interface{}, error) {
+	_, err := grpc_clients.UserBreaker.Execute(func() (interface{}, error) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 		res, err := grpc_clients.UserClient.GetUser(ctx, &pbu.GetUserRequest{UserId: claims.UserID})
@@ -439,9 +466,8 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 64<<10)
 	defer r.Body.Close()
 
-	tokenStr := tokenFromRequest(r)
-	claims, err := parseGatewayToken(tokenStr)
-	if err != nil {
+	claims := claimsFromContext(r.Context())
+	if claims == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -458,7 +484,7 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var u *pbu.UserResponse
-	_, err = grpc_clients.UserBreaker.Execute(func() (interface{}, error) {
+	_, profErr := grpc_clients.UserBreaker.Execute(func() (interface{}, error) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 		res, err := grpc_clients.UserClient.UpdateProfile(ctx, &pbu.UpdateProfileRequest{
@@ -473,8 +499,8 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		}
 		return nil, err
 	})
-	if err != nil {
-		grpcErrToHTTP(w, err)
+	if profErr != nil {
+		grpcErrToHTTP(w, profErr)
 		return
 	}
 	writeJSON(w, http.StatusOK, u)

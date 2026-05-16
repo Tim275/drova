@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
-	"time"
 )
 
 // ── handleHealth ──────────────────────────────────────────────────────────────
@@ -119,13 +118,13 @@ func TestHandleTripHistory_InvalidToken_Returns401(t *testing.T) {
 
 // ── handleDriverHistory ───────────────────────────────────────────────────────
 
-func TestHandleDriverHistory_MissingDriverID_Returns400(t *testing.T) {
+func TestHandleDriverHistory_NoAuth_Returns401(t *testing.T) {
 	r := httptest.NewRequest(http.MethodGet, "/trips/driver-history", nil)
 	w := httptest.NewRecorder()
 	handleDriverHistory(w, r)
 
-	if w.Code != http.StatusBadRequest {
-		t.Errorf("want 400, got %d", w.Code)
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("want 401, got %d", w.Code)
 	}
 }
 
@@ -255,10 +254,12 @@ func TestHandleUpdateProfile_InvalidToken_Returns401(t *testing.T) {
 
 func TestHandleUpdateProfile_ValidToken_BadJSON_Returns400(t *testing.T) {
 	jwtSecret = testSecret
-	tok := makeTestToken(t, testSecret, 42, time.Hour)
+	claims := &gatewayClaims{}
+	claims.UserID = 42
+	ctx := context.WithValue(context.Background(), claimsKey, claims)
 
 	r := httptest.NewRequest(http.MethodPut, "/v1/users/profile", strings.NewReader("{bad"))
-	r.Header.Set("Authorization", "Bearer "+tok)
+	r = r.WithContext(ctx)
 	w := httptest.NewRecorder()
 	handleUpdateProfile(w, r)
 

@@ -78,7 +78,11 @@ func (c *DriverConsumer) handleTripAccepted(ctx context.Context, data messaging.
 		return fmt.Errorf("update trip: %w", err)
 	}
 
-	driverData, err := json.Marshal(data.Driver)
+	payload := struct {
+		messaging.DriverInfo
+		TripID string `json:"trip_id"`
+	}{DriverInfo: data.Driver, TripID: data.TripID}
+	driverData, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal driver: %w", err)
 	}

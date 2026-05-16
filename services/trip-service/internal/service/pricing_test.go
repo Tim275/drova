@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ type noopUsers struct{}
 func (n *noopUsers) GetRiderInfo(_ context.Context, _ string) (string, string) { return "", "" }
 
 type fakeRepo struct {
+	mu        sync.Mutex
 	fares     map[string]*domain.RideFareModel
 	trips     map[string]*domain.TripModel
 	createErr error
@@ -31,7 +33,9 @@ func newFakeRepo() *fakeRepo {
 }
 
 func (f *fakeRepo) SaveRideFare(_ context.Context, fare *domain.RideFareModel) error {
+	f.mu.Lock()
 	f.fares[fare.ID] = fare
+	f.mu.Unlock()
 	return nil
 }
 func (f *fakeRepo) GetRideFareByID(_ context.Context, id string) (*domain.RideFareModel, error) {

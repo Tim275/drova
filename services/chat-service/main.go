@@ -25,6 +25,8 @@ var appLog *zap.SugaredLogger
 var jwtSecret []byte
 var rooms *RoomManager
 var store *MessageStore
+var chatRdb *redis.Client
+var chatAllowedOrigin = env.GetString("CORS_ALLOWED_ORIGIN", "")
 
 const (
 	wsPingInterval = 30 * time.Second
@@ -32,7 +34,12 @@ const (
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: func(r *http.Request) bool {
+		if chatAllowedOrigin == "" {
+			return true // dev: no origin restriction
+		}
+		return r.Header.Get("Origin") == chatAllowedOrigin
+	},
 }
 
 func main() {
@@ -72,6 +79,7 @@ func main() {
 		appLog.Fatalw("redis connect failed", zap.Error(err))
 	}
 	defer rdb.Close()
+	chatRdb = rdb
 
 	rooms = NewRoomManager(rdb)
 
@@ -114,7 +122,7 @@ func parseToken(tokenStr string) (userID, role string, err error) {
 			return nil, fmt.Errorf("unexpected signing method")
 		}
 		return jwtSecret, nil
-	}, jwt.WithValidMethods([]string{"HS256"}))
+	}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired())
 	if err != nil {
 		return "", "", err
 	}
@@ -130,11 +138,24 @@ func parseToken(tokenStr string) (userID, role string, err error) {
 }
 
 func handleChat(w http.ResponseWriter, r *http.Request) {
-	tokenStr := r.URL.Query().Get("token")
-	userID, role, err := parseToken(tokenStr)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
+	var userID, role string
+	if ticket := r.URL.Query().Get("ticket"); ticket != "" && chatRdb != nil {
+		val, err := chatRdb.GetDel(r.Context(), "wstkt:"+ticket).Result()
+		if err == nil {
+			parts := strings.SplitN(val, "|", 3)
+			if len(parts) >= 2 {
+				userID = parts[0]
+				role = parts[1]
+			}
+		}
+	}
+	if userID == "" {
+		var err error
+		userID, role, err = parseToken(r.URL.Query().Get("token"))
+		if err != nil {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
 	}
 
 	tripID := r.URL.Query().Get("tripID")
