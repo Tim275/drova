@@ -51,6 +51,10 @@ func TestRequestID_PassesThroughExistingID(t *testing.T) {
 // ── enableCORS ────────────────────────────────────────────────────────────────
 
 func TestEnableCORS_SetsHeaders(t *testing.T) {
+	orig := corsAllowedOrigin
+	corsAllowedOrigin = "https://example.com"
+	t.Cleanup(func() { corsAllowedOrigin = orig })
+
 	inner := func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }
 	handler := enableCORS(inner)
 
