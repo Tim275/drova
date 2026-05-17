@@ -120,7 +120,7 @@ func main() {
 	userCache := store.NewUserCache(rdb)
 	blacklist := store.NewTokenBlacklist(rdb)
 	refreshTokens := store.NewRefreshTokenStore(rdb)
-	svc := service.New(userStore, invStore, userCache, m)
+	svc := service.New(userStore, invStore, userCache, m, log)
 
 	app := &application{service: svc, auth: authenticator, blacklist: blacklist, refreshTokens: refreshTokens, log: log, rdb: rdb}
 
