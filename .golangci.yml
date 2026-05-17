@@ -1,0 +1,81 @@
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck        # catches _ = err, _ = rows.Scan(...)
+    - govet           # go vet standard checks
+    - staticcheck     # advanced static analysis (SA*, S*, ST*)
+    - gosec           # security issues (G104 = errcheck for goroutines, G114 = http timeouts)
+    - revive          # general Go style linting
+    - bodyclose       # HTTP response body not closed
+    - noctx           # http.NewRequest without context
+    - godot           # comment formatting (optional, low noise)
+    - misspell        # typos in comments/strings
+    - unconvert       # unnecessary type conversions
+    - unparam         # unused function parameters
+    - gochecknoinits  # init() with side effects
+    - gocritic        # opinionated but useful checks
+
+linters-settings:
+  errcheck:
+    check-type-assertions: false  # x.(T) without ok is ok in tests
+    check-blank: true             # _ = someErr() is caught
+
+  gosec:
+    excludes:
+      - G404  # rand.IntN — not security-sensitive in driver routing
+      - G115  # integer overflow — false positives in proto code
+
+  revive:
+    rules:
+      - name: exported
+        disabled: true  # don't require godoc on every export
+      - name: unused-parameter
+        disabled: true  # covered by unparam
+      - name: unhandled-error
+        arguments:
+          # these are intentionally fire-and-forget
+          - "fmt.Print.*"
+          - "(*go.uber.org/zap.SugaredLogger).Sync"
+
+  staticcheck:
+    checks:
+      - "all"
+      - "-ST1000"  # package comment not required
+      - "-ST1003"  # naming conventions (too strict for proto fields)
+      - "-SA1019"  # deprecated — we know grpc.Dial is deprecated
+
+  gocritic:
+    disabled-checks:
+      - hugeParam    # proto structs are large by design
+      - rangeValCopy
+
+issues:
+  exclude-rules:
+    # Test files: _ = err is acceptable for table-driven test setup
+    - path: "_test\\.go"
+      linters:
+        - errcheck
+        - gosec
+        - unparam
+
+    # Proto-generated files: don't lint
+    - path: "\\.pb\\.go$"
+      linters:
+        - all
+
+    # Migration files: SQL strings are parameterised, not injection risk
+    - path: "migrations/"
+      linters:
+        - gosec
+
+    # nolint comments already placed for specific intentional cases
+    - linters:
+        - gosec
+      text: "G104"  # errors unhandled in defer — handled with nolint where intentional
+
+  max-issues-per-linter: 0
+  max-same-issues: 0

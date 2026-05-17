@@ -13,3 +13,5 @@ local/k8s/secrets.yaml
 coverage_gw.out
 drova-gitops/
 .gitlab-ci.yml
+/api-gateway
+/cmd
