@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"strings"
 	"time"
 
 	"drova/services/user-service/internal/domain"
@@ -43,7 +44,8 @@ func (s *UserService) Register(ctx context.Context, email, plainPassword string,
 
 	go func() {
 		if err := s.mailer.SendActivation(user.Email, token); err != nil {
-			s.log.Warnw("send activation email failed", "email", user.Email, zap.Error(err))
+			safeEmail := strings.ReplaceAll(strings.ReplaceAll(user.Email, "\n", "\\n"), "\r", "\\r")
+			s.log.Warnw("send activation email failed", "email", safeEmail, zap.Error(err))
 		}
 	}()
 	return user, nil

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -50,18 +51,23 @@ func (cm *ConnectionManager) Upgrade(w http.ResponseWriter, r *http.Request) (*w
 	return u.Upgrade(w, r, nil)
 }
 
+func sanitizeLog(s string) string {
+	s = strings.ReplaceAll(s, "\n", "\\n")
+	return strings.ReplaceAll(s, "\r", "\\r")
+}
+
 func (cm *ConnectionManager) Add(id string, conn *websocket.Conn) {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 	cm.connections[id] = &connWrapper{conn: conn}
-	cm.log.Infow("WS connection added", "id", id, "total", len(cm.connections))
+	cm.log.Infow("WS connection added", "id", sanitizeLog(id), "total", len(cm.connections))
 }
 
 func (cm *ConnectionManager) Remove(id string) {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 	delete(cm.connections, id)
-	cm.log.Infow("WS connection removed", "id", id)
+	cm.log.Infow("WS connection removed", "id", sanitizeLog(id))
 }
 
 func (cm *ConnectionManager) SendMessage(id string, message any) error {
