@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.18.9](https://github.com/Tim275/drova/compare/v0.18.8...v0.18.9) (2026-05-16)
+
+
+### Bug Fixes
+
+* chat and some hardening ([#189](https://github.com/Tim275/drova/issues/189)) ([3f92449](https://github.com/Tim275/drova/commit/3f92449d0911e2ff497cbb969108b7e47952cc73))
+
+## [0.18.8](https://github.com/Tim275/drova/compare/v0.18.7...v0.18.8) (2026-05-16)
+
+
+### Bug Fixes
+
+* WS subscriber reconnect + route cache + driver is_active ([2bee124](https://github.com/Tim275/drova/commit/2bee12484cf6ba2551cb50d57fbf7ac6fcd05c6a))
+
 ## [0.18.7](https://github.com/Tim275/drova/compare/v0.18.6...v0.18.7) (2026-05-15)
 
 
