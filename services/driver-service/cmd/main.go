@@ -105,8 +105,13 @@ func main() {
 	consumer.Start(ctx)
 
 	grpcSrv := grpcserver.NewServer(append(tracing.WithTracingInterceptors(),
+		grpcserver.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle: 30 * time.Second,
+			Time:              20 * time.Second,
+			Timeout:           5 * time.Second,
+		}),
 		grpcserver.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
-			MinTime:             30 * time.Second,
+			MinTime:             5 * time.Second,
 			PermitWithoutStream: true,
 		}),
 	)...)

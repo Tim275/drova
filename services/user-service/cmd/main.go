@@ -26,6 +26,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 )
 
 type application struct {
@@ -153,8 +154,17 @@ func main() {
 	if err != nil {
 		log.Fatalw("grpc listen", zap.Error(err))
 	}
-	// grpcSrv := grpc.NewServer()
-	grpcSrv := grpc.NewServer(tracing.WithTracingInterceptors()...)
+	grpcSrv := grpc.NewServer(append(tracing.WithTracingInterceptors(),
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle: 30 * time.Second,
+			Time:              20 * time.Second,
+			Timeout:           5 * time.Second,
+		}),
+		grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime:             5 * time.Second,
+			PermitWithoutStream: true,
+		}),
+	)...)
 	pb.RegisterUserServiceServer(grpcSrv, grpc_handler.New(svc, authenticator, blacklist, log))
 
 	go func() {

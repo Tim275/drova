@@ -27,6 +27,7 @@ import (
 	"go.uber.org/zap"
 	grpcserver "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/keepalive"
 )
 
 var (
@@ -111,7 +112,17 @@ func main() {
 		log.Fatalw("listen failed", zap.Error(err))
 	}
 
-	grpcSrv := grpcserver.NewServer(tracing.WithTracingInterceptors()...)
+	grpcSrv := grpcserver.NewServer(append(tracing.WithTracingInterceptors(),
+		grpcserver.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle: 30 * time.Second,
+			Time:              20 * time.Second,
+			Timeout:           5 * time.Second,
+		}),
+		grpcserver.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+			MinTime:             5 * time.Second,
+			PermitWithoutStream: true,
+		}),
+	)...)
 	grpcHandler.NewGRPCHandler(grpcSrv, svc, publisher, log)
 
 	driverConsumer.Start(ctx)
