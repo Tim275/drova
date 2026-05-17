@@ -21,6 +21,7 @@ var (
 	driverConn *grpc.ClientConn
 	userConn   *grpc.ClientConn
 	once       sync.Once
+	initErr    error // persisted so callers after a failed init still see the error
 
 	TripClient   pbt.TripServiceClient
 	DriverClient pbd.DriverServiceClient
@@ -28,7 +29,6 @@ var (
 )
 
 func InitSharedClients() error {
-	var initErr error
 	once.Do(func() {
 		opts := append(
 			tracing.DialOptionsWithTracing(),
