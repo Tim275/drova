@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.10](https://github.com/Tim275/drova/compare/v0.18.9...v0.18.10) (2026-05-17)
+
+
+### Bug Fixes
+
+* Go adjustments ([#191](https://github.com/Tim275/drova/issues/191)) ([56983ac](https://github.com/Tim275/drova/commit/56983ac6b3575f02f2ca7c8c877b802f4b78ace5))
+
 ## [0.18.9](https://github.com/Tim275/drova/compare/v0.18.8...v0.18.9) (2026-05-16)
 
 
