@@ -35,8 +35,8 @@ func sendWSError(conn *websocket.Conn, mu *sync.Mutex, message string) {
 	mu.Unlock()
 }
 
-var riderConnManager = messaging.NewConnectionManager()
-var driverConnManager = messaging.NewConnectionManager()
+var riderConnManager = messaging.NewConnectionManager(nil)
+var driverConnManager = messaging.NewConnectionManager(nil)
 
 // subscribeUserWS relays Redis Pub/Sub messages to the WebSocket connection.
 // mu must be the same mutex used by the ping goroutine — Gorilla forbids concurrent writes.

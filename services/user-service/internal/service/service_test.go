@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"drova/services/user-service/internal/domain"
+	"go.uber.org/zap"
 )
 
 // ── mocks ────────────────────────────────────────────────────────────────────
@@ -82,7 +83,7 @@ func (s *stubMailer) SendActivation(_, _ string) error {
 // ── tests ────────────────────────────────────────────────────────────────────
 
 func newSvc(store *stubStore, inv *stubInvitations, cache *stubCache, mailer *stubMailer) *UserService {
-	return New(store, inv, cache, mailer)
+	return New(store, inv, cache, mailer, zap.NewNop().Sugar())
 }
 
 func TestRegister_HappyPath(t *testing.T) {

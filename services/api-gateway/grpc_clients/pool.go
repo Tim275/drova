@@ -21,6 +21,7 @@ var (
 	driverConn *grpc.ClientConn
 	userConn   *grpc.ClientConn
 	once       sync.Once
+	initErr    error // persisted so callers after a failed init still see the error
 
 	TripClient   pbt.TripServiceClient
 	DriverClient pbd.DriverServiceClient
@@ -28,21 +29,21 @@ var (
 )
 
 func InitSharedClients() error {
-	var initErr error
 	once.Do(func() {
 		opts := append(
 			tracing.DialOptionsWithTracing(),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 			grpc.WithKeepaliveParams(keepalive.ClientParameters{
-				Time:                5 * time.Minute,
-				Timeout:             20 * time.Second,
-				PermitWithoutStream: false,
+				Time:                10 * time.Second,
+				Timeout:             5 * time.Second,
+				PermitWithoutStream: true,
 			}),
+			grpc.WithDefaultServiceConfig(`{"loadBalancingConfig":[{"round_robin":{}}]}`),
 		)
 
 		tripURL := os.Getenv("TRIP_SERVICE_URL")
 		if tripURL == "" {
-			tripURL = "trip-service:9093"
+			tripURL = "dns:///trip-service:9093"
 		}
 		tc, err := grpc.NewClient(tripURL, opts...)
 		if err != nil {
@@ -54,7 +55,7 @@ func InitSharedClients() error {
 
 		driverURL := os.Getenv("DRIVER_SERVICE_URL")
 		if driverURL == "" {
-			driverURL = "driver-service:9092"
+			driverURL = "dns:///driver-service:9092"
 		}
 		dc, err := grpc.NewClient(driverURL, opts...)
 		if err != nil {
@@ -66,7 +67,7 @@ func InitSharedClients() error {
 
 		userURL := os.Getenv("USER_SERVICE_GRPC_URL")
 		if userURL == "" {
-			userURL = "user-service:9091"
+			userURL = "dns:///user-service:9091"
 		}
 		uc, err := grpc.NewClient(userURL, opts...)
 		if err != nil {

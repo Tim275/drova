@@ -75,7 +75,9 @@ func (r *pgRepository) GetRideFareByID(ctx context.Context, id string) (*domain.
 		return nil, fmt.Errorf("fare %s not found", id)
 	}
 	if routeJSON != nil {
-		_ = json.Unmarshal(routeJSON, &f.Route)
+		if err := json.Unmarshal(routeJSON, &f.Route); err != nil {
+			return nil, fmt.Errorf("unmarshal route for fare %s: %w", id, err)
+		}
 	}
 	return &f, nil
 }
@@ -110,7 +112,9 @@ func (r *pgRepository) GetTripByID(ctx context.Context, id string) (*domain.Trip
 			TotalPriceInCents: farePriceCents.Int64,
 		}
 		if fareRouteJSON != nil {
-			_ = json.Unmarshal(fareRouteJSON, &f.Route)
+			if err := json.Unmarshal(fareRouteJSON, &f.Route); err != nil {
+				return nil, fmt.Errorf("unmarshal route for trip %s: %w", id, err)
+			}
 		}
 		t.Fare = f
 	}
@@ -232,13 +236,15 @@ func (r *pgRepository) GetTripsByUser(ctx context.Context, userID string) ([]*do
 		var t domain.TripModel
 		var fareID string
 		var farePriceCents int64
-		_ = rows.Scan(&t.ID, &t.UserID, &t.Status,
+		if err := rows.Scan(&t.ID, &t.UserID, &t.Status,
 			&t.DriverID, &t.DriverName, &t.DriverPlate, &t.DriverAvatar,
 			&t.Rating, &t.CreatedAt,
 			&t.PickupAddress, &t.DropoffAddress,
 			&t.DistanceMeters, &t.DurationSeconds,
 			&t.PackageSlug, &t.AmountCents,
-			&fareID, &farePriceCents)
+			&fareID, &farePriceCents); err != nil {
+			return nil, fmt.Errorf("scan user trip row: %w", err)
+		}
 		if fareID != "" {
 			t.Fare = &domain.RideFareModel{
 				ID:                fareID,
@@ -269,12 +275,14 @@ func (r *pgRepository) GetTripsByDriver(ctx context.Context, driverID string) ([
 	var trips []*domain.TripModel
 	for rows.Next() {
 		var t domain.TripModel
-		_ = rows.Scan(&t.ID, &t.UserID, &t.Status,
+		if err := rows.Scan(&t.ID, &t.UserID, &t.Status,
 			&t.RiderName, &t.RiderAvatar,
 			&t.CreatedAt,
 			&t.PickupAddress, &t.DropoffAddress,
 			&t.DistanceMeters, &t.DurationSeconds,
-			&t.PackageSlug, &t.AmountCents)
+			&t.PackageSlug, &t.AmountCents); err != nil {
+			return nil, fmt.Errorf("scan driver trip row: %w", err)
+		}
 		t.DriverID = driverID
 		if t.PackageSlug != "" {
 			t.Fare = &domain.RideFareModel{

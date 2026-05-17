@@ -92,10 +92,9 @@ func main() {
 
 	grpc_clients.InitBreakers(appLog)
 	if err := grpc_clients.InitSharedClients(); err != nil {
-		appLog.Warnw("grpc clients init", zap.Error(err))
-	} else {
-		defer grpc_clients.CloseSharedClients()
+		appLog.Fatalw("grpc clients init failed", zap.Error(err))
 	}
+	defer grpc_clients.CloseSharedClients()
 
 	startNotificationConsumers(ctx)
 

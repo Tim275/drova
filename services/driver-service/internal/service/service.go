@@ -57,20 +57,28 @@ func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, nam
 		CarPlate:       randomPlate,
 	}
 
-	s.rdb.HSet(ctx, driverKey(driverID),
+	if err := s.rdb.HSet(ctx, driverKey(driverID),
 		"name", name,
 		"plate", randomPlate,
 		"avatar", randomAvatar,
 		"packageSlug", packageSlug,
-	)
-	s.rdb.HSetNX(ctx, driverKey(driverID), "busy", "")
-	s.rdb.GeoAdd(ctx, geoKey(packageSlug), &redis.GeoLocation{
+	).Err(); err != nil {
+		s.log.Warnw("RegisterDriver HSet failed", "driver", driverID, zap.Error(err))
+	}
+	if err := s.rdb.HSetNX(ctx, driverKey(driverID), "busy", "").Err(); err != nil {
+		s.log.Warnw("RegisterDriver HSetNX busy failed", "driver", driverID, zap.Error(err))
+	}
+	if err := s.rdb.GeoAdd(ctx, geoKey(packageSlug), &redis.GeoLocation{
 		Name:      driverID,
 		Longitude: lng,
 		Latitude:  lat,
-	})
+	}).Err(); err != nil {
+		s.log.Warnw("RegisterDriver GeoAdd failed", "driver", driverID, zap.Error(err))
+	}
 
-	_ = s.store.Upsert(ctx, driver)
+	if err := s.store.Upsert(ctx, driver); err != nil {
+		s.log.Warnw("RegisterDriver store upsert failed", "driver", driverID, zap.Error(err))
+	}
 	return driver, nil
 }
 

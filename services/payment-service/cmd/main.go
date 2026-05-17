@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -46,7 +46,7 @@ func main() {
 		env.GetString("DB_URL", ""),
 		env.GetString("MIGRATIONS_PATH", "migrations"),
 	); err != nil {
-		log.Fatalw("migrations failed", fmt.Sprintf("%v", err))
+		log.Fatalw("migrations failed", zap.Error(err))
 	}
 	log.Infow("migrations complete")
 	if len(os.Args) > 1 && os.Args[1] == "migrate" {
@@ -84,13 +84,7 @@ func main() {
 	}
 	defer db.Close()
 
-	migrationsPath := env.GetString("MIGRATIONS_PATH", "services/payment-service/migrations")
-	if err := runMigrations(env.GetString("DB_URL", ""), migrationsPath); err != nil {
-		log.Fatalw("migrations", zap.Error(err))
-	}
-
-	kafkaBrokers := env.GetString("KAFKA_BROKERS", "localhost:9092")
-	kafkaClient := messaging.NewKafka([]string{kafkaBrokers})
+	kafkaClient := messaging.NewKafka(strings.Split(env.GetString("KAFKA_BROKERS", "localhost:9092"), ","))
 	defer kafkaClient.Close()
 
 	paymentStore := store.NewPaymentStore(db)

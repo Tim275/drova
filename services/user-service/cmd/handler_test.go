@@ -107,7 +107,7 @@ func newTestAppFull(t *testing.T) (*application, *fakeUserStore, *fakeRefreshSto
 	cache := store.NewUserCache(nil)
 	authenticator := auth.NewAuthenticator("testsecret123456789012345678901", "drova", "drova-users")
 	m := mailer.New("", "", "", "", "", "")
-	svc := service.New(userStore, invStore, cache, m)
+	svc := service.New(userStore, invStore, cache, m, zap.NewNop().Sugar())
 	bl := newFakeBlacklist()
 	rt := newFakeRefreshStore()
 

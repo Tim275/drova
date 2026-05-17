@@ -2,11 +2,13 @@ package messaging
 
 import (
 	"errors"
-	"log"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
+	"go.uber.org/zap"
 )
 
 var ErrConnectionNotFound = errors.New("connection not found")
@@ -19,32 +21,53 @@ type connWrapper struct {
 type ConnectionManager struct {
 	connections map[string]*connWrapper
 	mutex       sync.RWMutex
+	log         *zap.SugaredLogger
 }
 
-var wsUpgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+func newUpgrader() websocket.Upgrader {
+	allowedOrigin := os.Getenv("CORS_ALLOWED_ORIGIN")
+	return websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			if allowedOrigin == "" {
+				return true // dev: no restriction
+			}
+			return r.Header.Get("Origin") == allowedOrigin
+		},
+	}
 }
 
-func NewConnectionManager() *ConnectionManager {
-	return &ConnectionManager{connections: make(map[string]*connWrapper)}
+func NewConnectionManager(log *zap.SugaredLogger) *ConnectionManager {
+	if log == nil {
+		log = zap.NewNop().Sugar()
+	}
+	return &ConnectionManager{
+		connections: make(map[string]*connWrapper),
+		log:         log,
+	}
 }
 
 func (cm *ConnectionManager) Upgrade(w http.ResponseWriter, r *http.Request) (*websocket.Conn, error) {
-	return wsUpgrader.Upgrade(w, r, nil)
+	u := newUpgrader()
+	return u.Upgrade(w, r, nil)
+}
+
+func sanitizeLog(s string) string {
+	s = strings.ReplaceAll(s, "\n", "\\n")
+	return strings.ReplaceAll(s, "\r", "\\r")
 }
 
 func (cm *ConnectionManager) Add(id string, conn *websocket.Conn) {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 	cm.connections[id] = &connWrapper{conn: conn}
-	log.Printf("WS connection added: %s (total: %d)", id, len(cm.connections))
+	cm.log.Infow("WS connection added", "id", sanitizeLog(id), "total", len(cm.connections))
 }
 
 func (cm *ConnectionManager) Remove(id string) {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 	delete(cm.connections, id)
-	log.Printf("WS connection removed: %s", id)
+	cm.log.Infow("WS connection removed", "id", sanitizeLog(id))
 }
 
 func (cm *ConnectionManager) SendMessage(id string, message any) error {

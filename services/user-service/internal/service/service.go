@@ -4,9 +4,11 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"strings"
 	"time"
 
 	"drova/services/user-service/internal/domain"
+	"go.uber.org/zap"
 )
 
 const invitationExpiry = 72 * time.Hour
@@ -16,10 +18,11 @@ type UserService struct {
 	invitations domain.InvitationStore
 	cache       domain.UserCacher
 	mailer      domain.EmailSender
+	log         *zap.SugaredLogger
 }
 
-func New(users domain.UserStore, invitations domain.InvitationStore, cache domain.UserCacher, mailer domain.EmailSender) *UserService {
-	return &UserService{users: users, invitations: invitations, cache: cache, mailer: mailer}
+func New(users domain.UserStore, invitations domain.InvitationStore, cache domain.UserCacher, mailer domain.EmailSender, log *zap.SugaredLogger) *UserService {
+	return &UserService{users: users, invitations: invitations, cache: cache, mailer: mailer, log: log}
 }
 
 func (s *UserService) Register(ctx context.Context, email, plainPassword string, role domain.Role, displayName, phone string) (*domain.User, error) {
@@ -39,7 +42,12 @@ func (s *UserService) Register(ctx context.Context, email, plainPassword string,
 		return nil, err
 	}
 
-	go func() { _ = s.mailer.SendActivation(user.Email, token) }()
+	go func() {
+		if err := s.mailer.SendActivation(user.Email, token); err != nil {
+			safeEmail := strings.ReplaceAll(strings.ReplaceAll(user.Email, "\n", "\\n"), "\r", "\\r")
+			s.log.Warnw("send activation email failed", "email", safeEmail, zap.Error(err))
+		}
+	}()
 	return user, nil
 }
 
