@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.15](https://github.com/Tim275/drova/compare/v0.18.14...v0.18.15) (2026-05-18)
+
+
+### Bug Fixes
+
+* ws/ticket nginx route comment ([#206](https://github.com/Tim275/drova/issues/206)) ([698e4a7](https://github.com/Tim275/drova/commit/698e4a71c89736b41d24135cc46da10960af3551))
+
 ## [0.18.14](https://github.com/Tim275/drova/compare/v0.18.13...v0.18.14) (2026-05-18)
 
 
