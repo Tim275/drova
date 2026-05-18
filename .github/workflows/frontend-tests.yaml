@@ -27,6 +27,7 @@ jobs:
           filters: |
             frontend:
               - 'frontend/**'
+              - 'tests/frontend/**'
               - '.github/workflows/frontend-tests.yaml'
 
   test:
@@ -89,6 +90,9 @@ jobs:
             echo "ERROR: debugger statement found" && exit 1
           fi
           echo "No debugger statements found"
+
+      - name: WS auth state regression tests
+        run: node tests/frontend/ws-auth-state.test.mjs
 
       - name: Build Docker image
         run: docker build -t drova-frontend:latest frontend/
