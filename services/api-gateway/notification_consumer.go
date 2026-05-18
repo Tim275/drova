@@ -18,6 +18,7 @@ func startNotificationConsumers(ctx context.Context) {
 	kafkaClient.ConsumeMessages(ctx, messaging.TopicTripDriverArrived, "api-gateway-arrived", handleNotification)
 	kafkaClient.ConsumeMessages(ctx, messaging.TopicTripInProgress, "api-gateway-in-progress", handleNotification)
 	kafkaClient.ConsumeMessages(ctx, messaging.TopicTripCompleted, "api-gateway-completed", handleNotification)
+	kafkaClient.StartRetryConsumers(ctx, "api-gateway")
 }
 
 func handleNotification(ctx context.Context, payload []byte) error {

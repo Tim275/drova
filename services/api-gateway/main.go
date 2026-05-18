@@ -68,6 +68,9 @@ func main() {
 		messaging.TopicTripInProgress,
 		messaging.TopicTripCompleted,
 		messaging.TopicDriverLocation,
+		messaging.TopicRetry1,
+		messaging.TopicRetry2,
+		messaging.TopicRetry3,
 	); err != nil {
 		appLog.Warnw("ensure topics", zap.Error(err))
 	}

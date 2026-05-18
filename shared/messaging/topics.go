@@ -19,4 +19,10 @@ const (
 	TopicPaymentCreateSession  = "payment.cmd.create_session"
 	TopicPaymentSessionCreated = "payment.event.session_created"
 	TopicPaymentSuccess        = "payment.event.success"
+
+	// Retry topics — failed messages are re-attempted with increasing delays.
+	// retry-1: 1 min, retry-2: 5 min, retry-3: 30 min, then DLQ.
+	TopicRetry1 = "drova.retry.1"
+	TopicRetry2 = "drova.retry.2"
+	TopicRetry3 = "drova.retry.3"
 )

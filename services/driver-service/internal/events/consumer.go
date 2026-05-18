@@ -90,6 +90,7 @@ func (c *TripConsumer) Start(ctx context.Context) {
 	c.kafka.ConsumeMessages(ctx, messaging.TopicDriverTripResponse, "driver-service-response-tracker", c.handleDriverResponse)
 	c.kafka.ConsumeMessages(ctx, messaging.TopicTripCancelled, "driver-service-cancellation", c.handleTripCancelled)
 	c.kafka.ConsumeMessages(ctx, messaging.TopicTripCompleted, "driver-service-completed", c.handleTripCompleted)
+	c.kafka.StartRetryConsumers(ctx, "driver-service")
 }
 
 func (c *TripConsumer) spawnTimer(parentCtx context.Context, event messaging.TripCreatedEvent, driverID string) {

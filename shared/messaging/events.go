@@ -104,3 +104,13 @@ type DLQMessage struct {
 	FailedAt      time.Time       `json:"failed_at"`
 	Payload       json.RawMessage `json:"payload"`
 }
+
+type RetryMessage struct {
+	OriginalTopic   string          `json:"original_topic"`
+	OriginalKey     string          `json:"original_key"`
+	OriginalGroupID string          `json:"original_group_id"`
+	Payload         json.RawMessage `json:"payload"`
+	AttemptNumber   int             `json:"attempt_number"`
+	NextAttemptAt   time.Time       `json:"next_attempt_at"`
+	FailureReason   string          `json:"failure_reason"`
+}

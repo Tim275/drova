@@ -140,6 +140,7 @@ services:
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
       - loki_data:/loki
+      - ./local/loki-config.yaml:/etc/loki/local-config.yaml:ro
     restart: unless-stopped
 
   grafana:

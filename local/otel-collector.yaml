@@ -22,8 +22,8 @@ exporters:
     endpoint: "0.0.0.0:8889"
     namespace: drova
 
-  # Logs → Loki via OTLP (Loki 3.x supports OTLP natively)
-  otlp_http/loki:
+  # Logs → Loki
+  otlphttp/loki:
     endpoint: http://loki:3100/otlp
     tls:
       insecure: true
@@ -41,4 +41,4 @@ service:
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlp_http/loki]
+      exporters: [otlphttp/loki]

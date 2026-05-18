@@ -96,6 +96,7 @@ func main() {
 
 	paymentConsumer := events.NewPaymentConsumer(kafkaClient, paymentStore, log)
 	paymentConsumer.Start(ctx)
+	kafkaClient.StartRetryConsumers(ctx, "payment-service")
 
 	healthAddr := env.GetString("HEALTH_ADDR", ":8085")
 	healthMux := http.NewServeMux()

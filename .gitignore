@@ -15,3 +15,4 @@ drova-gitops/
 .gitlab-ci.yml
 /api-gateway
 /cmd
+docs/

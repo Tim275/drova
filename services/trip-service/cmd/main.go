@@ -127,6 +127,7 @@ func main() {
 
 	driverConsumer.Start(ctx)
 	paymentConsumer.Start(ctx)
+	kafka.StartRetryConsumers(ctx, "trip-service")
 
 	go func() {
 		ticker := time.NewTicker(1 * time.Minute)

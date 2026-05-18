@@ -31,6 +31,7 @@ type Kafka struct {
 	dialer   *kafka.Dialer
 	registry *schema.RegistryClient
 	wg       sync.WaitGroup
+	handlers sync.Map // map[originalTopic string]MessageHandler — used by retry consumers
 }
 
 func NewKafka(brokers []string) *Kafka {
@@ -185,11 +186,38 @@ func (k *Kafka) PublishMessage(ctx context.Context, topic string, message []byte
 
 // ConsumeMessages launches a background goroutine that consumes messages from
 // the given topic. Call Wait() during shutdown to block until all consumers exit.
+// The handler is also registered for retry consumers — failed messages routed
+// through retry topics will be re-attempted by StartRetryConsumers.
 func (k *Kafka) ConsumeMessages(ctx context.Context, topic, groupID string, handler MessageHandler) {
+	k.handlers.Store(topic, handler)
 	k.wg.Add(1)
 	go func() {
 		defer k.wg.Done()
 		k.consumeLoop(ctx, topic, groupID, handler)
+	}()
+}
+
+// StartRetryConsumers launches retry consumers for drova.retry.{1,2,3} and a
+// DLQ logger. Call this once after all ConsumeMessages registrations.
+// serviceID is used as the consumer group prefix (e.g. "api-gateway").
+func (k *Kafka) StartRetryConsumers(ctx context.Context, serviceID string) {
+	retryTopics := []string{TopicRetry1, TopicRetry2, TopicRetry3}
+	nextAttempts := []int{2, 3, 4} // retry-1 failure → attempt 2 → retry-2, etc.
+
+	for i, topic := range retryTopics {
+		t := topic
+		nextAttempt := nextAttempts[i]
+		k.wg.Add(1)
+		go func() {
+			defer k.wg.Done()
+			k.consumeRetryLoop(ctx, t, serviceID+"-retry", nextAttempt)
+		}()
+	}
+
+	k.wg.Add(1)
+	go func() {
+		defer k.wg.Done()
+		k.consumeDLQLoop(ctx, serviceID+"-dlq-monitor")
 	}()
 }
 
@@ -208,8 +236,6 @@ func (k *Kafka) consumeLoop(ctx context.Context, topic, groupID string, handler 
 		StartOffset: kafka.FirstOffset,
 	})
 	defer reader.Close()
-
-	retryCfg := retry.DefaultConfig()
 
 	const (
 		fetchBackoffInit = 1 * time.Second
@@ -244,19 +270,15 @@ func (k *Kafka) consumeLoop(ctx context.Context, topic, groupID string, handler 
 		}
 		msgCtx := tracing.ExtractKafkaHeaders(ctx, headers)
 		msgCtx, end := tracing.StartKafkaConsumerSpan(msgCtx, topic, groupID)
-
-		handlerErr := retry.WithBackoff(msgCtx, retryCfg, func() error {
-			return handler(msgCtx, msg.Value)
-		})
+		handlerErr := handler(msgCtx, msg.Value)
 		end()
 
 		if handlerErr != nil {
-			log.Printf("handler failed after %d retries for topic %s: %v — sending to DLQ",
-				retryCfg.MaxRetries, topic, handlerErr)
-
-			if dlqErr := k.publishToDLQ(ctx, msg, handlerErr, retryCfg.MaxRetries); dlqErr != nil {
-				log.Printf("failed to publish to DLQ: %v — skipping commit to avoid message loss", dlqErr)
-				continue
+			log.Printf("handler failed for topic %s: %v — routing to retry-1", topic, handlerErr)
+			if retryErr := k.publishToRetry(ctx, msg, groupID, 1, handlerErr); retryErr != nil {
+				// publishToRetry can fail if the payload is not valid JSON (e.g. a completely
+				// malformed message). Commit and skip rather than looping forever.
+				log.Printf("failed to publish to retry-1 for topic %s: %v — committing to avoid infinite redelivery", topic, retryErr)
 			}
 		}
 
@@ -266,22 +288,153 @@ func (k *Kafka) consumeLoop(ctx context.Context, topic, groupID string, handler 
 	}
 }
 
-func (k *Kafka) publishToDLQ(ctx context.Context, original kafka.Message, failureErr error, retryCount int) error {
-	dlq := DLQMessage{
-		OriginalTopic: original.Topic,
-		OriginalKey:   string(original.Key),
-		FailureReason: failureErr.Error(),
-		RetryCount:    retryCount,
-		FailedAt:      time.Now().UTC(),
-		Payload:       original.Value,
+func (k *Kafka) consumeRetryLoop(ctx context.Context, retryTopic, groupID string, nextAttempt int) {
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: k.brokers,
+		Topic:   retryTopic,
+		GroupID: groupID,
+		Dialer:  k.dialer,
+	})
+	defer reader.Close()
+
+	for {
+		msg, err := reader.FetchMessage(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(2 * time.Second):
+			}
+			continue
+		}
+
+		var retryMsg RetryMessage
+		if err := json.Unmarshal(msg.Value, &retryMsg); err != nil {
+			log.Printf("retry consumer: unmarshal failed on %s: %v — discarding", retryTopic, err)
+			_ = reader.CommitMessages(ctx, msg)
+			continue
+		}
+
+		// Only handle topics this service has registered a handler for.
+		h, ok := k.handlers.Load(retryMsg.OriginalTopic)
+		if !ok {
+			_ = reader.CommitMessages(ctx, msg)
+			continue
+		}
+		handler := h.(MessageHandler) //nolint:forcetypeassert
+
+		// Wait until the scheduled retry time.
+		if wait := time.Until(retryMsg.NextAttemptAt); wait > 0 {
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(wait):
+			}
+		}
+
+		if handlerErr := handler(ctx, retryMsg.Payload); handlerErr != nil {
+			log.Printf("retry attempt %d failed for topic %s: %v", retryMsg.AttemptNumber, retryMsg.OriginalTopic, handlerErr)
+			original := kafka.Message{
+				Topic: retryMsg.OriginalTopic,
+				Key:   []byte(retryMsg.OriginalKey),
+				Value: retryMsg.Payload,
+			}
+			if pubErr := k.publishToRetry(ctx, original, retryMsg.OriginalGroupID, nextAttempt, handlerErr); pubErr != nil {
+				log.Printf("failed to publish attempt %d: %v — skipping commit", nextAttempt, pubErr)
+				continue
+			}
+		}
+
+		_ = reader.CommitMessages(ctx, msg)
+	}
+}
+
+func (k *Kafka) consumeDLQLoop(ctx context.Context, groupID string) {
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: k.brokers,
+		Topic:   TopicDeadLetterQueue,
+		GroupID: groupID,
+		Dialer:  k.dialer,
+	})
+	defer reader.Close()
+
+	for {
+		msg, err := reader.FetchMessage(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(2 * time.Second):
+			}
+			continue
+		}
+
+		var dlqMsg DLQMessage
+		if err := json.Unmarshal(msg.Value, &dlqMsg); err != nil {
+			_ = reader.CommitMessages(ctx, msg)
+			continue
+		}
+
+		// Only log DLQ messages relevant to this service.
+		if _, ok := k.handlers.Load(dlqMsg.OriginalTopic); !ok {
+			_ = reader.CommitMessages(ctx, msg)
+			continue
+		}
+
+		log.Printf("DLQ: topic=%s retries=%d reason=%q failedAt=%s payload=%s",
+			dlqMsg.OriginalTopic, dlqMsg.RetryCount, dlqMsg.FailureReason,
+			dlqMsg.FailedAt.Format(time.RFC3339), string(dlqMsg.Payload))
+
+		_ = reader.CommitMessages(ctx, msg)
+	}
+}
+
+// publishToRetry routes a failed message to the appropriate retry topic.
+// attempt 1 → drova.retry.1 (1 min delay)
+// attempt 2 → drova.retry.2 (5 min delay)
+// attempt 3 → drova.retry.3 (30 min delay)
+// attempt 4+ → dead.letter.queue
+func (k *Kafka) publishToRetry(ctx context.Context, original kafka.Message, groupID string, attempt int, failureErr error) error {
+	retryTopics := []string{TopicRetry1, TopicRetry2, TopicRetry3}
+	delays := []time.Duration{time.Minute, 5 * time.Minute, 30 * time.Minute}
+
+	if attempt > len(retryTopics) {
+		dlq := DLQMessage{
+			OriginalTopic: original.Topic,
+			OriginalKey:   string(original.Key),
+			FailureReason: failureErr.Error(),
+			RetryCount:    attempt - 1,
+			FailedAt:      time.Now().UTC(),
+			Payload:       original.Value,
+		}
+		payload, err := json.Marshal(dlq)
+		if err != nil {
+			return fmt.Errorf("marshal DLQ message: %w", err)
+		}
+		log.Printf("max retries exceeded for topic %s — sending to DLQ", original.Topic)
+		return k.PublishMessage(ctx, TopicDeadLetterQueue, payload)
 	}
 
-	payload, err := json.Marshal(dlq)
+	retryMsg := RetryMessage{
+		OriginalTopic:   original.Topic,
+		OriginalKey:     string(original.Key),
+		OriginalGroupID: groupID,
+		Payload:         original.Value,
+		AttemptNumber:   attempt,
+		NextAttemptAt:   time.Now().Add(delays[attempt-1]),
+		FailureReason:   failureErr.Error(),
+	}
+	payload, err := json.Marshal(retryMsg)
 	if err != nil {
-		return fmt.Errorf("marshal DLQ message: %w", err)
+		return fmt.Errorf("marshal retry message: %w", err)
 	}
-
-	return k.PublishMessage(ctx, TopicDeadLetterQueue, payload)
+	return k.PublishMessage(ctx, retryTopics[attempt-1], payload)
 }
 
 func (k *Kafka) Ping(ctx context.Context) error {

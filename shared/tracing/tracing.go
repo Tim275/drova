@@ -10,7 +10,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/sdk/log"
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -64,19 +64,18 @@ func InitTracer(cfg Config) (func(context.Context), error) {
 			metric.WithResource(res),
 		)
 		otel.SetMeterProvider(mp)
-		// Auto-collect Go runtime metrics (goroutines, GC, memory, etc.)
 		_ = runtime.Start(runtime.WithMinimumReadMemStatsInterval(15))
 	}
 
+	var lp *sdklog.LoggerProvider
 	logExp, err := otlploghttp.New(context.Background(),
 		otlploghttp.WithEndpoint(cfg.OtelCollectorEndpoint),
 		otlploghttp.WithInsecure(),
 	)
-	var lp *log.LoggerProvider
 	if err == nil {
-		lp = log.NewLoggerProvider(
-			log.WithProcessor(log.NewBatchProcessor(logExp)),
-			log.WithResource(res),
+		lp = sdklog.NewLoggerProvider(
+			sdklog.WithProcessor(sdklog.NewBatchProcessor(logExp)),
+			sdklog.WithResource(res),
 		)
 		global.SetLoggerProvider(lp)
 	}
