@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.12](https://github.com/Tim275/drova/compare/v0.18.11...v0.18.12) (2026-05-18)
+
+
+### Bug Fixes
+
+* driver ws auth state reset on reconnect ([#197](https://github.com/Tim275/drova/issues/197)) ([ded14ff](https://github.com/Tim275/drova/commit/ded14ff03634ee62bb12a266f7fe88bb3be1d184))
+
 ## [0.18.11](https://github.com/Tim275/drova/compare/v0.18.10...v0.18.11) (2026-05-18)
 
 
