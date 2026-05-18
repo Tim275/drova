@@ -1967,7 +1967,13 @@
     const wsName = driverName || currentUser.name || currentUser.email.split('@')[0];
     const driverAvatar = currentUser.avatarUrl || defaultAvatar(wsName);
     const ticket = await getWsTicket();
-    if (!ticket) { setStatus('Auth error — please reload'); return; }
+    if (!ticket) {
+      driverReconnectPkg = null;
+      const btn = document.getElementById('goOnlineBtn');
+      if (btn) { btn.textContent = 'Go Online'; btn.disabled = false; }
+      setStatus('Auth error — please reload');
+      return;
+    }
     const _wsSchemeD = location.protocol === 'https:' ? 'wss' : 'ws';
     ws = new WebSocket(`${_wsSchemeD}://${location.host}/ws/drivers?userID=${currentUser.id}&packageSlug=${pkg}&name=${encodeURIComponent(wsName)}&avatarUrl=${encodeURIComponent(driverAvatar)}&ticket=${encodeURIComponent(ticket)}`);
 
