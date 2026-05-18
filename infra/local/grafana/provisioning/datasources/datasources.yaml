@@ -4,18 +4,36 @@ datasources:
   - name: Prometheus
     type: prometheus
     uid: prometheus
+    access: proxy
     url: http://prometheus:9090
     isDefault: true
-    editable: true
+    jsonData:
+      timeInterval: 15s
 
   - name: Loki
     type: loki
     uid: loki
+    access: proxy
     url: http://loki:3100
-    editable: true
+    jsonData:
+      maxLines: 1000
 
   - name: Jaeger
     type: jaeger
     uid: jaeger
+    access: proxy
     url: http://jaeger:16686
-    editable: true
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-1h"
+        spanEndTimeShift: "1h"
+        filterByTraceID: true
+        tags:
+          - key: service.name
+            value: service_name
+      tracesToMetrics:
+        datasourceUid: prometheus
+        tags:
+          - key: service.name
+            value: service_name
