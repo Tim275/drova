@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.14](https://github.com/Tim275/drova/compare/v0.18.13...v0.18.14) (2026-05-18)
+
+
+### Bug Fixes
+
+* reset dsOffline/dsOnline on WS auth failure ([#203](https://github.com/Tim275/drova/issues/203)) ([0f2a758](https://github.com/Tim275/drova/commit/0f2a75824bc8a2865897658a0ce1c61b61a00350))
+
 ## [0.18.13](https://github.com/Tim275/drova/compare/v0.18.12...v0.18.13) (2026-05-18)
 
 
