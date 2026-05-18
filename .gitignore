@@ -7,7 +7,7 @@ CLAUDE.md
 /build/
 coverage.out
 .DS_Store
-local/k8s/secrets.yaml
+infra/local/k8s/secrets.yaml
 .claude/
 .lean-ctx/
 coverage_gw.out
