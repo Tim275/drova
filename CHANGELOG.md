@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.11](https://github.com/Tim275/drova/compare/v0.18.10...v0.18.11) (2026-05-18)
+
+
+### Bug Fixes
+
+* opentelemetry logging pipeline ([#195](https://github.com/Tim275/drova/issues/195)) ([47c0ad8](https://github.com/Tim275/drova/commit/47c0ad87b73ece550ddcdbb2c7ddc42da7570057))
+
 ## [0.18.10](https://github.com/Tim275/drova/compare/v0.18.9...v0.18.10) (2026-05-17)
 
 
