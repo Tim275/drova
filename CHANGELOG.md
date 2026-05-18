@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.13](https://github.com/Tim275/drova/compare/v0.18.12...v0.18.13) (2026-05-18)
+
+
+### Bug Fixes
+
+* nginx no-cache headers for index.html ([#200](https://github.com/Tim275/drova/issues/200)) ([37a0871](https://github.com/Tim275/drova/commit/37a087150d51d7b384efe0b17803b9d4d6e448e2))
+
 ## [0.18.12](https://github.com/Tim275/drova/compare/v0.18.11...v0.18.12) (2026-05-18)
 
 
