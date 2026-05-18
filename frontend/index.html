@@ -1969,6 +1969,10 @@
     const ticket = await getWsTicket();
     if (!ticket) {
       driverReconnectPkg = null;
+      const offlineDiv = document.getElementById('dsOffline');
+      const onlineDiv = document.getElementById('dsOnline');
+      if (offlineDiv) offlineDiv.style.display = '';
+      if (onlineDiv) onlineDiv.style.display = 'none';
       const btn = document.getElementById('goOnlineBtn');
       if (btn) { btn.textContent = 'Go Online'; btn.disabled = false; }
       setStatus('Auth error — please reload');
