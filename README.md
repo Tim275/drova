@@ -2,7 +2,7 @@
 
 Ridesharing backend built as Go microservices — Kafka, gRPC, Stripe, Mapbox, deployed on Kubernetes with GitOps.
 
-**Live:** https://drova.timourhomelab.org
+**Live:** https://drova.timourhomelab.org *(currently offline — homelab is down)*
 
 ## Architecture
 
