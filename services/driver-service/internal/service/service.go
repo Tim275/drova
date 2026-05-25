@@ -19,6 +19,12 @@ type Service struct {
 	store domain.DriverStore
 	rdb   *redis.Client
 	log   *zap.SugaredLogger
+
+	// OnDriverOnline is invoked after a driver registers/comes online. It lets the
+	// dispatch layer re-check the waiting queue so a rider who got "no drivers" is
+	// matched the moment a driver appears — without the service importing events
+	// (wired in main.go to TripConsumer.TryMatchWaiting). Optional; nil in tests.
+	OnDriverOnline func(ctx context.Context, packageSlug string, lat, lng float64)
 }
 
 func NewService(store domain.DriverStore, rdb *redis.Client, log *zap.SugaredLogger) *Service {
@@ -91,6 +97,11 @@ func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, nam
 
 	if err := s.store.Upsert(ctx, driver); err != nil {
 		s.log.Warnw("RegisterDriver store upsert failed", "driver", driverID, zap.Error(err))
+	}
+
+	// New supply just appeared — let dispatch re-check riders waiting for this package.
+	if s.OnDriverOnline != nil {
+		go s.OnDriverOnline(context.Background(), packageSlug, lat, lng) //nolint:gosec // detached: registration must not block on matching
 	}
 	return driver, nil
 }

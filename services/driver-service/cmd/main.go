@@ -102,6 +102,9 @@ func main() {
 	svc := service.NewService(pgStore, rdb, log)
 
 	consumer := events.NewTripConsumer(kafka, svc, rdb, log)
+	// When a driver comes online, re-check the waiting queue so queued riders get
+	// matched immediately (persistent dispatch, not one-shot).
+	svc.OnDriverOnline = consumer.TryMatchWaiting
 	consumer.Start(ctx)
 
 	grpcSrv := grpcserver.NewServer(append(tracing.WithTracingInterceptors(),
