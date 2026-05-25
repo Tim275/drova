@@ -72,6 +72,11 @@ func (h *driverGrpcHandler) UnregisterDriver(ctx context.Context, req *pb.Regist
 	}, nil
 }
 
+func (h *driverGrpcHandler) GetNearbyDrivers(ctx context.Context, req *pb.NearbyDriversRequest) (*pb.NearbyDriversResponse, error) {
+	drivers := h.service.GetNearbyDrivers(ctx, req.GetPackageSlug(), req.GetLat(), req.GetLng(), req.GetRadiusKm())
+	return &pb.NearbyDriversResponse{Drivers: drivers}, nil
+}
+
 func (h *driverGrpcHandler) StreamLocation(stream grpc.ClientStreamingServer[pb.LocationUpdate, pb.StreamLocationResponse]) error {
 	ctx := stream.Context()
 	var driverID string

@@ -19,8 +19,6 @@ type Service struct {
 	store domain.DriverStore
 	rdb   *redis.Client
 	log   *zap.SugaredLogger
-
-	OnDriverOnline func(ctx context.Context, packageSlug string, lat, lng float64)
 }
 
 func NewService(store domain.DriverStore, rdb *redis.Client, log *zap.SugaredLogger) *Service {
@@ -87,10 +85,6 @@ func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, nam
 
 	if err := s.store.Upsert(ctx, driver); err != nil {
 		s.log.Warnw("RegisterDriver store upsert failed", "driver", driverID, zap.Error(err))
-	}
-
-	if s.OnDriverOnline != nil {
-		go s.OnDriverOnline(context.Background(), packageSlug, lat, lng) //nolint:gosec
 	}
 	return driver, nil
 }
@@ -167,6 +161,59 @@ func (s *Service) FindAvailableDrivers(ctx context.Context, packageSlug string, 
 
 	s.log.Warnw("no drivers found after all radii", "package", packageSlug)
 	return nil
+}
+
+var basePackages = []string{"economy", "comfort", "van", "business"}
+
+func (s *Service) GetNearbyDrivers(ctx context.Context, packageSlug string, lat, lng, radiusKm float64) []*pb.Driver {
+	if radiusKm <= 0 {
+		radiusKm = 10
+	}
+	packages := basePackages
+	if packageSlug != "" {
+		packages = []string{packageSlug}
+	}
+
+	seen := make(map[string]struct{})
+	var out []*pb.Driver
+	for _, pkg := range packages {
+		results, err := s.rdb.GeoSearchLocation(ctx, geoKey(pkg), &redis.GeoSearchLocationQuery{
+			GeoSearchQuery: redis.GeoSearchQuery{
+				Longitude:  lng,
+				Latitude:   lat,
+				Radius:     radiusKm,
+				RadiusUnit: "km",
+				Sort:       "ASC",
+				Count:      100,
+			},
+			WithCoord: true,
+		}).Result()
+		if err != nil {
+			continue
+		}
+		for _, r := range results {
+			if _, dup := seen[r.Name]; dup {
+				continue
+			}
+			if alive, err := s.rdb.Exists(ctx, hbKey(r.Name)).Result(); err != nil || alive == 0 {
+				continue
+			}
+			hash, err := s.rdb.HGetAll(ctx, driverKey(r.Name)).Result()
+			if err != nil || hash["name"] == "" {
+				continue
+			}
+			seen[r.Name] = struct{}{}
+			out = append(out, &pb.Driver{
+				Id:             r.Name,
+				Name:           hash["name"],
+				PackageSlug:    hash["packageSlug"],
+				CarPlate:       hash["plate"],
+				ProfilePicture: hash["avatar"],
+				Location:       &pb.Location{Latitude: r.Latitude, Longitude: r.Longitude},
+			})
+		}
+	}
+	return out
 }
 
 func (s *Service) SetBusy(ctx context.Context, driverID, tripID string) {

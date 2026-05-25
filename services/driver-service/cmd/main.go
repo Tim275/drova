@@ -102,7 +102,6 @@ func main() {
 	svc := service.NewService(pgStore, rdb, log)
 
 	consumer := events.NewTripConsumer(kafka, svc, rdb, log)
-	svc.OnDriverOnline = consumer.TryMatchWaiting
 	consumer.Start(ctx)
 
 	grpcSrv := grpcserver.NewServer(append(tracing.WithTracingInterceptors(),

@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.5.1
 // - protoc             v5.29.2
-// source: proto/driver.proto
+// source: shared/proto/driver/driver.proto
 
 package driver
 
@@ -22,6 +22,7 @@ const (
 	DriverService_RegisterDriver_FullMethodName   = "/driver.DriverService/RegisterDriver"
 	DriverService_UnregisterDriver_FullMethodName = "/driver.DriverService/UnregisterDriver"
 	DriverService_StreamLocation_FullMethodName   = "/driver.DriverService/StreamLocation"
+	DriverService_GetNearbyDrivers_FullMethodName = "/driver.DriverService/GetNearbyDrivers"
 )
 
 // DriverServiceClient is the client API for DriverService service.
@@ -31,6 +32,7 @@ type DriverServiceClient interface {
 	RegisterDriver(ctx context.Context, in *RegisterDriverRequest, opts ...grpc.CallOption) (*RegisterDriverResponse, error)
 	UnregisterDriver(ctx context.Context, in *RegisterDriverRequest, opts ...grpc.CallOption) (*RegisterDriverResponse, error)
 	StreamLocation(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[LocationUpdate, StreamLocationResponse], error)
+	GetNearbyDrivers(ctx context.Context, in *NearbyDriversRequest, opts ...grpc.CallOption) (*NearbyDriversResponse, error)
 }
 
 type driverServiceClient struct {
@@ -74,6 +76,16 @@ func (c *driverServiceClient) StreamLocation(ctx context.Context, opts ...grpc.C
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type DriverService_StreamLocationClient = grpc.ClientStreamingClient[LocationUpdate, StreamLocationResponse]
 
+func (c *driverServiceClient) GetNearbyDrivers(ctx context.Context, in *NearbyDriversRequest, opts ...grpc.CallOption) (*NearbyDriversResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(NearbyDriversResponse)
+	err := c.cc.Invoke(ctx, DriverService_GetNearbyDrivers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DriverServiceServer is the server API for DriverService service.
 // All implementations must embed UnimplementedDriverServiceServer
 // for forward compatibility.
@@ -81,6 +93,7 @@ type DriverServiceServer interface {
 	RegisterDriver(context.Context, *RegisterDriverRequest) (*RegisterDriverResponse, error)
 	UnregisterDriver(context.Context, *RegisterDriverRequest) (*RegisterDriverResponse, error)
 	StreamLocation(grpc.ClientStreamingServer[LocationUpdate, StreamLocationResponse]) error
+	GetNearbyDrivers(context.Context, *NearbyDriversRequest) (*NearbyDriversResponse, error)
 	mustEmbedUnimplementedDriverServiceServer()
 }
 
@@ -99,6 +112,9 @@ func (UnimplementedDriverServiceServer) UnregisterDriver(context.Context, *Regis
 }
 func (UnimplementedDriverServiceServer) StreamLocation(grpc.ClientStreamingServer[LocationUpdate, StreamLocationResponse]) error {
 	return status.Errorf(codes.Unimplemented, "method StreamLocation not implemented")
+}
+func (UnimplementedDriverServiceServer) GetNearbyDrivers(context.Context, *NearbyDriversRequest) (*NearbyDriversResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetNearbyDrivers not implemented")
 }
 func (UnimplementedDriverServiceServer) mustEmbedUnimplementedDriverServiceServer() {}
 func (UnimplementedDriverServiceServer) testEmbeddedByValue()                       {}
@@ -164,6 +180,24 @@ func _DriverService_StreamLocation_Handler(srv interface{}, stream grpc.ServerSt
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type DriverService_StreamLocationServer = grpc.ClientStreamingServer[LocationUpdate, StreamLocationResponse]
 
+func _DriverService_GetNearbyDrivers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(NearbyDriversRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DriverServiceServer).GetNearbyDrivers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DriverService_GetNearbyDrivers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DriverServiceServer).GetNearbyDrivers(ctx, req.(*NearbyDriversRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DriverService_ServiceDesc is the grpc.ServiceDesc for DriverService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -179,6 +213,10 @@ var DriverService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "UnregisterDriver",
 			Handler:    _DriverService_UnregisterDriver_Handler,
 		},
+		{
+			MethodName: "GetNearbyDrivers",
+			Handler:    _DriverService_GetNearbyDrivers_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -187,5 +225,5 @@ var DriverService_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 	},
-	Metadata: "proto/driver.proto",
+	Metadata: "shared/proto/driver/driver.proto",
 }

@@ -904,6 +904,7 @@
     document.getElementById('welcome').classList.remove('active');
     document.getElementById('mapscreen').style.display = 'none';
     document.getElementById('driverscreen').classList.remove('active');
+    stopNearbyDrivers();
     initAuthMap();
   }
 
@@ -928,6 +929,7 @@
   }
 
   function showWelcome() {
+    stopNearbyDrivers();
     document.getElementById('authscreen').classList.remove('active');
     document.getElementById('welcome').classList.add('active');
     document.getElementById('welcomeEmail').textContent = currentUser.email;
@@ -1457,6 +1459,51 @@
 
     setupAutocomplete('pickup', 'pickup-dropdown', (coords) => { pickupCoords = coords; });
     setupAutocomplete('destination', 'destination-dropdown', (coords) => { destinationCoords = coords; });
+
+    map.on('load', startNearbyDrivers);
+  }
+
+  let _nearbyTimer = null;
+  const _nearbyMarkers = {};
+
+  function startNearbyDrivers() {
+    stopNearbyDrivers();
+    const poll = async () => {
+      if (!map) return;
+      const c = map.getCenter();
+      try {
+        const res = await fetch(`/drivers/nearby?lat=${c.lat}&lng=${c.lng}&radius_km=15`, {
+          headers: { 'Authorization': 'Bearer ' + authToken() }
+        });
+        if (!res.ok) return;
+        const { drivers = [] } = await res.json();
+        renderNearbyDrivers(drivers);
+      } catch (_) {}
+    };
+    poll();
+    _nearbyTimer = setInterval(poll, 8000);
+  }
+
+  function stopNearbyDrivers() {
+    if (_nearbyTimer) { clearInterval(_nearbyTimer); _nearbyTimer = null; }
+    Object.values(_nearbyMarkers).forEach(m => m.remove());
+    for (const k in _nearbyMarkers) delete _nearbyMarkers[k];
+  }
+
+  function renderNearbyDrivers(drivers) {
+    const live = new Set();
+    drivers.forEach(d => {
+      live.add(d.id);
+      if (_nearbyMarkers[d.id]) {
+        _nearbyMarkers[d.id].setLngLat([d.lng, d.lat]);
+      } else {
+        _nearbyMarkers[d.id] = new mapboxgl.Marker({ element: createCarMarkerElement(), anchor: 'center' })
+          .setLngLat([d.lng, d.lat]).addTo(map);
+      }
+    });
+    for (const id in _nearbyMarkers) {
+      if (!live.has(id)) { _nearbyMarkers[id].remove(); delete _nearbyMarkers[id]; }
+    }
   }
 
   async function startDriverScreen() {

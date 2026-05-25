@@ -12,12 +12,14 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"time"
 
 	"drova/services/api-gateway/grpc_clients"
 	"drova/shared/contracts"
 	"drova/shared/env"
 	"drova/shared/messaging"
+	pbd "drova/shared/proto/driver"
 	pbt "drova/shared/proto/trip"
 	pbu "drova/shared/proto/user"
 
@@ -153,6 +155,45 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, contracts.APIResponse{Data: result})
+}
+
+func handleNearbyDrivers(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	lat, err := strconv.ParseFloat(q.Get("lat"), 64)
+	if err != nil {
+		http.Error(w, "invalid lat", http.StatusBadRequest)
+		return
+	}
+	lng, err := strconv.ParseFloat(q.Get("lng"), 64)
+	if err != nil {
+		http.Error(w, "invalid lng", http.StatusBadRequest)
+		return
+	}
+	radius, _ := strconv.ParseFloat(q.Get("radius_km"), 64)
+
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+	resp, err := grpc_clients.DriverClient.GetNearbyDrivers(ctx, &pbd.NearbyDriversRequest{
+		Lat: lat, Lng: lng, RadiusKm: radius, PackageSlug: q.Get("package"),
+	})
+	if err != nil {
+		appLog.Warnw("nearby drivers", zap.Error(err))
+		writeJSON(w, http.StatusOK, map[string]any{"drivers": []any{}})
+		return
+	}
+
+	type nearbyDriver struct {
+		ID          string  `json:"id"`
+		Lat         float64 `json:"lat"`
+		Lng         float64 `json:"lng"`
+		PackageSlug string  `json:"packageSlug"`
+	}
+	out := make([]nearbyDriver, 0, len(resp.GetDrivers()))
+	for _, d := range resp.GetDrivers() {
+		loc := d.GetLocation()
+		out = append(out, nearbyDriver{ID: d.GetId(), Lat: loc.GetLatitude(), Lng: loc.GetLongitude(), PackageSlug: d.GetPackageSlug()})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"drivers": out})
 }
 
 func handleWsTicket(w http.ResponseWriter, r *http.Request) {
