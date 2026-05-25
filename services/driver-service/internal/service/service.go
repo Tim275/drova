@@ -20,10 +20,6 @@ type Service struct {
 	rdb   *redis.Client
 	log   *zap.SugaredLogger
 
-	// OnDriverOnline is invoked after a driver registers/comes online. It lets the
-	// dispatch layer re-check the waiting queue so a rider who got "no drivers" is
-	// matched the moment a driver appears — without the service importing events
-	// (wired in main.go to TripConsumer.TryMatchWaiting). Optional; nil in tests.
 	OnDriverOnline func(ctx context.Context, packageSlug string, lat, lng float64)
 }
 
@@ -33,11 +29,6 @@ func NewService(store domain.DriverStore, rdb *redis.Client, log *zap.SugaredLog
 
 var searchRadii = []float64{5, 25, 100, 500, 1500}
 
-// driverTTL is the presence grace window. A driver counts as online while its
-// heartbeat key is alive; it's refreshed on every location ping. A brief WS/gRPC
-// drop (network blip, pod rollout) no longer removes the driver instantly — the
-// heartbeat simply lapses after this duration if pings stop. Keep it comfortably
-// larger than the location-ping interval.
 const driverTTL = 30 * time.Second
 
 func geoKey(packageSlug string) string { return "drova:drivers:geo:" + packageSlug }
@@ -90,7 +81,6 @@ func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, nam
 	}).Err(); err != nil {
 		s.log.Warnw("RegisterDriver GeoAdd failed", "driver", driverID, zap.Error(err))
 	}
-	// Mark the driver present; refreshed on every location ping (see UpdateLocation).
 	if err := s.rdb.Set(ctx, hbKey(driverID), "1", driverTTL).Err(); err != nil {
 		s.log.Warnw("RegisterDriver heartbeat set failed", "driver", driverID, zap.Error(err))
 	}
@@ -99,9 +89,8 @@ func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, nam
 		s.log.Warnw("RegisterDriver store upsert failed", "driver", driverID, zap.Error(err))
 	}
 
-	// New supply just appeared — let dispatch re-check riders waiting for this package.
 	if s.OnDriverOnline != nil {
-		go s.OnDriverOnline(context.Background(), packageSlug, lat, lng) //nolint:gosec // detached: registration must not block on matching
+		go s.OnDriverOnline(context.Background(), packageSlug, lat, lng) //nolint:gosec
 	}
 	return driver, nil
 }
@@ -149,10 +138,6 @@ func (s *Service) FindAvailableDrivers(ctx context.Context, packageSlug string, 
 				s.log.Warnw("driver hash missing — ghost GeoSet entry", "driver", r.Name)
 				continue
 			}
-			// Presence gate: skip drivers whose heartbeat has lapsed (disconnected
-			// longer than driverTTL). Lazily reap the stale geo entry so it stops
-			// showing up. A transient redis error (err != nil) keeps the driver to
-			// avoid wrongly dropping someone on a blip.
 			if alive, err := s.rdb.Exists(ctx, hbKey(r.Name)).Result(); err == nil && alive == 0 {
 				s.log.Infow("driver heartbeat expired, reaping", "driver", r.Name)
 				s.rdb.ZRem(ctx, geoKey(packageSlug), r.Name)
@@ -209,7 +194,6 @@ func (s *Service) UpdateLocation(ctx context.Context, driverID string, lat, lng 
 		Longitude: lng,
 		Latitude:  lat,
 	})
-	// Refresh presence on every ping — this is what keeps the driver "online".
 	s.rdb.Set(ctx, hbKey(driverID), "1", driverTTL)
 }
 
@@ -222,12 +206,6 @@ func (s *Service) GetBusyTripID(ctx context.Context, driverID string) string {
 }
 
 func (s *Service) UnregisterDriver(_ context.Context, driverID string) {
-	// Soft disconnect. We deliberately do NOT remove the driver from the geo set
-	// here. A WS/gRPC stream end fires on every network blip and on every pod
-	// rollout — removing instantly made drivers vanish ("no drivers available"
-	// flicker). Instead we let the heartbeat key lapse: it's refreshed on each
-	// location ping (driverTTL), so a driver that reconnects within the grace
-	// window is never seen as offline. Stale entries (no heartbeat) are reaped
-	// lazily in FindAvailableDrivers. Busy/trip state stays intact for resume.
-	s.log.Infow("driver stream ended; presence lapses via heartbeat", "driver", driverID)
+	// Soft disconnect: presence lapses via heartbeat TTL, not on stream end. See CLAUDE.md.
+	s.log.Infow("driver stream ended", "driver", driverID)
 }

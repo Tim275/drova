@@ -907,7 +907,6 @@
     initAuthMap();
   }
 
-  // Decorative, non-interactive background map for the login screen.
   let _authMap = null;
   async function initAuthMap() {
     if (_authMap) { _authMap.resize(); return; }
@@ -925,7 +924,7 @@
         interactive: false,
         attributionControl: false,
       });
-    } catch (_) { /* decorative only — safe to ignore */ }
+    } catch (_) {}
   }
 
   function showWelcome() {
@@ -1444,7 +1443,7 @@
     map = new mapboxgl.Map({
       container: 'map',
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: [10.4515, 51.1657], // Germany overview (Uber/Bolt-style start)
+      center: [10.4515, 51.1657], // Germany
       zoom: 5.7,
     });
     map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
@@ -1455,8 +1454,6 @@
       showUserHeading: false,
     });
     map.addControl(riderGeolocate, 'bottom-right');
-    // Stay on the Germany overview at start instead of jumping to GPS — the rider
-    // taps the locate control or types a pickup to zoom in.
 
     setupAutocomplete('pickup', 'pickup-dropdown', (coords) => { pickupCoords = coords; });
     setupAutocomplete('destination', 'destination-dropdown', (coords) => { destinationCoords = coords; });
