@@ -1305,6 +1305,7 @@
       const msg = JSON.parse(event.data);
       if (msg.type === 'trip.event.driver_assigned') {
         const d = msg.data;
+        stopNearbyDrivers();
         window.lastAssignedDriver = d;
         activeTripDriverID = d.id || '';
         if (d.trip_id) activeTripID = d.trip_id;
@@ -2145,7 +2146,7 @@
                   data: { trip_id: currentTripRequest.trip_id, rider_id: currentTripRequest.user_id, lat, lng }
                 }));
                 tripEndPending = false;
-                setStatus('Trip ended. Triggering payment...');
+                setStatus('Trip ended · payment triggered. Waiting for new requests...');
               }
             }, 2000);
           }
@@ -2377,6 +2378,7 @@
     setTripStatus('Searching for driver...', '', true);
     document.getElementById('routeinfo').textContent = '';
 
+    stopNearbyDrivers();
     stopDRLoop();
     if (riderDriverMarker) { riderDriverMarker.remove(); }
     riderDriverMarker = null;
@@ -2625,7 +2627,7 @@
         type: 'driver.cmd.trip_end',
         data: { trip_id: currentTripRequest.trip_id, rider_id: currentTripRequest.user_id, lat: endLat, lng: endLng }
       }));
-      setStatus('Trip ended. Triggering payment...');
+      setStatus('Trip ended · payment triggered. Waiting for new requests...');
       window._currentTripRoute = null;
       window._currentTripRiderID = null;
       currentTripRequest = null;
