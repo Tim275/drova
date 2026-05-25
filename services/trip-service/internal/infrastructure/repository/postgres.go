@@ -37,6 +37,43 @@ func (r *pgRepository) CreateTrip(ctx context.Context, trip *domain.TripModel) (
 	return trip, err
 }
 
+func (r *pgRepository) CreateTripWithOutbox(ctx context.Context, trip *domain.TripModel, topic string, payload []byte) (*domain.TripModel, error) {
+	fareID := ""
+	if trip.Fare != nil {
+		fareID = trip.Fare.ID
+	}
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if _, err = tx.Exec(ctx,
+		`INSERT INTO trips (id, user_id, status, fare_id, created_at, rider_name, rider_avatar,
+		                    pickup_address, dropoff_address, distance_meters, duration_seconds,
+		                    package_slug, amount_cents)
+		 VALUES ($1, $2, $3, $4, to_timestamp($5), $6, $7, $8, $9, $10, $11, $12, $13)`,
+		trip.ID, trip.UserID, trip.Status, fareID, trip.CreatedAt,
+		trip.RiderName, trip.RiderAvatar,
+		trip.PickupAddress, trip.DropoffAddress,
+		trip.DistanceMeters, trip.DurationSeconds,
+		trip.PackageSlug, trip.AmountCents,
+	); err != nil {
+		return nil, err
+	}
+
+	if _, err = tx.Exec(ctx,
+		`INSERT INTO outbox (topic, payload) VALUES ($1, $2)`, topic, payload,
+	); err != nil {
+		return nil, err
+	}
+
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return trip, nil
+}
+
 func (r *pgRepository) SaveRideFare(ctx context.Context, f *domain.RideFareModel) error {
 	routeJSON, _ := json.Marshal(f.Route)
 	_, err := r.db.Exec(ctx,

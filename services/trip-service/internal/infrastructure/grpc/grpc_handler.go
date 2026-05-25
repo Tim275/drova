@@ -42,10 +42,6 @@ func (h *gRPCHandler) CreateTrip(ctx context.Context, req *pb.CreateTripRequest)
 		return nil, status.Errorf(codes.Internal, "failed to create trip: %v", err)
 	}
 
-	if err := h.publisher.PublishTripCreated(ctx, trip); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to publish trip created event: %v", err)
-	}
-
 	go h.runSearchTimeout(trip.ID, trip.UserID) //nolint:gosec
 
 	return &pb.CreateTripResponse{

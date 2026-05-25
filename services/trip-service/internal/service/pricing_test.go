@@ -52,6 +52,9 @@ func (f *fakeRepo) CreateTrip(_ context.Context, t *domain.TripModel) (*domain.T
 	f.trips[t.ID] = t
 	return t, nil
 }
+func (f *fakeRepo) CreateTripWithOutbox(ctx context.Context, t *domain.TripModel, _ string, _ []byte) (*domain.TripModel, error) {
+	return f.CreateTrip(ctx, t)
+}
 func (f *fakeRepo) GetTripByID(_ context.Context, id string) (*domain.TripModel, error) {
 	t, ok := f.trips[id]
 	if !ok {
@@ -169,7 +172,7 @@ func TestEstimateFareRoute(t *testing.T) {
 }
 
 func TestEstimatePackagesPriceWithRoute_AllPackages(t *testing.T) {
-	svc := NewService(newFakeRepo(), &noopUsers{}, nil)
+	svc := NewService(newFakeRepo(), &noopUsers{}, nil, nil)
 	fares := svc.EstimatePackagesPriceWithRoute(route(10_000, 600))
 
 	wantPackages := []string{"economy", "comfort", "van", "business"}
@@ -187,7 +190,7 @@ func TestEstimatePackagesPriceWithRoute_AllPackages(t *testing.T) {
 }
 
 func TestEstimatePackagesPriceWithRoute_PriceOrdering(t *testing.T) {
-	svc := NewService(newFakeRepo(), &noopUsers{}, nil)
+	svc := NewService(newFakeRepo(), &noopUsers{}, nil, nil)
 	fares := svc.EstimatePackagesPriceWithRoute(route(10_000, 600))
 
 	for i := 1; i < len(fares); i++ {
@@ -202,7 +205,7 @@ func TestEstimatePackagesPriceWithRoute_PriceOrdering(t *testing.T) {
 
 func TestGetAndValidateFare(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, &noopUsers{}, nil)
+	svc := NewService(repo, &noopUsers{}, nil, nil)
 
 	validFare := &domain.RideFareModel{
 		ID:        "fare-1",

@@ -39,6 +39,7 @@ type TripModel struct {
 
 type TripRepository interface {
 	CreateTrip(ctx context.Context, trip *TripModel) (*TripModel, error)
+	CreateTripWithOutbox(ctx context.Context, trip *TripModel, topic string, payload []byte) (*TripModel, error)
 	SaveRideFare(ctx context.Context, f *RideFareModel) error
 	GetRideFareByID(ctx context.Context, id string) (*RideFareModel, error)
 	GetTripByID(ctx context.Context, id string) (*TripModel, error)

@@ -55,7 +55,7 @@ func NewTripEventPublisher(kafka *messaging.Kafka, log *zap.SugaredLogger) *Trip
 	return &TripEventPublisher{kafka: kafka, log: log}
 }
 
-func (p *TripEventPublisher) PublishTripCreated(ctx context.Context, trip *domain.TripModel) error {
+func BuildTripCreated(trip *domain.TripModel) (string, []byte, error) {
 	rawCoords := trip.Fare.Route.Routes[0].Geometry.Coordinates
 	pickup := messaging.Coordinate{Lat: rawCoords[0][1], Lng: rawCoords[0][0]}
 	dest := messaging.Coordinate{Lat: rawCoords[len(rawCoords)-1][1], Lng: rawCoords[len(rawCoords)-1][0]}
@@ -84,20 +84,15 @@ func (p *TripEventPublisher) PublishTripCreated(ctx context.Context, trip *domai
 
 	data, err := json.Marshal(event)
 	if err != nil {
-		return fmt.Errorf("marshal event: %w", err)
+		return "", nil, fmt.Errorf("marshal event: %w", err)
 	}
-
-	msg := messaging.KafkaMessage{
+	payload, err := json.Marshal(messaging.KafkaMessage{
 		Type:    messaging.TopicTripCreated,
 		OwnerID: trip.UserID,
 		Data:    data,
-	}
-
-	payload, err := json.Marshal(msg)
+	})
 	if err != nil {
-		return fmt.Errorf("marshal message: %w", err)
+		return "", nil, fmt.Errorf("marshal message: %w", err)
 	}
-
-	p.log.Infow("trip created published", "trip", event.TripID, "user", event.UserID, "package", event.PackageSlug)
-	return p.kafka.PublishMessage(ctx, messaging.TopicTripCreated, payload)
+	return messaging.TopicTripCreated, payload, nil
 }
