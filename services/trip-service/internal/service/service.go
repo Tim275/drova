@@ -88,6 +88,13 @@ func (s *service) GetRoute(ctx context.Context, pickup, destination *types.Coord
 		return nil, fmt.Errorf("read response: %w", err)
 	}
 
+	// Surface auth/quota errors instead of masking them as "no routes found".
+	// A bad MAPBOX_TOKEN returns 401/403 with no routes field, which would
+	// otherwise be swallowed by the len(route.Routes)==0 check below.
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("directions api status %d: %s", resp.StatusCode, string(body))
+	}
+
 	var route tripTypes.MapboxRouteResponse
 	if err := json.Unmarshal(body, &route); err != nil {
 		return nil, fmt.Errorf("parse response: %w", err)
