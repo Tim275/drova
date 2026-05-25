@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.18.16](https://github.com/Tim275/drova/compare/v0.18.15...v0.18.16) (2026-05-25)
+
+
+### Bug Fixes
+
+* **deps:** update nginxinc/nginx-unprivileged:stable-alpine3.23 docker digest to df0e9ed ([#194](https://github.com/Tim275/drova/issues/194)) ([35544af](https://github.com/Tim275/drova/commit/35544af28c803dfccf36f3d23cc365d2701a3879))
+* redis reconnect + mapbox status check ([#212](https://github.com/Tim275/drova/issues/212)) ([ba84937](https://github.com/Tim275/drova/commit/ba849377a9933a1d483bc019635f93b180795fe4))
+
 ## [0.18.15](https://github.com/Tim275/drova/compare/v0.18.14...v0.18.15) (2026-05-18)
 
 
