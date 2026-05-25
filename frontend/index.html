@@ -13,6 +13,11 @@
     /* Auth screen */
     #authscreen { display: none; position: fixed; inset: 0; z-index: 999; background: #f3f4f6; align-items: center; justify-content: center; padding: 16px; }
     #authscreen.active { display: flex; }
+    /* Decorative background map behind the login card */
+    #authmap { position: absolute; inset: 0; z-index: 0; }
+    #authmapveil { position: absolute; inset: 0; z-index: 1; pointer-events: none;
+      background: linear-gradient(180deg, rgba(243,244,246,.55), rgba(243,244,246,.8)); }
+    #authscreen .card { position: relative; z-index: 2; }
     .auth-tabs { display: flex; gap: 4px; background: #f3f4f6; border-radius: 8px; padding: 4px; margin-bottom: 20px; }
     .auth-tab { flex: 1; padding: 8px; border: none; background: transparent; border-radius: 6px; font-size: 14px; font-weight: 600; color: #6b7280; cursor: pointer; transition: all .15s; }
     .auth-tab.active { background: white; color: #111827; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
@@ -552,6 +557,8 @@
 
 <!-- Auth screen -->
 <div id="authscreen">
+  <div id="authmap"></div>
+  <div id="authmapveil"></div>
   <div class="card">
     <h2>Drova</h2>
     <p>Sign in or create an account</p>
@@ -897,6 +904,28 @@
     document.getElementById('welcome').classList.remove('active');
     document.getElementById('mapscreen').style.display = 'none';
     document.getElementById('driverscreen').classList.remove('active');
+    initAuthMap();
+  }
+
+  // Decorative, non-interactive background map for the login screen.
+  let _authMap = null;
+  async function initAuthMap() {
+    if (_authMap) { _authMap.resize(); return; }
+    try {
+      if (!mapboxgl.accessToken) {
+        const cfg = await fetch('/config').then(r => r.json());
+        mapboxgl.accessToken = cfg.mapboxToken;
+      }
+      if (!mapboxgl.accessToken) return;
+      _authMap = new mapboxgl.Map({
+        container: 'authmap',
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: [10.4515, 51.1657], // Germany
+        zoom: 5.7,
+        interactive: false,
+        attributionControl: false,
+      });
+    } catch (_) { /* decorative only — safe to ignore */ }
   }
 
   function showWelcome() {
@@ -1415,8 +1444,8 @@
     map = new mapboxgl.Map({
       container: 'map',
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: [10.5, 51.2],
-      zoom: 6,
+      center: [10.4515, 51.1657], // Germany overview (Uber/Bolt-style start)
+      zoom: 5.7,
     });
     map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 
@@ -1426,7 +1455,8 @@
       showUserHeading: false,
     });
     map.addControl(riderGeolocate, 'bottom-right');
-    map.on('load', () => riderGeolocate.trigger());
+    // Stay on the Germany overview at start instead of jumping to GPS — the rider
+    // taps the locate control or types a pickup to zoom in.
 
     setupAutocomplete('pickup', 'pickup-dropdown', (coords) => { pickupCoords = coords; });
     setupAutocomplete('destination', 'destination-dropdown', (coords) => { destinationCoords = coords; });

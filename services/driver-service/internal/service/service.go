@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	math "math/rand/v2"
+	"time"
 
 	"drova/services/driver-service/internal/domain"
 	pb "drova/shared/proto/driver"
@@ -26,8 +27,16 @@ func NewService(store domain.DriverStore, rdb *redis.Client, log *zap.SugaredLog
 
 var searchRadii = []float64{5, 25, 100, 500, 1500}
 
+// driverTTL is the presence grace window. A driver counts as online while its
+// heartbeat key is alive; it's refreshed on every location ping. A brief WS/gRPC
+// drop (network blip, pod rollout) no longer removes the driver instantly — the
+// heartbeat simply lapses after this duration if pings stop. Keep it comfortably
+// larger than the location-ping interval.
+const driverTTL = 30 * time.Second
+
 func geoKey(packageSlug string) string { return "drova:drivers:geo:" + packageSlug }
 func driverKey(driverID string) string { return "drova:driver:" + driverID }
+func hbKey(driverID string) string     { return "drova:driver:hb:" + driverID }
 
 func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, name string, lat, lng float64) (*pb.Driver, error) {
 	randomIndex := math.IntN(len(PredefinedRoutes)) // #nosec G404 -- route index, not security-sensitive
@@ -74,6 +83,10 @@ func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, nam
 		Latitude:  lat,
 	}).Err(); err != nil {
 		s.log.Warnw("RegisterDriver GeoAdd failed", "driver", driverID, zap.Error(err))
+	}
+	// Mark the driver present; refreshed on every location ping (see UpdateLocation).
+	if err := s.rdb.Set(ctx, hbKey(driverID), "1", driverTTL).Err(); err != nil {
+		s.log.Warnw("RegisterDriver heartbeat set failed", "driver", driverID, zap.Error(err))
 	}
 
 	if err := s.store.Upsert(ctx, driver); err != nil {
@@ -125,6 +138,18 @@ func (s *Service) FindAvailableDrivers(ctx context.Context, packageSlug string, 
 				s.log.Warnw("driver hash missing — ghost GeoSet entry", "driver", r.Name)
 				continue
 			}
+			// Presence gate: skip drivers whose heartbeat has lapsed (disconnected
+			// longer than driverTTL). Lazily reap the stale geo entry so it stops
+			// showing up. A transient redis error (err != nil) keeps the driver to
+			// avoid wrongly dropping someone on a blip.
+			if alive, err := s.rdb.Exists(ctx, hbKey(r.Name)).Result(); err == nil && alive == 0 {
+				s.log.Infow("driver heartbeat expired, reaping", "driver", r.Name)
+				s.rdb.ZRem(ctx, geoKey(packageSlug), r.Name)
+				if hash["busy"] == "" {
+					s.rdb.Del(ctx, driverKey(r.Name))
+				}
+				continue
+			}
 			if hash["busy"] != "" {
 				s.log.Infow("driver busy, skipping", "driver", r.Name, "trip", hash["busy"])
 				continue
@@ -173,6 +198,8 @@ func (s *Service) UpdateLocation(ctx context.Context, driverID string, lat, lng 
 		Longitude: lng,
 		Latitude:  lat,
 	})
+	// Refresh presence on every ping — this is what keeps the driver "online".
+	s.rdb.Set(ctx, hbKey(driverID), "1", driverTTL)
 }
 
 func (s *Service) GetBusyTripID(ctx context.Context, driverID string) string {
@@ -184,19 +211,12 @@ func (s *Service) GetBusyTripID(ctx context.Context, driverID string) string {
 }
 
 func (s *Service) UnregisterDriver(_ context.Context, driverID string) {
-	// Always use background context: the caller context (WS/gRPC stream) is already
-	// cancelled at disconnect time, which makes HGet return zero-value strings and
-	// causes ZRem to be skipped while Del runs — leaving a ghost GeoSet entry with
-	// no hash. Background context ensures both cleanup steps always complete.
-	bgCtx := context.Background()
-	busy, _ := s.rdb.HGet(bgCtx, driverKey(driverID), "busy").Result()
-	packageSlug, err := s.rdb.HGet(bgCtx, driverKey(driverID), "packageSlug").Result()
-	if err == nil && packageSlug != "" {
-		s.rdb.ZRem(bgCtx, geoKey(packageSlug), driverID)
-	}
-	// Only delete the driver key when not in an active trip.
-	// If busy, preserve the key so reconnect can resume the trip.
-	if busy == "" {
-		s.rdb.Del(bgCtx, driverKey(driverID))
-	}
+	// Soft disconnect. We deliberately do NOT remove the driver from the geo set
+	// here. A WS/gRPC stream end fires on every network blip and on every pod
+	// rollout — removing instantly made drivers vanish ("no drivers available"
+	// flicker). Instead we let the heartbeat key lapse: it's refreshed on each
+	// location ping (driverTTL), so a driver that reconnects within the grace
+	// window is never seen as offline. Stale entries (no heartbeat) are reaped
+	// lazily in FindAvailableDrivers. Busy/trip state stays intact for resume.
+	s.log.Infow("driver stream ended; presence lapses via heartbeat", "driver", driverID)
 }
