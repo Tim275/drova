@@ -96,7 +96,7 @@ services:
     restart: unless-stopped
 
   jaeger:
-    image: jaegertracing/jaeger:2.8.0@sha256:af1598dfd0a7800a370e88064e24c5d562cfcbbd2c2748e6ae1f1126be88dd4b
+    image: jaegertracing/jaeger:2.18.0@sha256:d2cbd047e44b50c11454820f84fd5f34c24a435e5301cf94fe026bf055db80b3
     ports:
       - "127.0.0.1:16688:16686"   # UI + Query API (16688 avoids conflict with K8s SSH tunnel on 16686)
       - "127.0.0.1:14268:14268"   # Jaeger Thrift HTTP (backwards compat)
