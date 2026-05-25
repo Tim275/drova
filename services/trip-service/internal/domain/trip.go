@@ -37,7 +37,6 @@ type TripModel struct {
 	CancelledBy     string
 }
 
-// OutboxMessage is a Kafka message staged for transactional, atomic-with-the-DB publishing.
 type OutboxMessage struct {
 	Topic   string
 	Payload []byte

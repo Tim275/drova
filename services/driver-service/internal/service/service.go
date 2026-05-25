@@ -264,6 +264,5 @@ func (s *Service) GoOffline(ctx context.Context, driverID string) {
 }
 
 func (s *Service) UnregisterDriver(_ context.Context, driverID string) {
-	// Soft disconnect: presence lapses via heartbeat TTL, not on stream end. See CLAUDE.md.
 	s.log.Infow("driver stream ended", "driver", driverID)
 }
