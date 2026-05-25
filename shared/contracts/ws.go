@@ -12,6 +12,7 @@ const (
 	DriverCmdTripStart   = "driver.cmd.trip_start"
 	DriverCmdTripEnd     = "driver.cmd.trip_end"
 	DriverCmdTripCancel  = "driver.cmd.trip_cancel"
+	DriverCmdOffline     = "driver.cmd.offline"
 
 	TripCmdCancel = "trip.cmd.cancel"
 

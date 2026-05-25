@@ -72,6 +72,11 @@ func (h *driverGrpcHandler) UnregisterDriver(ctx context.Context, req *pb.Regist
 	}, nil
 }
 
+func (h *driverGrpcHandler) GoOffline(ctx context.Context, req *pb.RegisterDriverRequest) (*pb.RegisterDriverResponse, error) {
+	h.service.GoOffline(ctx, req.GetDriverID())
+	return &pb.RegisterDriverResponse{Driver: &pb.Driver{Id: req.GetDriverID()}}, nil
+}
+
 func (h *driverGrpcHandler) GetNearbyDrivers(ctx context.Context, req *pb.NearbyDriversRequest) (*pb.NearbyDriversResponse, error) {
 	drivers := h.service.GetNearbyDrivers(ctx, req.GetPackageSlug(), req.GetLat(), req.GetLng(), req.GetRadiusKm())
 	return &pb.NearbyDriversResponse{Drivers: drivers}, nil

@@ -1629,6 +1629,9 @@
     if (driverReconnectTimer) { clearTimeout(driverReconnectTimer); driverReconnectTimer = null; }
     tripEndPending = false;
     driverReconnectPkg = null;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try { ws.send(JSON.stringify({ type: 'driver.cmd.offline' })); } catch (_) {}
+    }
     if (ws) { ws.close(); ws = null; }
     if (driverIdleMarker) { driverIdleMarker.remove(); driverIdleMarker = null; }
     if (driverMarker) { driverMarker.remove(); driverMarker = null; }

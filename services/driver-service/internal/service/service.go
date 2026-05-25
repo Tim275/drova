@@ -252,6 +252,17 @@ func (s *Service) GetBusyTripID(ctx context.Context, driverID string) string {
 	return val
 }
 
+func (s *Service) GoOffline(ctx context.Context, driverID string) {
+	s.rdb.Del(ctx, hbKey(driverID))
+	packageSlug, _ := s.rdb.HGet(ctx, driverKey(driverID), "packageSlug").Result()
+	if packageSlug != "" {
+		s.rdb.ZRem(ctx, geoKey(packageSlug), driverID)
+	}
+	if busy, _ := s.rdb.HGet(ctx, driverKey(driverID), "busy").Result(); busy == "" {
+		s.rdb.Del(ctx, driverKey(driverID))
+	}
+}
+
 func (s *Service) UnregisterDriver(_ context.Context, driverID string) {
 	// Soft disconnect: presence lapses via heartbeat TTL, not on stream end. See CLAUDE.md.
 	s.log.Infow("driver stream ended", "driver", driverID)

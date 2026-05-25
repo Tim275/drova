@@ -23,6 +23,7 @@ const (
 	DriverService_UnregisterDriver_FullMethodName = "/driver.DriverService/UnregisterDriver"
 	DriverService_StreamLocation_FullMethodName   = "/driver.DriverService/StreamLocation"
 	DriverService_GetNearbyDrivers_FullMethodName = "/driver.DriverService/GetNearbyDrivers"
+	DriverService_GoOffline_FullMethodName        = "/driver.DriverService/GoOffline"
 )
 
 // DriverServiceClient is the client API for DriverService service.
@@ -33,6 +34,7 @@ type DriverServiceClient interface {
 	UnregisterDriver(ctx context.Context, in *RegisterDriverRequest, opts ...grpc.CallOption) (*RegisterDriverResponse, error)
 	StreamLocation(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[LocationUpdate, StreamLocationResponse], error)
 	GetNearbyDrivers(ctx context.Context, in *NearbyDriversRequest, opts ...grpc.CallOption) (*NearbyDriversResponse, error)
+	GoOffline(ctx context.Context, in *RegisterDriverRequest, opts ...grpc.CallOption) (*RegisterDriverResponse, error)
 }
 
 type driverServiceClient struct {
@@ -86,6 +88,16 @@ func (c *driverServiceClient) GetNearbyDrivers(ctx context.Context, in *NearbyDr
 	return out, nil
 }
 
+func (c *driverServiceClient) GoOffline(ctx context.Context, in *RegisterDriverRequest, opts ...grpc.CallOption) (*RegisterDriverResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RegisterDriverResponse)
+	err := c.cc.Invoke(ctx, DriverService_GoOffline_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DriverServiceServer is the server API for DriverService service.
 // All implementations must embed UnimplementedDriverServiceServer
 // for forward compatibility.
@@ -94,6 +106,7 @@ type DriverServiceServer interface {
 	UnregisterDriver(context.Context, *RegisterDriverRequest) (*RegisterDriverResponse, error)
 	StreamLocation(grpc.ClientStreamingServer[LocationUpdate, StreamLocationResponse]) error
 	GetNearbyDrivers(context.Context, *NearbyDriversRequest) (*NearbyDriversResponse, error)
+	GoOffline(context.Context, *RegisterDriverRequest) (*RegisterDriverResponse, error)
 	mustEmbedUnimplementedDriverServiceServer()
 }
 
@@ -115,6 +128,9 @@ func (UnimplementedDriverServiceServer) StreamLocation(grpc.ClientStreamingServe
 }
 func (UnimplementedDriverServiceServer) GetNearbyDrivers(context.Context, *NearbyDriversRequest) (*NearbyDriversResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNearbyDrivers not implemented")
+}
+func (UnimplementedDriverServiceServer) GoOffline(context.Context, *RegisterDriverRequest) (*RegisterDriverResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GoOffline not implemented")
 }
 func (UnimplementedDriverServiceServer) mustEmbedUnimplementedDriverServiceServer() {}
 func (UnimplementedDriverServiceServer) testEmbeddedByValue()                       {}
@@ -198,6 +214,24 @@ func _DriverService_GetNearbyDrivers_Handler(srv interface{}, ctx context.Contex
 	return interceptor(ctx, in, info, handler)
 }
 
+func _DriverService_GoOffline_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterDriverRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DriverServiceServer).GoOffline(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DriverService_GoOffline_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DriverServiceServer).GoOffline(ctx, req.(*RegisterDriverRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DriverService_ServiceDesc is the grpc.ServiceDesc for DriverService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -216,6 +250,10 @@ var DriverService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetNearbyDrivers",
 			Handler:    _DriverService_GetNearbyDrivers_Handler,
+		},
+		{
+			MethodName: "GoOffline",
+			Handler:    _DriverService_GoOffline_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

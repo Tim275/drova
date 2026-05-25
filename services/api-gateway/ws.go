@@ -410,6 +410,14 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 
+		case contracts.DriverCmdOffline:
+			offCtx, offCancel := context.WithTimeout(r.Context(), 3*time.Second)
+			_, err := grpc_clients.DriverClient.GoOffline(offCtx, &pb.RegisterDriverRequest{DriverID: userID})
+			offCancel()
+			if err != nil {
+				appLog.Warnw("driver go offline", "driver", userID, zap.Error(err))
+			}
+
 		case contracts.DriverCmdTripAccept, contracts.DriverCmdTripDecline:
 			var acceptData messaging.DriverTripAcceptData
 			if err := json.Unmarshal(driverMsg.Data, &acceptData); err != nil {
