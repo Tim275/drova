@@ -72,8 +72,13 @@ func newRedisClient(addr, password string) *redis.Client {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	if err := rdb.Ping(ctx).Err(); err != nil {
-		appLog.Warnw("redis unavailable, rate limiting disabled", "err", err)
-		return nil
+		// Don't discard the client on a startup ping failure — that permanently
+		// disables Redis (rate limiting + WS tickets) until the pod restarts.
+		// Common after a node reboot when Cilium egress policy hasn't converged
+		// yet (connect: operation not permitted). go-redis reconnects lazily per
+		// command, so keep the client and recover automatically once Redis is up.
+		appLog.Warnw("redis ping failed at startup, will reconnect lazily", "err", err)
+		return rdb
 	}
 	return rdb
 }
