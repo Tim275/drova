@@ -55,6 +55,9 @@ func (f *fakeRepo) CreateTrip(_ context.Context, t *domain.TripModel) (*domain.T
 func (f *fakeRepo) CreateTripWithOutbox(ctx context.Context, t *domain.TripModel, _ string, _ []byte) (*domain.TripModel, error) {
 	return f.CreateTrip(ctx, t)
 }
+func (f *fakeRepo) ExpireSearchWithOutbox(ctx context.Context, tripID string, _ []domain.OutboxMessage) (bool, error) {
+	return f.ExpireSearch(ctx, tripID)
+}
 func (f *fakeRepo) GetTripByID(_ context.Context, id string) (*domain.TripModel, error) {
 	t, ok := f.trips[id]
 	if !ok {

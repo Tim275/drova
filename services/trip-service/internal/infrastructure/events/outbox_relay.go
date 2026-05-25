@@ -33,6 +33,22 @@ func (r *OutboxRelay) Start(ctx context.Context) {
 			}
 		}
 	}()
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if _, err := r.db.Exec(ctx,
+					`DELETE FROM outbox WHERE published_at IS NOT NULL AND published_at < NOW() - INTERVAL '1 hour'`,
+				); err != nil {
+					r.log.Warnw("outbox cleanup", zap.Error(err))
+				}
+			}
+		}
+	}()
 }
 
 func (r *OutboxRelay) drain(ctx context.Context) {

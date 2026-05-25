@@ -1,7 +1,6 @@
 package events
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 
@@ -9,50 +8,39 @@ import (
 	"drova/shared/messaging"
 
 	"github.com/mmcloughlin/geohash"
-	"go.uber.org/zap"
 )
 
-func (p *TripEventPublisher) PublishSearchTimeout(ctx context.Context, tripID, riderID string) error {
+func BuildSearchTimeout(tripID, riderID string) ([]domain.OutboxMessage, error) {
 	noDriversData, err := json.Marshal(map[string]string{"trip_id": tripID})
 	if err != nil {
-		return fmt.Errorf("marshal no-drivers data: %w", err)
+		return nil, fmt.Errorf("marshal no-drivers data: %w", err)
 	}
-	noDriversMsg := messaging.KafkaMessage{
+	noDriversPayload, err := json.Marshal(messaging.KafkaMessage{
 		Type:    messaging.TopicTripNoDriversFound,
 		OwnerID: riderID,
 		Data:    noDriversData,
-	}
-	noDriversPayload, err := json.Marshal(noDriversMsg)
+	})
 	if err != nil {
-		return fmt.Errorf("marshal no-drivers msg: %w", err)
-	}
-	if err := p.kafka.PublishMessage(ctx, messaging.TopicTripNoDriversFound, noDriversPayload); err != nil {
-		return fmt.Errorf("publish no-drivers-found: %w", err)
+		return nil, fmt.Errorf("marshal no-drivers msg: %w", err)
 	}
 
 	cancelData, err := json.Marshal(messaging.TripCancelledEvent{TripID: tripID, RiderID: riderID})
 	if err != nil {
-		return fmt.Errorf("marshal cancel event: %w", err)
+		return nil, fmt.Errorf("marshal cancel event: %w", err)
 	}
-	cancelMsg := messaging.KafkaMessage{
+	cancelPayload, err := json.Marshal(messaging.KafkaMessage{
 		Type:    messaging.TopicTripCancelled,
 		OwnerID: riderID,
 		Data:    cancelData,
-	}
-	cancelPayload, err := json.Marshal(cancelMsg)
+	})
 	if err != nil {
-		return fmt.Errorf("marshal cancel msg: %w", err)
+		return nil, fmt.Errorf("marshal cancel msg: %w", err)
 	}
-	return p.kafka.PublishMessage(ctx, messaging.TopicTripCancelled, cancelPayload)
-}
 
-type TripEventPublisher struct {
-	kafka *messaging.Kafka
-	log   *zap.SugaredLogger
-}
-
-func NewTripEventPublisher(kafka *messaging.Kafka, log *zap.SugaredLogger) *TripEventPublisher {
-	return &TripEventPublisher{kafka: kafka, log: log}
+	return []domain.OutboxMessage{
+		{Topic: messaging.TopicTripNoDriversFound, Payload: noDriversPayload},
+		{Topic: messaging.TopicTripCancelled, Payload: cancelPayload},
+	}, nil
 }
 
 func BuildTripCreated(trip *domain.TripModel) (string, []byte, error) {

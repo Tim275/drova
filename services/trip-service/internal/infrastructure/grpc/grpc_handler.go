@@ -20,13 +20,12 @@ const tripSearchTimeout = 2 * time.Minute
 
 type gRPCHandler struct {
 	pb.UnimplementedTripServiceServer
-	service   domain.TripService
-	publisher *events.TripEventPublisher
-	log       *zap.SugaredLogger
+	service domain.TripService
+	log     *zap.SugaredLogger
 }
 
-func NewGRPCHandler(server *grpc.Server, service domain.TripService, publisher *events.TripEventPublisher, log *zap.SugaredLogger) *gRPCHandler {
-	handler := &gRPCHandler{service: service, publisher: publisher, log: log}
+func NewGRPCHandler(server *grpc.Server, service domain.TripService, log *zap.SugaredLogger) *gRPCHandler {
+	handler := &gRPCHandler{service: service, log: log}
 	pb.RegisterTripServiceServer(server, handler)
 	return handler
 }
@@ -57,17 +56,18 @@ func (h *gRPCHandler) runSearchTimeout(tripID, riderID string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cancelled, err := h.service.ExpireSearch(ctx, tripID)
+	msgs, err := events.BuildSearchTimeout(tripID, riderID)
+	if err != nil {
+		h.log.Warnw("build search timeout", "trip", tripID, zap.Error(err))
+		return
+	}
+	cancelled, err := h.service.ExpireSearchWithOutbox(ctx, tripID, msgs)
 	if err != nil {
 		h.log.Warnw("expire search failed", "trip", tripID, zap.Error(err))
 		return
 	}
 	if !cancelled {
 		return // trip already accepted, completed, or manually cancelled
-	}
-
-	if err := h.publisher.PublishSearchTimeout(ctx, tripID, riderID); err != nil {
-		h.log.Warnw("publish search timeout", "trip", tripID, zap.Error(err))
 	}
 	h.log.Infow("trip search timed out", "trip", tripID, "rider", riderID)
 }

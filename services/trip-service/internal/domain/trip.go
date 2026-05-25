@@ -37,6 +37,12 @@ type TripModel struct {
 	CancelledBy     string
 }
 
+// OutboxMessage is a Kafka message staged for transactional, atomic-with-the-DB publishing.
+type OutboxMessage struct {
+	Topic   string
+	Payload []byte
+}
+
 type TripRepository interface {
 	CreateTrip(ctx context.Context, trip *TripModel) (*TripModel, error)
 	CreateTripWithOutbox(ctx context.Context, trip *TripModel, topic string, payload []byte) (*TripModel, error)
@@ -46,6 +52,7 @@ type TripRepository interface {
 	UpdateTrip(ctx context.Context, tripID string, status string, driver *pbd.Driver) error
 	CancelTrip(ctx context.Context, tripID string) error
 	ExpireSearch(ctx context.Context, tripID string) (bool, error)
+	ExpireSearchWithOutbox(ctx context.Context, tripID string, msgs []OutboxMessage) (bool, error)
 	ExpireStaleSearching(ctx context.Context, olderThan time.Duration) (int64, error)
 	GetTripsByUser(ctx context.Context, userID string) ([]*TripModel, error)
 	GetTripsByDriver(ctx context.Context, driverID string) ([]*TripModel, error)
@@ -72,6 +79,7 @@ type TripService interface {
 	UpdateTrip(ctx context.Context, tripID string, status string, driver *pbd.Driver) error
 	CancelTrip(ctx context.Context, tripID string) error
 	ExpireSearch(ctx context.Context, tripID string) (bool, error)
+	ExpireSearchWithOutbox(ctx context.Context, tripID string, msgs []OutboxMessage) (bool, error)
 	ExpireStaleSearching(ctx context.Context, olderThan time.Duration) (int64, error)
 	GetTripsByUser(ctx context.Context, userID string) ([]*TripModel, error)
 	GetTripsByDriver(ctx context.Context, driverID string) ([]*TripModel, error)

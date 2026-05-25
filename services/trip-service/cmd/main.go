@@ -99,8 +99,6 @@ func main() {
 		userInfoProvider = &noopUserInfo{}
 	}
 
-	publisher := events.NewTripEventPublisher(kafka, log)
-
 	pgRepo := repository.NewPostgresRepository(db)
 	svc := service.NewService(pgRepo, userInfoProvider, nil, events.BuildTripCreated)
 
@@ -123,7 +121,7 @@ func main() {
 			PermitWithoutStream: true,
 		}),
 	)...)
-	grpcHandler.NewGRPCHandler(grpcSrv, svc, publisher, log)
+	grpcHandler.NewGRPCHandler(grpcSrv, svc, log)
 
 	driverConsumer.Start(ctx)
 	paymentConsumer.Start(ctx)

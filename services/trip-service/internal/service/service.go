@@ -190,6 +190,10 @@ func (s *service) ExpireSearch(ctx context.Context, tripID string) (bool, error)
 	return s.repo.ExpireSearch(ctx, tripID)
 }
 
+func (s *service) ExpireSearchWithOutbox(ctx context.Context, tripID string, msgs []domain.OutboxMessage) (bool, error) {
+	return s.repo.ExpireSearchWithOutbox(ctx, tripID, msgs)
+}
+
 func (s *service) ExpireStaleSearching(ctx context.Context, olderThan time.Duration) (int64, error) {
 	return s.repo.ExpireStaleSearching(ctx, olderThan)
 }

@@ -238,6 +238,32 @@ func (r *pgRepository) ExpireSearch(ctx context.Context, tripID string) (bool, e
 	return tag.RowsAffected() > 0, nil
 }
 
+func (r *pgRepository) ExpireSearchWithOutbox(ctx context.Context, tripID string, msgs []domain.OutboxMessage) (bool, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	tag, err := tx.Exec(ctx, `UPDATE trips SET status='cancelled' WHERE id=$1 AND status='searching'`, tripID)
+	if err != nil {
+		return false, err
+	}
+	if tag.RowsAffected() == 0 {
+		return false, tx.Commit(ctx)
+	}
+
+	for _, m := range msgs {
+		if _, err := tx.Exec(ctx, `INSERT INTO outbox (topic, payload) VALUES ($1, $2)`, m.Topic, m.Payload); err != nil {
+			return false, err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (r *pgRepository) ExpireStaleSearching(ctx context.Context, olderThan time.Duration) (int64, error) {
 	tag, err := r.db.Exec(ctx,
 		`UPDATE trips SET status='cancelled' WHERE status='searching' AND created_at < NOW() - $1::interval`,
