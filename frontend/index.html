@@ -2111,6 +2111,32 @@
         currentTripRequest = null;
         document.getElementById('chatBtnDriver').style.display = 'none';
         setStatus('Trip cancelled by rider. Waiting for new requests...');
+      } else if (msg.type === 'driver.cmd.location') {
+        const d = msg.data;
+        if (driverMap && d && d.lat && d.lng) {
+          if (!driverMarker) {
+            driverMarker = new mapboxgl.Marker({ element: createCarMarkerElement(), anchor: 'center' }).setLngLat([d.lng, d.lat]).addTo(driverMap);
+          } else {
+            driverMarker.setLngLat([d.lng, d.lat]);
+          }
+          driverMap.easeTo({ center: [d.lng, d.lat], duration: 1000 });
+        }
+      } else if (msg.type === 'trip.event.driver_arrived') {
+        setStatus('Arrived at pickup. Picking up rider...');
+      } else if (msg.type === 'trip.event.in_progress') {
+        setStatus('Trip in progress · driving to destination...');
+      } else if (msg.type === 'trip.event.completed') {
+        document.getElementById('tripStatusActions').style.display = 'none';
+        document.getElementById('chatBtnDriver').style.display = 'none';
+        if (tripPickupMarker) { tripPickupMarker.remove(); tripPickupMarker = null; }
+        if (tripDestMarker) { tripDestMarker.remove(); tripDestMarker = null; }
+        if (driverMap && driverMap.getLayer('trip-route-line')) {
+          driverMap.removeLayer('trip-route-line');
+          driverMap.removeSource('trip-route');
+        }
+        currentTripRequest = null;
+        activeTripID = null;
+        setStatus('Trip completed · payment triggered. Waiting for new requests...');
       } else if (msg.type === 'error') {
         const errMsg = (msg.data && msg.data.message) ? msg.data.message : 'Action failed, please retry';
         setStatus('Error: ' + errMsg);
@@ -2285,16 +2311,12 @@
       data: { trip_id: currentTripRequest.trip_id, rider_id: riderID }
     }));
 
-    // Start real GPS watch so rider's map shows driver's actual position (not pickup coords)
-    startLocationUpdates(riderID, []);
-
+    // Server-side simulator drives the trip from here (location + phases), independent
+    // of this browser tab. The driver client stays passive — no own GPS streaming, no
+    // manual phase buttons — and just reflects the events it receives.
     document.getElementById('tripRequest').style.display = 'none';
-    document.getElementById('tripStatusActions').style.display = 'block';
-    document.getElementById('driverTripStatusLabel').textContent = 'Driving to pickup';
-    document.getElementById('btnArrived').style.display = 'block';
-    document.getElementById('btnTripStart').style.display = 'none';
-    document.getElementById('btnTripEnd').style.display = 'none';
-    setStatus('Trip accepted. Driving to pickup...');
+    document.getElementById('tripStatusActions').style.display = 'none';
+    setStatus('Trip accepted · auto-driving to pickup...');
     activeTripID = currentTripRequest.trip_id;
     document.getElementById('chatBtnDriver').style.display = 'block';
   }

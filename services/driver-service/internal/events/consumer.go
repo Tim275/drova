@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"drova/services/driver-service/internal/domain"
+	"drova/services/driver-service/internal/sim"
 	"drova/shared/messaging"
 
 	"github.com/redis/go-redis/v9"
@@ -32,11 +33,12 @@ type TripConsumer struct {
 	service domain.DriverServicer
 	rdb     *redis.Client
 	log     *zap.SugaredLogger
+	sim     *sim.Simulator
 	pending sync.Map // tripID → pendingInfo (short-lived, in-memory is fine)
 }
 
-func NewTripConsumer(kafka *messaging.Kafka, service domain.DriverServicer, rdb *redis.Client, log *zap.SugaredLogger) *TripConsumer {
-	return &TripConsumer{kafka: kafka, service: service, rdb: rdb, log: log}
+func NewTripConsumer(kafka *messaging.Kafka, service domain.DriverServicer, rdb *redis.Client, log *zap.SugaredLogger, simulator *sim.Simulator) *TripConsumer {
+	return &TripConsumer{kafka: kafka, service: service, rdb: rdb, log: log, sim: simulator}
 }
 
 func geoKey(packageSlug string) string { return "drova:drivers:geo:" + packageSlug }
@@ -201,15 +203,43 @@ func (c *TripConsumer) handleDriverResponse(ctx context.Context, payload []byte)
 	if err := json.Unmarshal(msg.Data, &data); err != nil {
 		return fmt.Errorf("unmarshal data: %w", err)
 	}
+	var accepted *messaging.TripCreatedEvent
 	if val, loaded := c.pending.LoadAndDelete(data.TripID); loaded {
 		if pi, ok := val.(pendingInfo); ok {
 			pi.cancel() // stop the 15s timer goroutine
+			ev := pi.event
+			accepted = &ev
 		}
 	}
 	if msg.Type == "driver.cmd.trip_decline" {
 		c.service.ClearBusy(ctx, data.Driver.ID)
+		return nil
+	}
+	if c.sim != nil && accepted != nil {
+		startLat, startLng := c.driverPos(ctx, data.Driver.ID, accepted.PackageSlug)
+		c.sim.Start(sim.TripPlan{
+			TripID:      data.TripID,
+			RiderID:     data.RiderID,
+			DriverID:    data.Driver.ID,
+			PackageSlug: accepted.PackageSlug,
+			StartLat:    startLat,
+			StartLng:    startLng,
+			Pickup:      accepted.Pickup,
+			Route:       accepted.Route,
+		})
 	}
 	return nil
+}
+
+func (c *TripConsumer) driverPos(ctx context.Context, driverID, packageSlug string) (float64, float64) {
+	if c.rdb == nil || packageSlug == "" {
+		return 0, 0
+	}
+	pos, err := c.rdb.GeoPos(ctx, geoKey(packageSlug), driverID).Result()
+	if err != nil || len(pos) == 0 || pos[0] == nil {
+		return 0, 0
+	}
+	return pos[0].Latitude, pos[0].Longitude
 }
 
 func (c *TripConsumer) handleTripCancelled(ctx context.Context, payload []byte) error {
@@ -224,6 +254,9 @@ func (c *TripConsumer) handleTripCancelled(ctx context.Context, payload []byte) 
 		return nil
 	}
 	c.waitingDelete(ctx, data.TripID)
+	if c.sim != nil {
+		c.sim.Stop(data.TripID)
+	}
 	if val, loaded := c.pending.LoadAndDelete(data.TripID); loaded {
 		pi, ok := val.(pendingInfo)
 		if !ok {

@@ -27,7 +27,7 @@ func (m *mockDriverSvc) ClearBusy(_ context.Context, driverID string) {
 }
 
 func newTestConsumer(svc domain.DriverServicer) *TripConsumer {
-	return NewTripConsumer(nil, svc, nil, zap.NewNop().Sugar())
+	return NewTripConsumer(nil, svc, nil, zap.NewNop().Sugar(), nil)
 }
 
 func testEvent(tripID string) messaging.TripCreatedEvent {

@@ -13,6 +13,7 @@ import (
 	"drova/services/driver-service/internal/events"
 	drivergrpc "drova/services/driver-service/internal/grpc"
 	"drova/services/driver-service/internal/service"
+	"drova/services/driver-service/internal/sim"
 	"drova/services/driver-service/internal/store"
 	"drova/shared/env"
 	"drova/shared/logger"
@@ -101,7 +102,8 @@ func main() {
 	pgStore := store.NewPostgresStore(db)
 	svc := service.NewService(pgStore, rdb, log)
 
-	consumer := events.NewTripConsumer(kafka, svc, rdb, log)
+	simulator := sim.New(kafka, rdb, log)
+	consumer := events.NewTripConsumer(kafka, svc, rdb, log, simulator)
 	consumer.Start(ctx)
 
 	grpcSrv := grpcserver.NewServer(append(tracing.WithTracingInterceptors(),
