@@ -129,6 +129,7 @@ func main() {
 	mux.HandleFunc("OPTIONS /trip/start", enableCORS(handleOptions))
 	mux.HandleFunc("GET /trips/history", enableCORS(requireAuth(handleTripHistory)))
 	mux.HandleFunc("GET /trips/driver-history", enableCORS(requireAuth(handleDriverHistory)))
+	mux.HandleFunc("GET /trips/search", enableCORS(requireAuth(handleTripSearch)))
 	mux.HandleFunc("GET /drivers/nearby", enableCORS(requireAuth(handleNearbyDrivers)))
 	mux.Handle("POST /trip/rate", tracing.WrapHandlerFunc(enableCORS(requireAuth(handleTripRate)), "POST /trip/rate"))
 	mux.HandleFunc("OPTIONS /trip/rate", enableCORS(handleOptions))

@@ -50,6 +50,18 @@ services:
       retries: 10
     restart: unless-stopped
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    restart: unless-stopped
+
   kafka:
     image: apache/kafka:3.7.2@sha256:8bd63e1bd445e5e19427a4bdbcc3d23bf6efd774b058a41b36ba87fda7623e34
     ports:
@@ -265,6 +277,21 @@ services:
         condition: service_healthy
     restart: on-failure
 
+  search-indexer:
+    build:
+      context: .
+      dockerfile: services/search-indexer/Dockerfile
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      ELASTICSEARCH_URL: http://elasticsearch:9200
+      ENVIRONMENT: development
+    depends_on:
+      kafka:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_started
+    restart: on-failure
+
   chat-service:
     build:
       context: .
@@ -301,6 +328,7 @@ services:
       USER_SERVICE_URL: http://user-service:8082
       MAPBOX_PUBLIC_TOKEN: ${MAPBOX_PUBLIC_TOKEN}
       KAFKA_BROKERS: kafka:9092
+      ELASTICSEARCH_URL: http://elasticsearch:9200
       STRIPE_WEBHOOK_KEY: ${STRIPE_WEBHOOK_KEY}
       STRIPE_PUBLIC_KEY: ${STRIPE_PUBLIC_KEY}
       OTEL_COLLECTOR_ENDPOINT: otel-collector:4318
@@ -348,3 +376,4 @@ volumes:
   prometheus_data:
   loki_data:
   grafana_data:
+  es_data:
