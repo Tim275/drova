@@ -73,7 +73,7 @@ services:
     restart: unless-stopped
 
   kafka-ui:
-    image: redpandadata/console:latest@sha256:a99e7c54b60de183da9bc6385fd79a277e1bfe7ea5bcf61de8467c6c9a147bbd
+    image: redpandadata/console:latest@sha256:72bd99bdc304a7c6aab58bfaccf92e302d4e826f6f4737d14953eb04ceed7c07
     ports:
       - "127.0.0.1:8080:8080"
     environment:
