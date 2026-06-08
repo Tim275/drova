@@ -63,7 +63,7 @@ services:
     restart: unless-stopped
 
   kafka:
-    image: apache/kafka:3.7.2@sha256:8bd63e1bd445e5e19427a4bdbcc3d23bf6efd774b058a41b36ba87fda7623e34
+    image: apache/kafka:4.3.0@sha256:0be4c9eb3565733612d2836d65636fd611a219ebcf5b4162e5ac259ea0ecb907
     ports:
       - "127.0.0.1:9092:9092"
     environment:
@@ -85,7 +85,7 @@ services:
     restart: unless-stopped
 
   kafka-ui:
-    image: redpandadata/console:latest@sha256:a99e7c54b60de183da9bc6385fd79a277e1bfe7ea5bcf61de8467c6c9a147bbd
+    image: redpandadata/console:latest@sha256:72bd99bdc304a7c6aab58bfaccf92e302d4e826f6f4737d14953eb04ceed7c07
     ports:
       - "127.0.0.1:8080:8080"
     environment:
@@ -108,7 +108,7 @@ services:
     restart: unless-stopped
 
   jaeger:
-    image: jaegertracing/jaeger:2.8.0@sha256:af1598dfd0a7800a370e88064e24c5d562cfcbbd2c2748e6ae1f1126be88dd4b
+    image: jaegertracing/jaeger:2.18.0@sha256:d2cbd047e44b50c11454820f84fd5f34c24a435e5301cf94fe026bf055db80b3
     ports:
       - "127.0.0.1:16688:16686"   # UI + Query API (16688 avoids conflict with K8s SSH tunnel on 16686)
       - "127.0.0.1:14268:14268"   # Jaeger Thrift HTTP (backwards compat)
@@ -130,7 +130,7 @@ services:
     restart: unless-stopped
 
   prometheus:
-    image: prom/prometheus:v2.52.0@sha256:5c435642ca4d8427ca26f4901c11114023004709037880cd7860d5b7176aa731
+    image: prom/prometheus:v3.11.3@sha256:e4254400b85610324913f0dc4acf92603d9984e7519414c5a12811aa6146acc3
     ports:
       - "127.0.0.1:9090:9090"
     volumes:
@@ -156,7 +156,7 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:10.4.19@sha256:a9043254ba16fb10945cc27333963dfd08eccbb43b51f1222d831cc564e3a1f4
+    image: grafana/grafana:13.0.1@sha256:0f86bada30d65ef9d0183b90c1e2682ac92d53d95da8bed322b984ea78a4a73a
     ports:
       - "127.0.0.1:3000:3000"
     environment:
