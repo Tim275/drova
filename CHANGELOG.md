@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.19.0](https://github.com/Tim275/drova/compare/v0.18.16...v0.19.0) (2026-06-09)
+
+
+### Features
+
+* driver presence + outbox + ES read-model + sim ([#221](https://github.com/Tim275/drova/issues/221)) ([78cb408](https://github.com/Tim275/drova/commit/78cb408590944ee3acc74ad3aef40f210e96918f))
+
+
+### Bug Fixes
+
+* **deps:** update nginxinc/nginx-unprivileged:stable-alpine3.23 docker digest to 0a1e718 ([#214](https://github.com/Tim275/drova/issues/214)) ([126b887](https://github.com/Tim275/drova/commit/126b887c9d005cb16fbc03b34c71139bd421c07e))
+* **deps:** update nginxinc/nginx-unprivileged:stable-alpine3.23 docker digest to 37f356a ([#222](https://github.com/Tim275/drova/issues/222)) ([f304ce7](https://github.com/Tim275/drova/commit/f304ce77571444f37411525f6ea7d1c62daf1d14))
+
 ## [0.18.16](https://github.com/Tim275/drova/compare/v0.18.15...v0.18.16) (2026-05-25)
 
 
