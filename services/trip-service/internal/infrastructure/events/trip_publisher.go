@@ -1,7 +1,6 @@
 package events
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 
@@ -9,53 +8,42 @@ import (
 	"drova/shared/messaging"
 
 	"github.com/mmcloughlin/geohash"
-	"go.uber.org/zap"
 )
 
-func (p *TripEventPublisher) PublishSearchTimeout(ctx context.Context, tripID, riderID string) error {
+func BuildSearchTimeout(tripID, riderID string) ([]domain.OutboxMessage, error) {
 	noDriversData, err := json.Marshal(map[string]string{"trip_id": tripID})
 	if err != nil {
-		return fmt.Errorf("marshal no-drivers data: %w", err)
+		return nil, fmt.Errorf("marshal no-drivers data: %w", err)
 	}
-	noDriversMsg := messaging.KafkaMessage{
+	noDriversPayload, err := json.Marshal(messaging.KafkaMessage{
 		Type:    messaging.TopicTripNoDriversFound,
 		OwnerID: riderID,
 		Data:    noDriversData,
-	}
-	noDriversPayload, err := json.Marshal(noDriversMsg)
+	})
 	if err != nil {
-		return fmt.Errorf("marshal no-drivers msg: %w", err)
-	}
-	if err := p.kafka.PublishMessage(ctx, messaging.TopicTripNoDriversFound, noDriversPayload); err != nil {
-		return fmt.Errorf("publish no-drivers-found: %w", err)
+		return nil, fmt.Errorf("marshal no-drivers msg: %w", err)
 	}
 
 	cancelData, err := json.Marshal(messaging.TripCancelledEvent{TripID: tripID, RiderID: riderID})
 	if err != nil {
-		return fmt.Errorf("marshal cancel event: %w", err)
+		return nil, fmt.Errorf("marshal cancel event: %w", err)
 	}
-	cancelMsg := messaging.KafkaMessage{
+	cancelPayload, err := json.Marshal(messaging.KafkaMessage{
 		Type:    messaging.TopicTripCancelled,
 		OwnerID: riderID,
 		Data:    cancelData,
-	}
-	cancelPayload, err := json.Marshal(cancelMsg)
+	})
 	if err != nil {
-		return fmt.Errorf("marshal cancel msg: %w", err)
+		return nil, fmt.Errorf("marshal cancel msg: %w", err)
 	}
-	return p.kafka.PublishMessage(ctx, messaging.TopicTripCancelled, cancelPayload)
+
+	return []domain.OutboxMessage{
+		{Topic: messaging.TopicTripNoDriversFound, Payload: noDriversPayload},
+		{Topic: messaging.TopicTripCancelled, Payload: cancelPayload},
+	}, nil
 }
 
-type TripEventPublisher struct {
-	kafka *messaging.Kafka
-	log   *zap.SugaredLogger
-}
-
-func NewTripEventPublisher(kafka *messaging.Kafka, log *zap.SugaredLogger) *TripEventPublisher {
-	return &TripEventPublisher{kafka: kafka, log: log}
-}
-
-func (p *TripEventPublisher) PublishTripCreated(ctx context.Context, trip *domain.TripModel) error {
+func BuildTripCreated(trip *domain.TripModel) (string, []byte, error) {
 	rawCoords := trip.Fare.Route.Routes[0].Geometry.Coordinates
 	pickup := messaging.Coordinate{Lat: rawCoords[0][1], Lng: rawCoords[0][0]}
 	dest := messaging.Coordinate{Lat: rawCoords[len(rawCoords)-1][1], Lng: rawCoords[len(rawCoords)-1][0]}
@@ -84,20 +72,15 @@ func (p *TripEventPublisher) PublishTripCreated(ctx context.Context, trip *domai
 
 	data, err := json.Marshal(event)
 	if err != nil {
-		return fmt.Errorf("marshal event: %w", err)
+		return "", nil, fmt.Errorf("marshal event: %w", err)
 	}
-
-	msg := messaging.KafkaMessage{
+	payload, err := json.Marshal(messaging.KafkaMessage{
 		Type:    messaging.TopicTripCreated,
 		OwnerID: trip.UserID,
 		Data:    data,
-	}
-
-	payload, err := json.Marshal(msg)
+	})
 	if err != nil {
-		return fmt.Errorf("marshal message: %w", err)
+		return "", nil, fmt.Errorf("marshal message: %w", err)
 	}
-
-	p.log.Infow("trip created published", "trip", event.TripID, "user", event.UserID, "package", event.PackageSlug)
-	return p.kafka.PublishMessage(ctx, messaging.TopicTripCreated, payload)
+	return messaging.TopicTripCreated, payload, nil
 }

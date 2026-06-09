@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"sync"
 	"time"
 
@@ -16,6 +17,8 @@ import (
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 )
+
+var numericIDRe = regexp.MustCompile(`^[0-9]+$`)
 
 const (
 	wsPingInterval = 25 * time.Second
@@ -76,7 +79,11 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "userID mismatch", http.StatusUnauthorized)
 		return
 	}
-	userID := fmt.Sprintf("%d", claims.UserID) // derived from trusted JWT, not URL param
+	userID := fmt.Sprintf("%d", claims.UserID)
+	if !numericIDRe.MatchString(userID) {
+		http.Error(w, "invalid userID", http.StatusInternalServerError)
+		return
+	}
 
 	conn, err := riderConnManager.Upgrade(w, r)
 	if err != nil {
@@ -186,6 +193,10 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	userID := fmt.Sprintf("%d", claims.UserID)
+	if !numericIDRe.MatchString(userID) {
+		http.Error(w, "invalid userID", http.StatusInternalServerError)
+		return
+	}
 
 	packageSlug := r.URL.Query().Get("packageSlug")
 	if packageSlug == "" {
@@ -408,6 +419,14 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 						}
 					}
 				}
+			}
+
+		case contracts.DriverCmdOffline:
+			offCtx, offCancel := context.WithTimeout(r.Context(), 3*time.Second)
+			_, err := grpc_clients.DriverClient.GoOffline(offCtx, &pb.RegisterDriverRequest{DriverID: userID})
+			offCancel()
+			if err != nil {
+				appLog.Warnw("driver go offline", "driver", userID, zap.Error(err))
 			}
 
 		case contracts.DriverCmdTripAccept, contracts.DriverCmdTripDecline:

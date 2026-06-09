@@ -13,6 +13,11 @@
     /* Auth screen */
     #authscreen { display: none; position: fixed; inset: 0; z-index: 999; background: #f3f4f6; align-items: center; justify-content: center; padding: 16px; }
     #authscreen.active { display: flex; }
+    /* Decorative background map behind the login card */
+    #authmap { position: absolute; inset: 0; z-index: 0; }
+    #authmapveil { position: absolute; inset: 0; z-index: 1; pointer-events: none;
+      background: linear-gradient(180deg, rgba(243,244,246,.55), rgba(243,244,246,.8)); }
+    #authscreen .card { position: relative; z-index: 2; }
     .auth-tabs { display: flex; gap: 4px; background: #f3f4f6; border-radius: 8px; padding: 4px; margin-bottom: 20px; }
     .auth-tab { flex: 1; padding: 8px; border: none; background: transparent; border-radius: 6px; font-size: 14px; font-weight: 600; color: #6b7280; cursor: pointer; transition: all .15s; }
     .auth-tab.active { background: white; color: #111827; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
@@ -552,6 +557,8 @@
 
 <!-- Auth screen -->
 <div id="authscreen">
+  <div id="authmap"></div>
+  <div id="authmapveil"></div>
   <div class="card">
     <h2>Drova</h2>
     <p>Sign in or create an account</p>
@@ -897,9 +904,32 @@
     document.getElementById('welcome').classList.remove('active');
     document.getElementById('mapscreen').style.display = 'none';
     document.getElementById('driverscreen').classList.remove('active');
+    stopNearbyDrivers();
+    initAuthMap();
+  }
+
+  let _authMap = null;
+  async function initAuthMap() {
+    if (_authMap) { _authMap.resize(); return; }
+    try {
+      if (!mapboxgl.accessToken) {
+        const cfg = await fetch('/config').then(r => r.json());
+        mapboxgl.accessToken = cfg.mapboxToken;
+      }
+      if (!mapboxgl.accessToken) return;
+      _authMap = new mapboxgl.Map({
+        container: 'authmap',
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: [10.4515, 51.1657], // Germany
+        zoom: 5.7,
+        interactive: false,
+        attributionControl: false,
+      });
+    } catch (_) {}
   }
 
   function showWelcome() {
+    stopNearbyDrivers();
     document.getElementById('authscreen').classList.remove('active');
     document.getElementById('welcome').classList.add('active');
     document.getElementById('welcomeEmail').textContent = currentUser.email;
@@ -1275,6 +1305,7 @@
       const msg = JSON.parse(event.data);
       if (msg.type === 'trip.event.driver_assigned') {
         const d = msg.data;
+        stopNearbyDrivers();
         window.lastAssignedDriver = d;
         activeTripDriverID = d.id || '';
         if (d.trip_id) activeTripID = d.trip_id;
@@ -1415,8 +1446,8 @@
     map = new mapboxgl.Map({
       container: 'map',
       style: 'mapbox://styles/mapbox/streets-v12',
-      center: [10.5, 51.2],
-      zoom: 6,
+      center: [10.4515, 51.1657], // Germany
+      zoom: 5.7,
     });
     map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
 
@@ -1426,10 +1457,54 @@
       showUserHeading: false,
     });
     map.addControl(riderGeolocate, 'bottom-right');
-    map.on('load', () => riderGeolocate.trigger());
 
     setupAutocomplete('pickup', 'pickup-dropdown', (coords) => { pickupCoords = coords; });
     setupAutocomplete('destination', 'destination-dropdown', (coords) => { destinationCoords = coords; });
+
+    map.on('load', startNearbyDrivers);
+  }
+
+  let _nearbyTimer = null;
+  const _nearbyMarkers = {};
+
+  function startNearbyDrivers() {
+    stopNearbyDrivers();
+    const poll = async () => {
+      if (!map) return;
+      const c = map.getCenter();
+      try {
+        const res = await fetch(`/drivers/nearby?lat=${c.lat}&lng=${c.lng}&radius_km=15`, {
+          headers: { 'Authorization': 'Bearer ' + authToken() }
+        });
+        if (!res.ok) return;
+        const { drivers = [] } = await res.json();
+        renderNearbyDrivers(drivers);
+      } catch (_) {}
+    };
+    poll();
+    _nearbyTimer = setInterval(poll, 8000);
+  }
+
+  function stopNearbyDrivers() {
+    if (_nearbyTimer) { clearInterval(_nearbyTimer); _nearbyTimer = null; }
+    Object.values(_nearbyMarkers).forEach(m => m.remove());
+    for (const k in _nearbyMarkers) delete _nearbyMarkers[k];
+  }
+
+  function renderNearbyDrivers(drivers) {
+    const live = new Set();
+    drivers.forEach(d => {
+      live.add(d.id);
+      if (_nearbyMarkers[d.id]) {
+        _nearbyMarkers[d.id].setLngLat([d.lng, d.lat]);
+      } else {
+        _nearbyMarkers[d.id] = new mapboxgl.Marker({ element: createCarMarkerElement(), anchor: 'center' })
+          .setLngLat([d.lng, d.lat]).addTo(map);
+      }
+    });
+    for (const id in _nearbyMarkers) {
+      if (!live.has(id)) { _nearbyMarkers[id].remove(); delete _nearbyMarkers[id]; }
+    }
   }
 
   async function startDriverScreen() {
@@ -1555,6 +1630,9 @@
     if (driverReconnectTimer) { clearTimeout(driverReconnectTimer); driverReconnectTimer = null; }
     tripEndPending = false;
     driverReconnectPkg = null;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try { ws.send(JSON.stringify({ type: 'driver.cmd.offline' })); } catch (_) {}
+    }
     if (ws) { ws.close(); ws = null; }
     if (driverIdleMarker) { driverIdleMarker.remove(); driverIdleMarker = null; }
     if (driverMarker) { driverMarker.remove(); driverMarker = null; }
@@ -2033,6 +2111,32 @@
         currentTripRequest = null;
         document.getElementById('chatBtnDriver').style.display = 'none';
         setStatus('Trip cancelled by rider. Waiting for new requests...');
+      } else if (msg.type === 'driver.cmd.location') {
+        const d = msg.data;
+        if (driverMap && d && d.lat && d.lng) {
+          if (!driverMarker) {
+            driverMarker = new mapboxgl.Marker({ element: createCarMarkerElement(), anchor: 'center' }).setLngLat([d.lng, d.lat]).addTo(driverMap);
+          } else {
+            driverMarker.setLngLat([d.lng, d.lat]);
+          }
+          driverMap.easeTo({ center: [d.lng, d.lat], duration: 1000 });
+        }
+      } else if (msg.type === 'trip.event.driver_arrived') {
+        setStatus('Arrived at pickup. Picking up rider...');
+      } else if (msg.type === 'trip.event.in_progress') {
+        setStatus('Trip in progress · driving to destination...');
+      } else if (msg.type === 'trip.event.completed') {
+        document.getElementById('tripStatusActions').style.display = 'none';
+        document.getElementById('chatBtnDriver').style.display = 'none';
+        if (tripPickupMarker) { tripPickupMarker.remove(); tripPickupMarker = null; }
+        if (tripDestMarker) { tripDestMarker.remove(); tripDestMarker = null; }
+        if (driverMap && driverMap.getLayer('trip-route-line')) {
+          driverMap.removeLayer('trip-route-line');
+          driverMap.removeSource('trip-route');
+        }
+        currentTripRequest = null;
+        activeTripID = null;
+        setStatus('Trip completed · payment triggered. Waiting for new requests...');
       } else if (msg.type === 'error') {
         const errMsg = (msg.data && msg.data.message) ? msg.data.message : 'Action failed, please retry';
         setStatus('Error: ' + errMsg);
@@ -2068,7 +2172,7 @@
                   data: { trip_id: currentTripRequest.trip_id, rider_id: currentTripRequest.user_id, lat, lng }
                 }));
                 tripEndPending = false;
-                setStatus('Trip ended. Triggering payment...');
+                setStatus('Trip ended · payment triggered. Waiting for new requests...');
               }
             }, 2000);
           }
@@ -2207,16 +2311,12 @@
       data: { trip_id: currentTripRequest.trip_id, rider_id: riderID }
     }));
 
-    // Start real GPS watch so rider's map shows driver's actual position (not pickup coords)
-    startLocationUpdates(riderID, []);
-
+    // Server-side simulator drives the trip from here (location + phases), independent
+    // of this browser tab. The driver client stays passive — no own GPS streaming, no
+    // manual phase buttons — and just reflects the events it receives.
     document.getElementById('tripRequest').style.display = 'none';
-    document.getElementById('tripStatusActions').style.display = 'block';
-    document.getElementById('driverTripStatusLabel').textContent = 'Driving to pickup';
-    document.getElementById('btnArrived').style.display = 'block';
-    document.getElementById('btnTripStart').style.display = 'none';
-    document.getElementById('btnTripEnd').style.display = 'none';
-    setStatus('Trip accepted. Driving to pickup...');
+    document.getElementById('tripStatusActions').style.display = 'none';
+    setStatus('Trip accepted · auto-driving to pickup...');
     activeTripID = currentTripRequest.trip_id;
     document.getElementById('chatBtnDriver').style.display = 'block';
   }
@@ -2300,6 +2400,7 @@
     setTripStatus('Searching for driver...', '', true);
     document.getElementById('routeinfo').textContent = '';
 
+    stopNearbyDrivers();
     stopDRLoop();
     if (riderDriverMarker) { riderDriverMarker.remove(); }
     riderDriverMarker = null;
@@ -2548,7 +2649,7 @@
         type: 'driver.cmd.trip_end',
         data: { trip_id: currentTripRequest.trip_id, rider_id: currentTripRequest.user_id, lat: endLat, lng: endLng }
       }));
-      setStatus('Trip ended. Triggering payment...');
+      setStatus('Trip ended · payment triggered. Waiting for new requests...');
       window._currentTripRoute = null;
       window._currentTripRiderID = null;
       currentTripRequest = null;

@@ -23,13 +23,14 @@ var mapboxToken = env.GetString("MAPBOX_TOKEN", "")
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 type service struct {
-	repo  domain.TripRepository
-	users domain.UserInfoProvider
-	cache domain.RouteCache
+	repo       domain.TripRepository
+	users      domain.UserInfoProvider
+	cache      domain.RouteCache
+	buildEvent func(*domain.TripModel) (string, []byte, error)
 }
 
-func NewService(repo domain.TripRepository, users domain.UserInfoProvider, cache domain.RouteCache) domain.TripService {
-	return &service{repo: repo, users: users, cache: cache}
+func NewService(repo domain.TripRepository, users domain.UserInfoProvider, cache domain.RouteCache, buildEvent func(*domain.TripModel) (string, []byte, error)) domain.TripService {
+	return &service{repo: repo, users: users, cache: cache, buildEvent: buildEvent}
 }
 
 func (s *service) CreateTrip(ctx context.Context, fare *domain.RideFareModel) (*domain.TripModel, error) {
@@ -47,6 +48,13 @@ func (s *service) CreateTrip(ctx context.Context, fare *domain.RideFareModel) (*
 		DurationSeconds: fare.DurationSeconds,
 		PackageSlug:     fare.PackageSlug,
 		AmountCents:     fare.TotalPriceInCents,
+	}
+	if s.buildEvent != nil {
+		topic, payload, err := s.buildEvent(trip)
+		if err != nil {
+			return nil, err
+		}
+		return s.repo.CreateTripWithOutbox(ctx, trip, topic, payload)
 	}
 	return s.repo.CreateTrip(ctx, trip)
 }
@@ -180,6 +188,10 @@ func (s *service) CancelTrip(ctx context.Context, tripID string) error {
 
 func (s *service) ExpireSearch(ctx context.Context, tripID string) (bool, error) {
 	return s.repo.ExpireSearch(ctx, tripID)
+}
+
+func (s *service) ExpireSearchWithOutbox(ctx context.Context, tripID string, msgs []domain.OutboxMessage) (bool, error) {
+	return s.repo.ExpireSearchWithOutbox(ctx, tripID, msgs)
 }
 
 func (s *service) ExpireStaleSearching(ctx context.Context, olderThan time.Duration) (int64, error) {

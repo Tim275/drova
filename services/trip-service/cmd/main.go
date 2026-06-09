@@ -99,10 +99,8 @@ func main() {
 		userInfoProvider = &noopUserInfo{}
 	}
 
-	publisher := events.NewTripEventPublisher(kafka, log)
-
 	pgRepo := repository.NewPostgresRepository(db)
-	svc := service.NewService(pgRepo, userInfoProvider, nil)
+	svc := service.NewService(pgRepo, userInfoProvider, nil, events.BuildTripCreated)
 
 	driverConsumer := events.NewDriverConsumer(kafka, svc, log)
 	paymentConsumer := events.NewPaymentConsumer(kafka, svc, log)
@@ -123,11 +121,12 @@ func main() {
 			PermitWithoutStream: true,
 		}),
 	)...)
-	grpcHandler.NewGRPCHandler(grpcSrv, svc, publisher, log)
+	grpcHandler.NewGRPCHandler(grpcSrv, svc, log)
 
 	driverConsumer.Start(ctx)
 	paymentConsumer.Start(ctx)
 	kafka.StartRetryConsumers(ctx, "trip-service")
+	events.NewOutboxRelay(db, kafka, log).Start(ctx)
 
 	go func() {
 		ticker := time.NewTicker(1 * time.Minute)

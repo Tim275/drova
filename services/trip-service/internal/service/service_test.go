@@ -14,7 +14,7 @@ import (
 
 func TestCreateTrip_SetsSearchingStatus(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, &noopUsers{}, nil)
+	svc := NewService(repo, &noopUsers{}, nil, nil)
 
 	fare := &domain.RideFareModel{
 		ID:                "fare-1",
@@ -44,7 +44,7 @@ func TestCreateTrip_SetsSearchingStatus(t *testing.T) {
 
 func TestCreateTrip_MapsAllFareFields(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, &noopUsers{}, nil)
+	svc := NewService(repo, &noopUsers{}, nil, nil)
 
 	fare := &domain.RideFareModel{
 		UserID:            "u1",
@@ -80,7 +80,7 @@ func TestCreateTrip_MapsAllFareFields(t *testing.T) {
 func TestCreateTrip_RepoError(t *testing.T) {
 	repo := newFakeRepo()
 	repo.createErr = errNotFound
-	svc := NewService(repo, &noopUsers{}, nil)
+	svc := NewService(repo, &noopUsers{}, nil, nil)
 
 	_, err := svc.CreateTrip(context.Background(), &domain.RideFareModel{UserID: "u1"})
 	if err == nil {
@@ -92,7 +92,7 @@ func TestCreateTrip_RepoError(t *testing.T) {
 
 func TestCancelTrip_SetsStatusCancelled(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, &noopUsers{}, nil)
+	svc := NewService(repo, &noopUsers{}, nil, nil)
 
 	fare := &domain.RideFareModel{UserID: "u1"}
 	trip, _ := svc.CreateTrip(context.Background(), fare)
@@ -109,7 +109,7 @@ func TestCancelTrip_SetsStatusCancelled(t *testing.T) {
 
 func TestCancelTrip_NotFound(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, &noopUsers{}, nil)
+	svc := NewService(repo, &noopUsers{}, nil, nil)
 
 	err := svc.CancelTrip(context.Background(), "nonexistent")
 	if err == nil {
@@ -121,7 +121,7 @@ func TestCancelTrip_NotFound(t *testing.T) {
 
 func TestRateTrip_StoresRating(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, &noopUsers{}, nil)
+	svc := NewService(repo, &noopUsers{}, nil, nil)
 
 	fare := &domain.RideFareModel{UserID: "u1"}
 	trip, _ := svc.CreateTrip(context.Background(), fare)
@@ -137,7 +137,7 @@ func TestRateTrip_StoresRating(t *testing.T) {
 }
 
 func TestRateTrip_NotFound(t *testing.T) {
-	svc := NewService(newFakeRepo(), &noopUsers{}, nil)
+	svc := NewService(newFakeRepo(), &noopUsers{}, nil, nil)
 	if err := svc.RateTrip(context.Background(), "bad-id", 3); err == nil {
 		t.Fatal("expected error for unknown trip")
 	}
@@ -147,7 +147,7 @@ func TestRateTrip_NotFound(t *testing.T) {
 
 func TestExpireSearch_SearchingTripExpires(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, &noopUsers{}, nil)
+	svc := NewService(repo, &noopUsers{}, nil, nil)
 
 	fare := &domain.RideFareModel{UserID: "u1"}
 	trip, _ := svc.CreateTrip(context.Background(), fare)
@@ -163,7 +163,7 @@ func TestExpireSearch_SearchingTripExpires(t *testing.T) {
 
 func TestExpireSearch_NonSearchingTripNotExpired(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, &noopUsers{}, nil)
+	svc := NewService(repo, &noopUsers{}, nil, nil)
 
 	fare := &domain.RideFareModel{UserID: "u1"}
 	trip, _ := svc.CreateTrip(context.Background(), fare)
@@ -182,7 +182,7 @@ func TestExpireSearch_NonSearchingTripNotExpired(t *testing.T) {
 
 func TestGenerateTripFares_SavesAllFares(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, &noopUsers{}, nil)
+	svc := NewService(repo, &noopUsers{}, nil, nil)
 
 	r := route(10_000, 600)
 	previews := svc.EstimatePackagesPriceWithRoute(r)
@@ -212,7 +212,7 @@ func TestGenerateTripFares_SavesAllFares(t *testing.T) {
 
 func TestGenerateTripFares_SetsDistanceAndDuration(t *testing.T) {
 	repo := newFakeRepo()
-	svc := NewService(repo, &noopUsers{}, nil)
+	svc := NewService(repo, &noopUsers{}, nil, nil)
 
 	r := route(5000, 300)
 	previews := svc.EstimatePackagesPriceWithRoute(r)

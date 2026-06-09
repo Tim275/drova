@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -12,12 +13,14 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"time"
 
 	"drova/services/api-gateway/grpc_clients"
 	"drova/shared/contracts"
 	"drova/shared/env"
 	"drova/shared/messaging"
+	pbd "drova/shared/proto/driver"
 	pbt "drova/shared/proto/trip"
 	pbu "drova/shared/proto/user"
 
@@ -153,6 +156,122 @@ func handleTripPreview(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, contracts.APIResponse{Data: result})
+}
+
+func handleNearbyDrivers(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	lat, err := strconv.ParseFloat(q.Get("lat"), 64)
+	if err != nil {
+		http.Error(w, "invalid lat", http.StatusBadRequest)
+		return
+	}
+	lng, err := strconv.ParseFloat(q.Get("lng"), 64)
+	if err != nil {
+		http.Error(w, "invalid lng", http.StatusBadRequest)
+		return
+	}
+	radius, _ := strconv.ParseFloat(q.Get("radius_km"), 64)
+
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+	resp, err := grpc_clients.DriverClient.GetNearbyDrivers(ctx, &pbd.NearbyDriversRequest{
+		Lat: lat, Lng: lng, RadiusKm: radius, PackageSlug: q.Get("package"),
+	})
+	if err != nil {
+		appLog.Warnw("nearby drivers", zap.Error(err))
+		writeJSON(w, http.StatusOK, map[string]any{"drivers": []any{}})
+		return
+	}
+
+	type nearbyDriver struct {
+		ID          string  `json:"id"`
+		Lat         float64 `json:"lat"`
+		Lng         float64 `json:"lng"`
+		PackageSlug string  `json:"packageSlug"`
+	}
+	out := make([]nearbyDriver, 0, len(resp.GetDrivers()))
+	for _, d := range resp.GetDrivers() {
+		loc := d.GetLocation()
+		out = append(out, nearbyDriver{ID: d.GetId(), Lat: loc.GetLatitude(), Lng: loc.GetLongitude(), PackageSlug: d.GetPackageSlug()})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"drivers": out})
+}
+
+var esHTTP = &http.Client{Timeout: 5 * time.Second}
+
+func handleTripSearch(w http.ResponseWriter, r *http.Request) {
+	claims := claimsFromContext(r.Context())
+	if claims == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	q := r.URL.Query()
+
+	must := []any{
+		map[string]any{"term": map[string]any{"user_id": fmt.Sprintf("%d", claims.UserID)}},
+	}
+	if s := q.Get("status"); s != "" {
+		must = append(must, map[string]any{"term": map[string]any{"status": s}})
+	}
+	created := map[string]any{}
+	if f := q.Get("from"); f != "" {
+		created["gte"] = f
+	}
+	if t := q.Get("to"); t != "" {
+		created["lte"] = t
+	}
+	if len(created) > 0 {
+		must = append(must, map[string]any{"range": map[string]any{"created_at": created}})
+	}
+	if mp := q.Get("min_price"); mp != "" {
+		if v, err := strconv.ParseInt(mp, 10, 64); err == nil {
+			must = append(must, map[string]any{"range": map[string]any{"price_cents": map[string]any{"gte": v}}})
+		}
+	}
+
+	query, err := json.Marshal(map[string]any{
+		"size":  50,
+		"sort":  []any{map[string]any{"created_at": map[string]any{"order": "desc"}}},
+		"query": map[string]any{"bool": map[string]any{"must": must}},
+	})
+	if err != nil {
+		http.Error(w, "bad query", http.StatusInternalServerError)
+		return
+	}
+
+	esURL := env.GetString("ELASTICSEARCH_URL", "http://elasticsearch:9200")
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, esURL+"/trips/_search", bytes.NewReader(query))
+	if err != nil {
+		http.Error(w, "search unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := esHTTP.Do(req)
+	if err != nil {
+		appLog.Warnw("trip search", zap.Error(err))
+		writeJSON(w, http.StatusOK, map[string]any{"trips": []any{}})
+		return
+	}
+	defer resp.Body.Close()
+
+	var esResp struct {
+		Hits struct {
+			Hits []struct {
+				Source json.RawMessage `json:"_source"`
+			} `json:"hits"`
+		} `json:"hits"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&esResp); err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"trips": []any{}})
+		return
+	}
+	trips := make([]json.RawMessage, 0, len(esResp.Hits.Hits))
+	for _, h := range esResp.Hits.Hits {
+		trips = append(trips, h.Source)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"trips": trips})
 }
 
 func handleWsTicket(w http.ResponseWriter, r *http.Request) {
