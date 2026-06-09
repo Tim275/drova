@@ -16,7 +16,7 @@
     /* Decorative background map behind the login card */
     #authmap { position: absolute; inset: 0; z-index: 0; }
     #authmapveil { position: absolute; inset: 0; z-index: 1; pointer-events: none;
-      background: linear-gradient(180deg, rgba(243,244,246,.15), rgba(243,244,246,.45)); }
+      background: linear-gradient(180deg, rgba(15,23,42,.35), rgba(15,23,42,.55)); }
     #authscreen .card { position: relative; z-index: 2; }
     .auth-tabs { display: flex; gap: 4px; background: #f3f4f6; border-radius: 8px; padding: 4px; margin-bottom: 20px; }
     .auth-tab { flex: 1; padding: 8px; border: none; background: transparent; border-radius: 6px; font-size: 14px; font-weight: 600; color: #6b7280; cursor: pointer; transition: all .15s; }
@@ -919,13 +919,23 @@
       if (!mapboxgl.accessToken) return;
       _authMap = new mapboxgl.Map({
         container: 'authmap',
-        style: 'mapbox://styles/mapbox/streets-v12',
+        style: 'mapbox://styles/mapbox/dark-v11',
         center: [6.7735, 51.2277], // Düsseldorf
-        zoom: 12.5,
-        pitch: 45,
+        zoom: 14,
+        pitch: 60,
         bearing: -17,
         interactive: false,
         attributionControl: false,
+      });
+      _authMap.on('style.load', () => {
+        try { _authMap.setConfigProperty('basemap', 'language', 'en'); } catch (_) {}
+      });
+      _authMap.on('load', () => {
+        let bearing = -17;
+        setInterval(() => {
+          bearing = (bearing + 0.05) % 360;
+          if (_authMap) _authMap.setBearing(bearing);
+        }, 50);
       });
     } catch (_) {}
   }
