@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.2](https://github.com/Tim275/drova/compare/v0.19.1...v0.19.2) (2026-06-09)
+
+
+### Bug Fixes
+
+* trigger release for login background ([d2ab281](https://github.com/Tim275/drova/commit/d2ab2818a83c3b270c898461c289b20d9360fb9b))
+
 ## [0.19.1](https://github.com/Tim275/drova/compare/v0.19.0...v0.19.1) (2026-06-09)
 
 
