@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.1](https://github.com/Tim275/drova/compare/v0.19.0...v0.19.1) (2026-06-09)
+
+
+### Bug Fixes
+
+* trigger release for frontend logout fixes ([906f743](https://github.com/Tim275/drova/commit/906f7439ef16f2ae2abc7b7d1fbb9ce9151b783e))
+
 ## [0.19.0](https://github.com/Tim275/drova/compare/v0.18.16...v0.19.0) (2026-06-09)
 
 
