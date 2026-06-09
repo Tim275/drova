@@ -882,7 +882,7 @@
       const res = await fetch('/v1/users/me', {
         headers: { 'Authorization': 'Bearer ' + token }
       });
-      if (!res.ok) { localStorage.clear(); _accessToken = null; showAuth(); return; }
+      if (!res.ok) { await logout(); return; }
       const data = await res.json();
       currentUser = {
         id: String(data.id), email: data.email, role: data.role,
@@ -1042,8 +1042,26 @@
     } catch (_) { showAuthErr('Network error. Please try again.'); }
   }
 
-  function logout() {
+  async function logout() {
+    if (_accessToken) {
+      try {
+        await fetch('/v1/auth/logout', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + _accessToken },
+          credentials: 'include',
+        });
+      } catch (e) {
+        console.warn('logout request failed', e);
+      }
+    }
     if (ws) { ws.close(); ws = null; }
+    if (_nearbyTimer) { clearInterval(_nearbyTimer); _nearbyTimer = null; }
+    if (_riderHeartbeat) { clearInterval(_riderHeartbeat); _riderHeartbeat = null; }
+    if (_driverHeartbeat) { clearInterval(_driverHeartbeat); _driverHeartbeat = null; }
+    if (riderWsReconnectTimer) { clearTimeout(riderWsReconnectTimer); riderWsReconnectTimer = null; }
+    if (driverReconnectTimer) { clearTimeout(driverReconnectTimer); driverReconnectTimer = null; }
+    if (simulationInterval !== null) { clearInterval(simulationInterval); simulationInterval = null; }
+    if (preTripLocationTimer) { clearInterval(preTripLocationTimer); preTripLocationTimer = null; }
     if (driverIdleWatchId !== null) { navigator.geolocation.clearWatch(driverIdleWatchId); driverIdleWatchId = null; }
     driverCurrentGPS = null;
     if (driverIdleMarker) { driverIdleMarker.remove(); driverIdleMarker = null; }
