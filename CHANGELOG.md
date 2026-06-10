@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.4](https://github.com/Tim275/drova/compare/v0.19.3...v0.19.4) (2026-06-10)
+
+
+### Bug Fixes
+
+* token refresh, ws backoff, sim race, dead code ([#231](https://github.com/Tim275/drova/issues/231)) ([99f8604](https://github.com/Tim275/drova/commit/99f86040bbbaca44343ac847629a14247980a4e5))
+
 ## [0.19.3](https://github.com/Tim275/drova/compare/v0.19.2...v0.19.3) (2026-06-10)
 
 
