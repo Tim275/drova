@@ -29,6 +29,8 @@ import (
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 	grpcserver "google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 )
 
@@ -119,6 +121,10 @@ func main() {
 		}),
 	)...)
 	drivergrpc.NewHandler(grpcSrv, svc, consumer, log)
+
+	healthSrv := health.NewServer()
+	healthpb.RegisterHealthServer(grpcSrv, healthSrv)
+	healthSrv.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 
 	log.Infow("driver-service ready", "addr", grpcAddr)
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"net/http"
@@ -248,6 +249,20 @@ func (app *application) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 func (app *application) handleHealth(w http.ResponseWriter, r *http.Request) {
 	middleware.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (app *application) handleReadyz(w http.ResponseWriter, r *http.Request) {
+	pingCtx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	if err := app.db.Ping(pingCtx); err != nil {
+		http.Error(w, "db: "+err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	if err := app.rdb.Ping(pingCtx).Err(); err != nil {
+		http.Error(w, "redis: "+err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }
 
 func parseBasicAuth(r *http.Request) (string, string, bool) {
