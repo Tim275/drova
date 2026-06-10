@@ -14,6 +14,7 @@ import (
 	"drova/shared/messaging"
 	"drova/shared/tracing"
 
+	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 )
 

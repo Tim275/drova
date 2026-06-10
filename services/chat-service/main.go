@@ -18,6 +18,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
+	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 )
 
