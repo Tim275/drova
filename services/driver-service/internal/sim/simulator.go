@@ -46,11 +46,11 @@ func (s *Simulator) Start(plan TripPlan) {
 	if len(plan.Route) == 0 {
 		return
 	}
-	if _, busy := s.active.Load(plan.TripID); busy {
+	ctx, cancel := context.WithCancel(context.Background())
+	if _, busy := s.active.LoadOrStore(plan.TripID, cancel); busy {
+		cancel()
 		return
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	s.active.Store(plan.TripID, cancel)
 	go s.run(ctx, plan)
 }
 

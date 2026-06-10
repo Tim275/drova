@@ -836,6 +836,23 @@
 
   function authToken() { return _accessToken; }
 
+  // Central wrapper for authenticated API calls: refreshes the token before the
+  // request (15min TTL) and retries once after a forced refresh on 401.
+  async function authFetch(url, opts = {}) {
+    const token = await ensureFreshToken();
+    opts.headers = { ...(opts.headers || {}), 'Authorization': 'Bearer ' + token };
+    let res = await fetch(url, opts);
+    if (res.status === 401) {
+      _accessToken = null;
+      const fresh = await ensureFreshToken();
+      if (fresh) {
+        opts.headers['Authorization'] = 'Bearer ' + fresh;
+        res = await fetch(url, opts);
+      }
+    }
+    return res;
+  }
+
   function esc(s) {
     return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
@@ -1122,9 +1139,9 @@
     }
 
     try {
-      const res = await fetch('/v1/users/profile', {
+      const res = await authFetch('/v1/users/profile', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ display_name: displayName, avatar_url: avatarUrl, phone, address }),
       });
       if (!res.ok) throw new Error('Error saving profile');
@@ -1313,6 +1330,7 @@
   }
 
   let riderWsReconnectTimer = null;
+  let riderWsBackoff = 500;
 
   let _riderHeartbeat = null;
   async function connectRiderWS() {
@@ -1323,6 +1341,7 @@
     ws = new WebSocket(`${_scheme}://${location.host}/ws/riders?userID=${currentUser.id}&ticket=${encodeURIComponent(ticket)}`);
 
     ws.onopen = () => {
+      riderWsBackoff = 500;
       if (_riderHeartbeat) clearInterval(_riderHeartbeat);
       _riderHeartbeat = setInterval(() => {
         if (ws && ws.readyState === WebSocket.OPEN) {
@@ -1452,10 +1471,12 @@
     ws.onclose = () => {
       if (_riderHeartbeat) { clearInterval(_riderHeartbeat); _riderHeartbeat = null; }
       if (riderWsReconnectTimer) clearTimeout(riderWsReconnectTimer);
+      const wait = riderWsBackoff;
+      riderWsBackoff = Math.min(riderWsBackoff * 2, 30000);
       riderWsReconnectTimer = setTimeout(() => {
         riderWsReconnectTimer = null;
         if (currentUser) connectRiderWS();
-      }, 500);
+      }, wait);
     };
   }
 
@@ -1503,9 +1524,7 @@
       if (!map) return;
       const c = map.getCenter();
       try {
-        const res = await fetch(`/drivers/nearby?lat=${c.lat}&lng=${c.lng}&radius_km=15`, {
-          headers: { 'Authorization': 'Bearer ' + authToken() }
-        });
+        const res = await authFetch(`/drivers/nearby?lat=${c.lat}&lng=${c.lng}&radius_km=15`);
         if (!res.ok) return;
         const { drivers = [] } = await res.json();
         renderNearbyDrivers(drivers);
@@ -1714,9 +1733,9 @@
         return;
       }
 
-      const resp = await fetch('/trip/preview', {
+      const resp = await authFetch('/trip/preview', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userID: currentUser.id, pickup: pickupCoords, destination: destinationCoords })
       });
       if (!resp.ok) throw new Error('API error ' + resp.status);
@@ -1767,9 +1786,9 @@
 
   async function fetchAndDrawRoute() {
     try {
-      const resp = await fetch('/trip/preview', {
+      const resp = await authFetch('/trip/preview', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken() },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userID: currentUser.id, pickup: pickupCoords, destination: destinationCoords })
       });
       if (!resp.ok) return;
@@ -1878,6 +1897,7 @@
   let simRouteIndex = 0;
   let driverReconnectPkg = null;
   let driverReconnectTimer = null;
+  let driverWsBackoff = 500;
   let tripEndPending = false;
   let riderDriverMarker = null;
   let previousDriverPos = null;
@@ -2175,6 +2195,7 @@
 
     let _driverHeartbeat = null;
     ws.onopen = () => {
+      driverWsBackoff = 500;
       if (_driverHeartbeat) clearInterval(_driverHeartbeat);
       _driverHeartbeat = setInterval(() => {
         if (ws && ws.readyState === WebSocket.OPEN) {
@@ -2207,7 +2228,9 @@
             }, 2000);
           }
         };
-        driverReconnectTimer = setTimeout(_tryReconnect, 500);
+        const wait = driverWsBackoff;
+        driverWsBackoff = Math.min(driverWsBackoff * 2, 30000);
+        driverReconnectTimer = setTimeout(_tryReconnect, wait);
       }
     };
   }
@@ -2416,9 +2439,9 @@
     if (btn.disabled) return;
     btn.disabled = true;
 
-    const resp = await fetch('/trip/start', {
+    const resp = await authFetch('/trip/start', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken() },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ rideFareID: selectedFareID, userID: currentUser.id })
     });
     if (!resp.ok) { btn.disabled = false; return; }
@@ -2471,7 +2494,7 @@
   async function submitRating() {
     if (!selectedRating || !ratingTripID) return;
     try {
-      await fetch('/trip/rate', {
+      await authFetch('/trip/rate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ trip_id: ratingTripID, rating: selectedRating }),
@@ -2492,7 +2515,7 @@
     document.getElementById('historyoverlay').classList.add('active');
     document.getElementById('historyList').innerHTML = '<p style="color:#6b7280;font-size:14px;">Loading...</p>';
     try {
-      const res = await fetch(`/trips/history`, { headers: { 'Authorization': 'Bearer ' + authToken() } });
+      const res = await authFetch(`/trips/history`);
       const trips = await res.json();
       if (!trips || trips.length === 0) {
         document.getElementById('historyList').innerHTML = '<p style="color:#6b7280;font-size:14px;">No trips found.</p>';
@@ -2533,9 +2556,7 @@
     overlay.style.display = 'flex';
     document.getElementById('driverHistoryList').innerHTML = '<p style="color:#6b7280;font-size:14px;">Loading...</p>';
     try {
-      const res = await fetch(`/trips/driver-history`, {
-        headers: { 'Authorization': 'Bearer ' + authToken() }
-      });
+      const res = await authFetch(`/trips/driver-history`);
       const trips = await res.json();
       if (!trips || trips.length === 0) {
         document.getElementById('driverHistoryList').innerHTML = '<p style="color:#6b7280;font-size:14px;">No trips yet.</p>';
@@ -2579,7 +2600,7 @@
     const listEl = document.getElementById('payhistoryList');
     listEl.innerHTML = '<p style="color:#6b7280;font-size:14px;">Loading...</p>';
     try {
-      const res = await fetch(`/trips/history`, { headers: { 'Authorization': 'Bearer ' + authToken() } });
+      const res = await authFetch(`/trips/history`);
       const trips = await res.json();
       const paid = (trips || []).filter(t => t.status === 'paid' || t.status === 'completed');
       if (!paid.length) {
