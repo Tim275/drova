@@ -60,6 +60,10 @@ jobs:
             dockerfile: services/chat-service/Dockerfile
             context: .
             paths: "services/chat-service shared go.mod go.sum"
+          - service: search-indexer
+            dockerfile: services/search-indexer/Dockerfile
+            context: .
+            paths: "services/search-indexer shared go.mod go.sum"
           - service: frontend
             dockerfile: frontend/Dockerfile
             context: frontend
