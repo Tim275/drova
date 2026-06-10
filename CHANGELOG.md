@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.3](https://github.com/Tim275/drova/compare/v0.19.2...v0.19.3) (2026-06-10)
+
+
+### Performance Improvements
+
+* cold-start hardening (automaxprocs + readyz + grpc health) ([#228](https://github.com/Tim275/drova/issues/228)) ([2859169](https://github.com/Tim275/drova/commit/285916966fd082be88b3b34cf52e5fbe3ac923ce))
+
 ## [0.19.2](https://github.com/Tim275/drova/compare/v0.19.1...v0.19.2) (2026-06-09)
 
 
