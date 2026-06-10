@@ -4,7 +4,6 @@ package e2e
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -142,6 +141,11 @@ func TestTripHistory(t *testing.T) {
 	t.Log("✓ /trips/history ok")
 }
 
+// ── MAPBOX-ABHÄNGIGE TESTS — DEAKTIVIERT ──────────────────────────────────
+// Mapbox wird evtl. durch einen anderen Routing-Provider ersetzt.
+// Zum Re-Enablen: dieses Block-Kommentar entfernen + den Inject-Step
+// in .github/workflows/e2e-tests.yaml wieder aktivieren.
+/*
 // getUserID liefert die User-ID des eingeloggten Users (für preview/start Payloads).
 func getUserID(t *testing.T, token string) string {
 	t.Helper()
@@ -278,6 +282,8 @@ func TestCreateTrip(t *testing.T) {
 	}
 	t.Log("✓ trip appears in history")
 }
+*/
+// ── ENDE MAPBOX-ABHÄNGIGE TESTS ───────────────────────────────────────────
 
 // TestDriverLogin — Driver Seed-User funktioniert auch
 func TestDriverLogin(t *testing.T) {
