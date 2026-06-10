@@ -41,9 +41,29 @@ if [ "$COUNT_AFTER" -ne "$COUNT_BEFORE" ]; then
   exit 1
 fi
 
+# Pin the immutable digest next to the tag (rendered as image:tag@sha256:...).
+# Protects against registry-side tag retargeting; tag stays for readability.
+if command -v crane &>/dev/null; then
+  echo
+  echo "--- DIGEST PINNING ---"
+  for name in $(yq '.images[] | select(.name | test("ghcr.io/tim275/drova/")) | .name' "$KUSTOMIZATION_FILE"); do
+    DIGEST=$(crane digest "${name}:${INPUT_TAG}")
+    yq e -i '(.images[] | select(.name == "'"$name"'")).digest = "'"$DIGEST"'"' "$KUSTOMIZATION_FILE"
+    echo "${name}:${INPUT_TAG}@${DIGEST}"
+  done
+
+  DIGEST_COUNT=$(yq '[.images[] | select(.name | test("ghcr.io/tim275/drova/")) | select(.digest | test("^sha256:"))] | length' "$KUSTOMIZATION_FILE")
+  if [ "$DIGEST_COUNT" -ne "$COUNT_BEFORE" ]; then
+    echo "::error::Digest pinning failed — expected $COUNT_BEFORE digests, got $DIGEST_COUNT"
+    exit 1
+  fi
+else
+  echo "::warning::crane not found — tags updated without digest pinning"
+fi
+
 echo
 echo "--- AFTER ---"
-yq '.images[] | select(.name | test("ghcr.io/tim275/drova/")) | .name + "  →  " + .newTag' "$KUSTOMIZATION_FILE"
+yq '.images[] | select(.name | test("ghcr.io/tim275/drova/")) | .name + "  →  " + .newTag + "@" + (.digest // "no-digest")' "$KUSTOMIZATION_FILE"
 echo
 echo "✓ Successfully updated $COUNT_AFTER image(s) in $KUSTOMIZATION_FILE to $INPUT_TAG"
 echo "::endgroup::"
