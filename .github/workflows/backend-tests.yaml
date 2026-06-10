@@ -165,6 +165,7 @@ jobs:
           CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/driver-service/cmd
           CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/payment-service/cmd
           CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/chat-service
+          CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-w -s" -o /dev/null ./services/search-indexer/cmd
 
       - name: Build Docker images (all services)
         run: |
@@ -174,6 +175,7 @@ jobs:
           docker build -t drova-driver-service:latest  -f services/driver-service/Dockerfile  . -q
           docker build -t drova-payment-service:latest -f services/payment-service/Dockerfile . -q
           docker build -t drova-chat-service:latest    -f services/chat-service/Dockerfile    . -q
+          docker build -t drova-search-indexer:latest  -f services/search-indexer/Dockerfile  . -q
           docker build -t drova-frontend:latest        -f frontend/Dockerfile frontend/        -q
 
       - name: Install Trivy
@@ -184,7 +186,7 @@ jobs:
       - name: Trivy scan all images
         run: |
           FAILED=0
-          for img in api-gateway user-service trip-service driver-service payment-service chat-service frontend; do
+          for img in api-gateway user-service trip-service driver-service payment-service chat-service search-indexer frontend; do
             echo "=== drova-$img ==="
             trivy image --no-progress --ignore-unfixed \
               --pkg-types os,library --severity CRITICAL,HIGH \
@@ -199,6 +201,7 @@ jobs:
     uses: ./.github/workflows/e2e-tests.yaml
     secrets:
       GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
+      MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
 
   codeql:
     name: CodeQL Analysis

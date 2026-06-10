@@ -242,3 +242,65 @@ func TestDriverLogin(t *testing.T) {
 	}
 	t.Log("✓ driver login + role check ok")
 }
+
+// TestNearbyDrivers — Route existiert + Auth greift (hätte den Prod-404 gefangen)
+func TestNearbyDrivers(t *testing.T) {
+	resp := get(t, "/drivers/nearby?lat=51.22&lng=6.77&radius_km=15", nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("nearby without token: want 401, got %d", resp.StatusCode)
+	}
+
+	token := login(t, seedRider, seedPassword)
+	resp = get(t, "/drivers/nearby?lat=51.22&lng=6.77&radius_km=15", authHeader(token))
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("nearby with token: want 200, got %d", resp.StatusCode)
+	}
+	var out map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("nearby decode: %v", err)
+	}
+	if _, ok := out["drivers"]; !ok {
+		t.Fatalf("nearby: missing 'drivers' key in response: %v", out)
+	}
+	t.Log("✓ /drivers/nearby ok (401 unauth, 200 + drivers-key auth)")
+}
+
+// TestTripRate — Endpoint verlangt Auth und akzeptiert ein Rating-Payload
+// (war monatelang kaputt: Frontend schickte keinen Auth-Header → stilles 401)
+func TestTripRate(t *testing.T) {
+	resp := post(t, "/trip/rate", `{"trip_id":"00000000-0000-0000-0000-000000000000","rating":5}`, nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("rate without token: want 401, got %d", resp.StatusCode)
+	}
+
+	token := login(t, seedRider, seedPassword)
+	resp = post(t, "/trip/rate", `{"trip_id":"00000000-0000-0000-0000-000000000000","rating":5}`, authHeader(token))
+	defer resp.Body.Close()
+	// Nicht-existenter Trip: alles außer 401/404-Routing-Fehler ist ok —
+	// wichtig ist, dass der authentifizierte Request den Handler erreicht.
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusNotFound {
+		t.Fatalf("rate with token: handler not reached, got %d", resp.StatusCode)
+	}
+	t.Logf("✓ /trip/rate reachable with auth (status %d)", resp.StatusCode)
+}
+
+// TestLogout — Token ist nach Logout wirklich tot (Redis-Blacklist greift)
+func TestLogout(t *testing.T) {
+	token := login(t, seedRider, seedPassword)
+
+	resp := post(t, "/v1/auth/logout", "", authHeader(token))
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("logout: want 200, got %d", resp.StatusCode)
+	}
+
+	resp = get(t, "/v1/users/me", authHeader(token))
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("token after logout: want 401, got %d — blacklist not working", resp.StatusCode)
+	}
+	t.Log("✓ logout ok, token revoked via blacklist")
+}
