@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.5](https://github.com/Tim275/drova/compare/v0.19.4...v0.19.5) (2026-06-10)
+
+
+### Bug Fixes
+
+* pipeline gates + e2e coverage ([#233](https://github.com/Tim275/drova/issues/233)) ([c094c08](https://github.com/Tim275/drova/commit/c094c089c0a5e7586c51bca35c34a0fcdd660a20))
+
 ## [0.19.4](https://github.com/Tim275/drova/compare/v0.19.3...v0.19.4) (2026-06-10)
 
 
