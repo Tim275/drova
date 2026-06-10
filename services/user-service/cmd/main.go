@@ -24,8 +24,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
+	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 )
 
@@ -35,6 +38,7 @@ type application struct {
 	blacklist     domain.TokenBlacklist
 	refreshTokens domain.RefreshTokenStore
 	log           *zap.SugaredLogger
+	db            *pgxpool.Pool
 	rdb           *redis.Client
 }
 
@@ -122,10 +126,11 @@ func main() {
 	refreshTokens := store.NewRefreshTokenStore(rdb)
 	svc := service.New(userStore, invStore, userCache, m, log)
 
-	app := &application{service: svc, auth: authenticator, blacklist: blacklist, refreshTokens: refreshTokens, log: log, rdb: rdb}
+	app := &application{service: svc, auth: authenticator, blacklist: blacklist, refreshTokens: refreshTokens, log: log, db: db, rdb: rdb}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /v1/health", app.handleHealth)
+	mux.HandleFunc("GET /v1/readyz", app.handleReadyz)
 	mux.Handle("POST /v1/users/register", tracing.WrapHandlerFunc(app.handleRegister, "POST /v1/users/register"))
 	mux.Handle("GET /v1/users/activate/{token}", tracing.WrapHandlerFunc(app.handleActivate, "GET /v1/users/activate"))
 	mux.Handle("POST /v1/auth/token", tracing.WrapHandlerFunc(app.handleCreateToken, "POST /v1/auth/token"))
@@ -166,6 +171,10 @@ func main() {
 		}),
 	)...)
 	pb.RegisterUserServiceServer(grpcSrv, grpc_handler.New(svc, authenticator, blacklist, log))
+
+	healthSrv := health.NewServer()
+	healthpb.RegisterHealthServer(grpcSrv, healthSrv)
+	healthSrv.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 
 	go func() {
 		log.Infow("user-service gRPC started", "addr", grpcAddr)

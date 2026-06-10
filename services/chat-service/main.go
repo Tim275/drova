@@ -18,6 +18,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 	"github.com/redis/go-redis/v9"
+	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 )
 
@@ -86,6 +87,15 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/ws/chat", tracing.WrapHandlerFunc(handleChat, "WS /ws/chat"))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		pingCtx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := rdb.Ping(pingCtx).Err(); err != nil {
+			http.Error(w, "redis: "+err.Error(), http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	})
 
 	addr := env.GetString("HTTP_ADDR", ":8084")
 	srv := &http.Server{

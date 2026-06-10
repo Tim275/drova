@@ -18,6 +18,7 @@ import (
 
 	"github.com/hamba/avro/v2"
 	"github.com/redis/go-redis/v9"
+	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 )
 

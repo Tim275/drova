@@ -24,9 +24,12 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 	grpcserver "google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/keepalive"
 )
 
@@ -122,6 +125,10 @@ func main() {
 		}),
 	)...)
 	grpcHandler.NewGRPCHandler(grpcSrv, svc, log)
+
+	healthSrv := health.NewServer()
+	healthpb.RegisterHealthServer(grpcSrv, healthSrv)
+	healthSrv.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 
 	driverConsumer.Start(ctx)
 	paymentConsumer.Start(ctx)

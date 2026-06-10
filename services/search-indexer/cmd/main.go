@@ -13,6 +13,8 @@ import (
 	"drova/shared/env"
 	"drova/shared/logger"
 	"drova/shared/messaging"
+
+	_ "go.uber.org/automaxprocs"
 )
 
 func main() {
