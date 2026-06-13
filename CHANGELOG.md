@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.20.0](https://github.com/Tim275/drova/compare/v0.19.5...v0.20.0) (2026-06-13)
+
+
+### Features
+
+* kafka metrics ([#238](https://github.com/Tim275/drova/issues/238)) ([a86ba31](https://github.com/Tim275/drova/commit/a86ba311078a0e087b55b516a105077e1c53d9fe))
+
+
+### Bug Fixes
+
+* rotate seed creds + frontend e2e + rollback race ([#236](https://github.com/Tim275/drova/issues/236)) ([ec48fbd](https://github.com/Tim275/drova/commit/ec48fbd6943ffe70d3e57939ee8cb2be1605dd24))
+
 ## [0.19.5](https://github.com/Tim275/drova/compare/v0.19.4...v0.19.5) (2026-06-10)
 
 
