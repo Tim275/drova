@@ -106,3 +106,90 @@ jobs:
           ignore-unfixed: true
           pkg-types: "os,library"
           severity: "CRITICAL,HIGH"
+
+  # Real-browser integration: drives the running frontend (nginx → api-gateway
+  # → user-service) to catch integration bugs that node-logic tests can't —
+  # e.g. "logout doesn't actually kill the session".
+  # EXPERIMENTAL: continue-on-error while the compose-in-CI networking is
+  # stabilised (subset `up` hits Docker embedded-DNS flakiness). NOT a required
+  # check — it surfaces results without gating merges. Promote to required once
+  # the stack comes up reliably.
+  frontend-e2e:
+    name: Frontend E2E (Playwright)
+    needs: check_paths
+    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '20'
+
+      - name: Write CI .env (postgres needs a password; DB_URL/redis must match)
+        run: |
+          cat > .env <<'EOF'
+          POSTGRES_PASSWORD=drova
+          REDIS_PASSWORD=drova
+          JWT_SECRET=e2e-ci-jwt-secret-not-for-prod-pad32
+          MAPBOX_PUBLIC_TOKEN=
+          MAPBOX_TOKEN=
+          MONGO_USERNAME=drova
+          MONGO_PASSWORD=drova
+          APP_BASE_URL=http://localhost:8090
+          FROM_EMAIL=ci@e2e.local
+          SMTP_HOST=localhost
+          SMTP_PORT=1025
+          SMTP_USERNAME=ci
+          SMTP_PASSWORD=ci
+          STRIPE_PUBLIC_KEY=pk_test_ci
+          STRIPE_WEBHOOK_KEY=whsec_ci
+          EOF
+
+      - name: Build minimal stack images
+        # chat-service is built+started too: nginx.conf proxy_passes to it, and
+        # nginx resolves upstream hostnames at startup — a missing chat-service
+        # makes nginx (the frontend container) refuse to boot.
+        run: docker compose build user-service api-gateway chat-service frontend
+
+      - name: Start minimal stack (auth-flow — no mapbox/es)
+        run: |
+          docker compose up -d postgres redis kafka mongodb
+          echo "Waiting for backing services healthy..."
+          timeout 90  bash -c 'until docker compose ps postgres | grep -q healthy; do sleep 3; done'
+          timeout 90  bash -c 'until docker compose ps redis    | grep -q healthy; do sleep 3; done'
+          timeout 150 bash -c 'until docker compose ps kafka    | grep -q healthy; do sleep 3; done'
+          # chat-service only needs to be resolvable for nginx — not healthy.
+          docker compose up -d --no-deps user-service api-gateway chat-service
+          docker compose up -d --no-deps frontend
+          echo "Waiting for frontend → api-gateway /health..."
+          timeout 150 bash -c 'until curl -sf http://localhost:8090/health >/dev/null; do sleep 3; done'
+          echo "✓ stack up"
+
+      - name: Install Playwright
+        working-directory: tests/frontend
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: Run Playwright
+        working-directory: tests/frontend
+        env:
+          BASE_URL: http://localhost:8090
+        run: npm test
+
+      - name: Dump service logs on failure
+        if: failure()
+        run: |
+          echo "=== api-gateway ===" && docker compose logs --tail=60 api-gateway || true
+          echo "=== user-service ===" && docker compose logs --tail=60 user-service || true
+          echo "=== frontend ===" && docker compose logs --tail=30 frontend || true
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: playwright-report
+          path: tests/frontend/playwright-report/
+          retention-days: 7

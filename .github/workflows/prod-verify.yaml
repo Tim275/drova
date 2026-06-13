@@ -81,18 +81,46 @@ jobs:
           cd drova-gitops
           git config user.name "GitOps Bot"
           git config user.email "gitops-bot@github.com"
-          git revert HEAD --no-edit
+
+          # Target the exact deploy commit for THIS tag — not blind HEAD.
+          # A parallel commit (e.g. a staging bump from the next release) could
+          # otherwise sit on top, and `git revert HEAD` would undo the wrong thing.
+          TARGET=$(git log --format="%H %s" -30 \
+            | grep -iE "update drova images to ${DEPLOY_TAG}([^0-9]|$)|deploy ${DEPLOY_TAG} to production" \
+            | head -1 | awk '{print $1}')
+
+          if [ -z "$TARGET" ]; then
+            echo "⚠ No deploy commit found for ${DEPLOY_TAG} — falling back to HEAD"
+            TARGET=HEAD
+          else
+            echo "Reverting deploy commit ${TARGET} for ${DEPLOY_TAG}"
+          fi
+
+          if ! git revert --no-edit "$TARGET"; then
+            echo "❌ Revert conflicted — manual rollback required for ${DEPLOY_TAG}"
+            git revert --abort || true
+            exit 1
+          fi
           git push
-          echo "❌ Production rolled back — reverted last commit in drova-gitops"
+          echo "❌ Production rolled back — reverted ${TARGET} (${DEPLOY_TAG}) in drova-gitops"
 
       - name: Integration smoke tests
+        env:
+          # Seeded smoke user — strong password from a Sealed Secret, never in git.
+          # The public "Test1234!" no longer works against prod.
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
         run: |
           BASE="https://drova.timourhomelab.org"
           echo "--- /health ---"
           curl -sf "${BASE}/health" | grep -q "alive" && echo "✓ health ok"
 
+          if [ -z "$SMOKE_PASSWORD" ]; then
+            echo "❌ SMOKE_PASSWORD secret not set — cannot run authenticated smoke tests"
+            exit 1
+          fi
+
           echo "--- /v1/auth/token (Basic Auth) ---"
-          TOKEN=$(curl -sf -u "rider@drova.local:Test1234!" \
+          TOKEN=$(curl -sf -u "rider@drova.local:${SMOKE_PASSWORD}" \
             -X POST "${BASE}/v1/auth/token" | jq -r '.data.token // .token // empty')
           [ -n "$TOKEN" ] && echo "✓ login ok" || { echo "❌ login failed"; exit 1; }
 
