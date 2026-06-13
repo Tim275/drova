@@ -42,7 +42,7 @@ test('logout kills the session — reload does NOT auto-login', async ({ page })
   await login(page, DRIVER.email, DRIVER.pass);
   await expect(page.locator('#driverscreen')).toBeVisible({ timeout: 15_000 });
 
-  await page.locator('button', { hasText: 'Sign Out' }).first().click();
+  await page.locator('button:has-text("Sign Out"):visible').first().click();
   await expect(page.locator('#authscreen')).toBeVisible({ timeout: 10_000 });
 
   // The real proof: a full reload must NOT restore the session.
@@ -76,7 +76,7 @@ test('access token is rejected after logout', async ({ page, request }) => {
   expect(ok.status()).toBe(200);
 
   // Log out through the UI.
-  await page.locator('button', { hasText: 'Sign Out' }).first().click();
+  await page.locator('button:has-text("Sign Out"):visible').first().click();
   await expect(page.locator('#authscreen')).toBeVisible({ timeout: 10_000 });
 
   // Same token must now be rejected (Redis blacklist) — poll to allow the
