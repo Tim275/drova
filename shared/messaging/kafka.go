@@ -178,6 +178,7 @@ func (k *Kafka) PublishMessage(ctx context.Context, topic string, message []byte
 		Value:   message,
 		Headers: kafkaHeaders,
 	})
+	tracing.RecordKafkaPublish(ctx, topic, err)
 	if err != nil {
 		return fmt.Errorf("failed to publish message to topic %s: %w", topic, err)
 	}
@@ -270,8 +271,10 @@ func (k *Kafka) consumeLoop(ctx context.Context, topic, groupID string, handler 
 		}
 		msgCtx := tracing.ExtractKafkaHeaders(ctx, headers)
 		msgCtx, end := tracing.StartKafkaConsumerSpan(msgCtx, topic, groupID)
+		start := time.Now()
 		handlerErr := handler(msgCtx, msg.Value)
 		end()
+		tracing.RecordKafkaConsume(msgCtx, topic, groupID, time.Since(start), handlerErr)
 
 		if handlerErr != nil {
 			log.Printf("handler failed for topic %s: %v — routing to retry-1", topic, handlerErr)
