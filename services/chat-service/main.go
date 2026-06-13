@@ -100,7 +100,7 @@ func main() {
 	addr := env.GetString("HTTP_ADDR", ":8084")
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           tracing.WrapHandler(mux, "chat-service"),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
