@@ -148,17 +148,20 @@ jobs:
           EOF
 
       - name: Build minimal stack images
-        run: docker compose build user-service api-gateway frontend
+        # chat-service is built+started too: nginx.conf proxy_passes to it, and
+        # nginx resolves upstream hostnames at startup — a missing chat-service
+        # makes nginx (the frontend container) refuse to boot.
+        run: docker compose build user-service api-gateway chat-service frontend
 
-      - name: Start minimal stack (auth-flow only — no mapbox/mongo/es)
+      - name: Start minimal stack (auth-flow — no mapbox/es)
         run: |
-          docker compose up -d postgres redis kafka
-          echo "Waiting for postgres + redis healthy..."
-          timeout 90 bash -c 'until docker compose ps postgres | grep -q healthy; do sleep 3; done'
-          timeout 90 bash -c 'until docker compose ps redis | grep -q healthy; do sleep 3; done'
-          echo "Waiting for kafka healthy..."
-          timeout 150 bash -c 'until docker compose ps kafka | grep -q healthy; do sleep 3; done'
-          docker compose up -d --no-deps user-service api-gateway
+          docker compose up -d postgres redis kafka mongodb
+          echo "Waiting for backing services healthy..."
+          timeout 90  bash -c 'until docker compose ps postgres | grep -q healthy; do sleep 3; done'
+          timeout 90  bash -c 'until docker compose ps redis    | grep -q healthy; do sleep 3; done'
+          timeout 150 bash -c 'until docker compose ps kafka    | grep -q healthy; do sleep 3; done'
+          # chat-service only needs to be resolvable for nginx — not healthy.
+          docker compose up -d --no-deps user-service api-gateway chat-service
           docker compose up -d --no-deps frontend
           echo "Waiting for frontend → api-gateway /health..."
           timeout 150 bash -c 'until curl -sf http://localhost:8090/health >/dev/null; do sleep 3; done'
