@@ -110,12 +110,16 @@ jobs:
   # Real-browser integration: drives the running frontend (nginx → api-gateway
   # → user-service) to catch integration bugs that node-logic tests can't —
   # e.g. "logout doesn't actually kill the session".
-  # NOT yet in branch protection: let it prove stable over a few runs first.
+  # EXPERIMENTAL: continue-on-error while the compose-in-CI networking is
+  # stabilised (subset `up` hits Docker embedded-DNS flakiness). NOT a required
+  # check — it surfaces results without gating merges. Promote to required once
+  # the stack comes up reliably.
   frontend-e2e:
     name: Frontend E2E (Playwright)
     needs: check_paths
     if: ${{ needs.check_paths.outputs.should_run == 'true' }}
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -123,12 +127,35 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Write CI .env (postgres needs a password; DB_URL/redis must match)
+        run: |
+          cat > .env <<'EOF'
+          POSTGRES_PASSWORD=drova
+          REDIS_PASSWORD=drova
+          JWT_SECRET=e2e-ci-jwt-secret-not-for-prod-pad32
+          MAPBOX_PUBLIC_TOKEN=
+          MAPBOX_TOKEN=
+          MONGO_USERNAME=drova
+          MONGO_PASSWORD=drova
+          APP_BASE_URL=http://localhost:8090
+          FROM_EMAIL=ci@e2e.local
+          SMTP_HOST=localhost
+          SMTP_PORT=1025
+          SMTP_USERNAME=ci
+          SMTP_PASSWORD=ci
+          STRIPE_PUBLIC_KEY=pk_test_ci
+          STRIPE_WEBHOOK_KEY=whsec_ci
+          EOF
+
       - name: Build minimal stack images
         run: docker compose build user-service api-gateway frontend
 
       - name: Start minimal stack (auth-flow only — no mapbox/mongo/es)
         run: |
           docker compose up -d postgres redis kafka
+          echo "Waiting for postgres + redis healthy..."
+          timeout 90 bash -c 'until docker compose ps postgres | grep -q healthy; do sleep 3; done'
+          timeout 90 bash -c 'until docker compose ps redis | grep -q healthy; do sleep 3; done'
           echo "Waiting for kafka healthy..."
           timeout 150 bash -c 'until docker compose ps kafka | grep -q healthy; do sleep 3; done'
           docker compose up -d --no-deps user-service api-gateway
