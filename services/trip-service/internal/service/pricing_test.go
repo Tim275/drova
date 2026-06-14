@@ -93,13 +93,38 @@ func (f *fakeRepo) ExpireSearch(_ context.Context, tripID string) (bool, error) 
 	return false, nil
 }
 func (f *fakeRepo) ExpireStaleSearching(_ context.Context, _ time.Duration) (int64, error) {
-	return 0, nil
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var n int64
+	for _, t := range f.trips {
+		if t.Status == "searching" {
+			t.Status = "expired"
+			n++
+		}
+	}
+	return n, nil
 }
-func (f *fakeRepo) GetTripsByUser(_ context.Context, _ string) ([]*domain.TripModel, error) {
-	return nil, nil
+func (f *fakeRepo) GetTripsByUser(_ context.Context, userID string) ([]*domain.TripModel, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []*domain.TripModel
+	for _, t := range f.trips {
+		if t.UserID == userID {
+			out = append(out, t)
+		}
+	}
+	return out, nil
 }
-func (f *fakeRepo) GetTripsByDriver(_ context.Context, _ string) ([]*domain.TripModel, error) {
-	return nil, nil
+func (f *fakeRepo) GetTripsByDriver(_ context.Context, driverID string) ([]*domain.TripModel, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []*domain.TripModel
+	for _, t := range f.trips {
+		if t.DriverID == driverID {
+			out = append(out, t)
+		}
+	}
+	return out, nil
 }
 func (f *fakeRepo) RateTrip(_ context.Context, tripID string, rating int) error {
 	t, ok := f.trips[tripID]
