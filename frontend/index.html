@@ -2364,12 +2364,15 @@
       data: { trip_id: currentTripRequest.trip_id, rider_id: riderID }
     }));
 
-    // Server-side simulator drives the trip from here (location + phases), independent
-    // of this browser tab. The driver client stays passive — no own GPS streaming, no
-    // manual phase buttons — and just reflects the events it receives.
+    // Manual Uber/Bolt-style flow: the driver controls the phases (I'm here → Start → End)
+    // and can chat with the rider. The server-side auto-sim is disabled (DRIVER_SIM_AUTODRIVE).
     document.getElementById('tripRequest').style.display = 'none';
-    document.getElementById('tripStatusActions').style.display = 'none';
-    setStatus('Trip accepted · auto-driving to pickup...');
+    document.getElementById('tripStatusActions').style.display = 'block';
+    document.getElementById('driverTripStatusLabel').textContent = 'Driving to pickup';
+    document.getElementById('btnArrived').style.display = 'block';
+    document.getElementById('btnTripStart').style.display = 'none';
+    document.getElementById('btnTripEnd').style.display = 'none';
+    setStatus('Trip accepted · drive to the pickup, then tap "I\'m here"');
     activeTripID = currentTripRequest.trip_id;
     document.getElementById('chatBtnDriver').style.display = 'block';
   }
