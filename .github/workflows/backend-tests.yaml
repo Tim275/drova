@@ -244,3 +244,22 @@ jobs:
         uses: github/codeql-action/analyze@68bde559dea0fdcac2102bfdf6230c5f70eb485e # v4
         with:
           category: "/language:go"
+
+  # Single required status check. Runs always (even when the path-filtered jobs
+  # skip) and passes when every required job either passed or skipped cleanly —
+  # only a real failure/cancel fails it. Make THIS the required check in branch
+  # protection so frontend-only / workflow-only PRs aren't blocked by skipped
+  # backend jobs.
+  ci-passed:
+    name: CI Passed
+    if: ${{ always() }}
+    needs: [check_paths, lint, test, docker, e2e]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify required jobs passed or skipped
+        run: |
+          if ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}; then
+            echo "::error::A required CI job failed or was cancelled"
+            exit 1
+          fi
+          echo "✓ all required jobs passed or skipped cleanly"
