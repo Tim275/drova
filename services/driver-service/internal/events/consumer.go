@@ -10,6 +10,7 @@ import (
 
 	"drova/services/driver-service/internal/domain"
 	"drova/services/driver-service/internal/sim"
+	"drova/shared/env"
 	"drova/shared/messaging"
 
 	"github.com/redis/go-redis/v9"
@@ -34,11 +35,17 @@ type TripConsumer struct {
 	rdb     *redis.Client
 	log     *zap.SugaredLogger
 	sim     *sim.Simulator
-	pending sync.Map // tripID → pendingInfo (short-lived, in-memory is fine)
+	// autoDrive: when true the server-side sim auto-drives the trip on accept.
+	// Default false = manual driver phases (arrived/start/end) like Uber/Bolt.
+	autoDrive bool
+	pending   sync.Map // tripID → pendingInfo (short-lived, in-memory is fine)
 }
 
 func NewTripConsumer(kafka *messaging.Kafka, service domain.DriverServicer, rdb *redis.Client, log *zap.SugaredLogger, simulator *sim.Simulator) *TripConsumer {
-	return &TripConsumer{kafka: kafka, service: service, rdb: rdb, log: log, sim: simulator}
+	return &TripConsumer{
+		kafka: kafka, service: service, rdb: rdb, log: log, sim: simulator,
+		autoDrive: env.GetString("DRIVER_SIM_AUTODRIVE", "") == "true",
+	}
 }
 
 func geoKey(packageSlug string) string { return "drova:drivers:geo:" + packageSlug }
@@ -215,7 +222,7 @@ func (c *TripConsumer) handleDriverResponse(ctx context.Context, payload []byte)
 		c.service.ClearBusy(ctx, data.Driver.ID)
 		return nil
 	}
-	if c.sim != nil && accepted != nil {
+	if c.sim != nil && c.autoDrive && accepted != nil {
 		startLat, startLng := c.driverPos(ctx, data.Driver.ID, accepted.PackageSlug)
 		c.sim.Start(sim.TripPlan{
 			TripID:      data.TripID,
