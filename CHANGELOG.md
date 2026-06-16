@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/Tim275/drova/compare/v0.20.0...v0.21.0) (2026-06-14)
+
+
+### Features
+
+* instrument chat http ([#239](https://github.com/Tim275/drova/issues/239)) ([2908e54](https://github.com/Tim275/drova/commit/2908e549d0463e15fc094336116c5f6e59d241a6))
+
 ## [0.20.0](https://github.com/Tim275/drova/compare/v0.19.5...v0.20.0) (2026-06-13)
 
 
