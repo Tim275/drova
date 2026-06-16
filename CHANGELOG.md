@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.0](https://github.com/Tim275/drova/compare/v0.21.0...v0.22.0) (2026-06-16)
+
+
+### Features
+
+* driver earnings view ([#247](https://github.com/Tim275/drova/issues/247)) ([25113d6](https://github.com/Tim275/drova/commit/25113d64ba7f65a9f0d681438dc98636ba0e444e))
+* manual trip flow ([#245](https://github.com/Tim275/drova/issues/245)) ([d12fac5](https://github.com/Tim275/drova/commit/d12fac5784573a51e2b79d7d2921bdccf0559fbd))
+
 ## [0.21.0](https://github.com/Tim275/drova/compare/v0.20.0...v0.21.0) (2026-06-14)
 
 
