@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.1](https://github.com/Tim275/drova/compare/v0.22.0...v0.22.1) (2026-06-16)
+
+
+### Bug Fixes
+
+* tolerate gha cache flake ([#244](https://github.com/Tim275/drova/issues/244)) ([742ece3](https://github.com/Tim275/drova/commit/742ece33e3d08911933c2204a989f358686bc9e3))
+
 ## [0.22.0](https://github.com/Tim275/drova/compare/v0.21.0...v0.22.0) (2026-06-16)
 
 
