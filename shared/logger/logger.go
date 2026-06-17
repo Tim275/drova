@@ -17,6 +17,7 @@ func New(env, serviceName string) *zap.SugaredLogger {
 		cfg = zap.NewDevelopmentConfig()
 		cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	}
+	cfg.OutputPaths = []string{"stdout"} // 12-factor: logs as an event stream on stdout
 
 	base, err := cfg.Build()
 	if err != nil {
@@ -25,5 +26,6 @@ func New(env, serviceName string) *zap.SugaredLogger {
 
 	otelCore := otelzap.NewCore(serviceName)
 	teed := zap.New(zapcore.NewTee(base.Core(), otelCore), zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
+	zap.RedirectStdLog(teed) // route stdlib log (e.g. kafka client setup) through zap → structured, on stdout
 	return teed.Sugar()
 }

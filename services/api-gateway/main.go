@@ -87,7 +87,7 @@ func main() {
 	defer cancel()
 
 	gatewayRdb = newRedisClient(
-		env.GetString("REDIS_URL", "localhost:6379"),
+		env.GetString("REDIS_URL", "redis:6379"),
 		env.GetString("REDIS_PASSWORD", ""),
 	)
 	if gatewayRdb != nil {
