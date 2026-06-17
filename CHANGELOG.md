@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.3](https://github.com/Tim275/drova/compare/v0.22.2...v0.22.3) (2026-06-17)
+
+
+### Bug Fixes
+
+* sanitize log input ([#251](https://github.com/Tim275/drova/issues/251)) ([ea5a1c5](https://github.com/Tim275/drova/commit/ea5a1c599ff68d9f70f748d2c2733cb914d5ecf4))
+
 ## [0.22.2](https://github.com/Tim275/drova/compare/v0.22.1...v0.22.2) (2026-06-17)
 
 
