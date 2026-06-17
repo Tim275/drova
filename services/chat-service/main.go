@@ -13,6 +13,7 @@ import (
 
 	"drova/shared/env"
 	"drova/shared/logger"
+	"drova/shared/logsafe"
 	"drova/shared/tracing"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -225,7 +226,7 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	appLog.Infow("chat connected", "trip", tripID, "user", userID, "role", role, "name", senderName)
+	appLog.Infow("chat connected", "trip", logsafe.Clean(tripID), "user", userID, "role", role, "name", senderName)
 
 	for {
 		_, raw, err := conn.ReadMessage()
@@ -290,5 +291,5 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	appLog.Infow("chat disconnected", "trip", tripID, "user", userID, "role", role)
+	appLog.Infow("chat disconnected", "trip", logsafe.Clean(tripID), "user", userID, "role", role)
 }
