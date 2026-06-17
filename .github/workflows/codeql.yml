@@ -1,3 +1,9 @@
+# CodeQL — GitHub's free static security scanner. It reads the Go source and
+# flags security bugs (log/SQL injection, hardcoded secrets, unsafe
+# deserialization, path traversal, …). Findings appear as alerts under
+# Security > Code scanning. Runs on every push to main + every PR + weekly,
+# so fixes close their alerts and new vulnerability patterns in existing code
+# keep getting caught over time.
 name: CodeQL
 
 on:
