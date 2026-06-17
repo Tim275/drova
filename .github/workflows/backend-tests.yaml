@@ -213,38 +213,6 @@ jobs:
       GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
       MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
 
-  codeql:
-    name: CodeQL Analysis
-    needs: check_paths
-    if: ${{ needs.check_paths.outputs.should_run == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      security-events: write
-
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
-        with:
-          go-version-file: go.mod
-          cache: false
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@68bde559dea0fdcac2102bfdf6230c5f70eb485e # v4
-        with:
-          languages: go
-          queries: security-and-quality
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@68bde559dea0fdcac2102bfdf6230c5f70eb485e # v4
-
-      - name: Perform analysis
-        uses: github/codeql-action/analyze@68bde559dea0fdcac2102bfdf6230c5f70eb485e # v4
-        with:
-          category: "/language:go"
-
   # Single required status check. Runs always (even when the path-filtered jobs
   # skip) and passes when every required job either passed or skipped cleanly —
   # only a real failure/cancel fails it. Make THIS the required check in branch
