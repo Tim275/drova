@@ -226,7 +226,7 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	appLog.Infow("chat connected", "trip", logsafe.Clean(tripID), "user", userID, "role", role, "name", senderName)
+	appLog.Infow("chat connected", "trip", logsafe.Clean(tripID), "user", logsafe.Clean(userID), "role", logsafe.Clean(role), "name", logsafe.Clean(senderName))
 
 	for {
 		_, raw, err := conn.ReadMessage()
@@ -291,5 +291,5 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	appLog.Infow("chat disconnected", "trip", logsafe.Clean(tripID), "user", userID, "role", role)
+	appLog.Infow("chat disconnected", "trip", logsafe.Clean(tripID), "user", logsafe.Clean(userID), "role", logsafe.Clean(role))
 }
