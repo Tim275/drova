@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -142,10 +143,6 @@ func TestTripHistory(t *testing.T) {
 }
 
 // ── MAPBOX-ABHÄNGIGE TESTS — DEAKTIVIERT ──────────────────────────────────
-// Mapbox wird evtl. durch einen anderen Routing-Provider ersetzt.
-// Zum Re-Enablen: dieses Block-Kommentar entfernen + den Inject-Step
-// in .github/workflows/e2e-tests.yaml wieder aktivieren.
-/*
 // getUserID liefert die User-ID des eingeloggten Users (für preview/start Payloads).
 func getUserID(t *testing.T, token string) string {
 	t.Helper()
@@ -187,8 +184,8 @@ func TestTripPreview(t *testing.T) {
 
 	resp := post(t, "/trip/preview", previewBody(userID), authHeader(token))
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("trip preview: want 200, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("trip preview: want 201, got %d", resp.StatusCode)
 	}
 	var out struct {
 		Data struct {
@@ -220,8 +217,8 @@ func TestCreateTrip(t *testing.T) {
 	// Schritt 1: Fare-Optionen holen
 	previewResp := post(t, "/trip/preview", previewBody(userID), authHeader(token))
 	defer previewResp.Body.Close()
-	if previewResp.StatusCode != http.StatusOK {
-		t.Fatalf("preview: want 200, got %d", previewResp.StatusCode)
+	if previewResp.StatusCode != http.StatusCreated {
+		t.Fatalf("preview: want 201, got %d", previewResp.StatusCode)
 	}
 	var preview struct {
 		Data struct {
@@ -282,8 +279,6 @@ func TestCreateTrip(t *testing.T) {
 	}
 	t.Log("✓ trip appears in history")
 }
-*/
-// ── ENDE MAPBOX-ABHÄNGIGE TESTS ───────────────────────────────────────────
 
 // TestDriverLogin — Driver Seed-User funktioniert auch
 func TestDriverLogin(t *testing.T) {

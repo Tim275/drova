@@ -160,20 +160,18 @@ jobs:
           kubectl rollout status deployment/user-service -n drova-e2e --timeout=300s
           kubectl rollout status deployment/trip-service -n drova-e2e --timeout=120s
 
-      # Mapbox-Tests deaktiviert (Provider wird evtl. ersetzt) — Re-Enable:
-      # diesen Step einkommentieren + Block-Kommentar in tests/e2e/smoke_test.go entfernen.
-      # - name: Inject Mapbox token (enables trip-flow tests)
-      #   env:
-      #     MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
-      #   run: |
-      #     if [ -z "$MAPBOX_TOKEN" ]; then
-      #       echo "MAPBOX_TOKEN not set — TestTripPreview/TestCreateTrip will skip"
-      #       exit 0
-      #     fi
-      #     kubectl -n drova-e2e patch secret drova-app-secrets \
-      #       --type merge -p "{\"stringData\":{\"MAPBOX_TOKEN\":\"$MAPBOX_TOKEN\"}}"
-      #     kubectl -n drova-e2e rollout restart deployment/trip-service
-      #     kubectl -n drova-e2e rollout status deployment/trip-service --timeout=120s
+      - name: Inject Mapbox token (enables trip-flow tests)
+        env:
+          MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
+        run: |
+          if [ -z "$MAPBOX_TOKEN" ]; then
+            echo "MAPBOX_TOKEN not set — TestTripPreview/TestCreateTrip will skip"
+            exit 0
+          fi
+          kubectl -n drova-e2e patch secret drova-app-secrets \
+            --type merge -p "{\"stringData\":{\"MAPBOX_TOKEN\":\"$MAPBOX_TOKEN\"}}"
+          kubectl -n drova-e2e rollout restart deployment/trip-service
+          kubectl -n drova-e2e rollout status deployment/trip-service --timeout=120s
 
       - name: Port-forward api-gateway
         run: |
@@ -204,7 +202,7 @@ jobs:
           k6 run \
             -e BASE_URL=http://localhost:8081 \
             -e E2E_TOKEN="" \
-            -e K6_DURATION_THRESHOLD="p(95)<15000" \
+            -e K6_DURATION_THRESHOLD="p(95)<10000" \
             --out json=k6-results.json \
             tests/load/load-test.js
 
@@ -228,7 +226,6 @@ jobs:
             -r zap-report.html \
             -J zap-report.json \
             -I
-        continue-on-error: true
 
       - name: Upload ZAP report
         if: always()
