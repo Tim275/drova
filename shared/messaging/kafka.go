@@ -74,7 +74,7 @@ func NewKafka(brokers []string) *Kafka {
 
 	writer := &kafka.Writer{
 		Addr:                   kafka.TCP(brokers...),
-		Balancer:               &kafka.LeastBytes{},
+		Balancer:               &kafka.Murmur2Balancer{},
 		AllowAutoTopicCreation: false,
 		Transport:              transport,
 	}
@@ -161,6 +161,36 @@ func (k *Kafka) PublishAvro(ctx context.Context, topic string, schemaID int, avr
 	return k.PublishMessage(ctx, topic, payload)
 }
 
+// partitionKey peeks well-known entity IDs from a JSON event payload so related
+// messages (same trip, then owner/user/driver/rider) hash to the same Kafka
+// partition and stay ordered once topics have more than one partition. Returns
+// nil for payloads without a known ID, letting the balancer round-robin them.
+func partitionKey(message []byte) []byte {
+	var probe struct {
+		TripID   string `json:"trip_id"`
+		OwnerID  string `json:"owner_id"`
+		UserID   string `json:"user_id"`
+		DriverID string `json:"driver_id"`
+		RiderID  string `json:"rider_id"`
+	}
+	if err := json.Unmarshal(message, &probe); err != nil {
+		return nil
+	}
+	switch {
+	case probe.TripID != "":
+		return []byte(probe.TripID)
+	case probe.OwnerID != "":
+		return []byte(probe.OwnerID)
+	case probe.UserID != "":
+		return []byte(probe.UserID)
+	case probe.DriverID != "":
+		return []byte(probe.DriverID)
+	case probe.RiderID != "":
+		return []byte(probe.RiderID)
+	}
+	return nil
+}
+
 func (k *Kafka) PublishMessage(ctx context.Context, topic string, message []byte) error {
 	ctx, end := tracing.StartKafkaProducerSpan(ctx, topic, "")
 	defer end()
@@ -175,6 +205,7 @@ func (k *Kafka) PublishMessage(ctx context.Context, topic string, message []byte
 
 	err := k.writer.WriteMessages(ctx, kafka.Message{
 		Topic:   topic,
+		Key:     partitionKey(message),
 		Value:   message,
 		Headers: kafkaHeaders,
 	})
