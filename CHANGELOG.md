@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.2](https://github.com/Tim275/drova/compare/v0.22.1...v0.22.2) (2026-06-17)
+
+
+### Bug Fixes
+
+* logging consistency ([#254](https://github.com/Tim275/drova/issues/254)) ([5e19a61](https://github.com/Tim275/drova/commit/5e19a619fe582b58d999b8d14bb4a87353b131da))
+
 ## [0.22.1](https://github.com/Tim275/drova/compare/v0.22.0...v0.22.1) (2026-06-16)
 
 
