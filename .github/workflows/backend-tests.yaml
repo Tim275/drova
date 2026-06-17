@@ -33,6 +33,8 @@ jobs:
               - 'go.mod'
               - 'go.sum'
               - '.github/workflows/backend-tests.yaml'
+              - 'tests/**'
+              - '.github/workflows/e2e-tests.yaml'
 
   lint:
     name: Lint & Security Scan
