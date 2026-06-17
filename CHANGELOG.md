@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.4](https://github.com/Tim275/drova/compare/v0.22.3...v0.22.4) (2026-06-17)
+
+
+### Bug Fixes
+
+* **deps:** update nginxinc/nginx-unprivileged:stable-alpine3.23 docker digest to de3e40e ([#243](https://github.com/Tim275/drova/issues/243)) ([090010c](https://github.com/Tim275/drova/commit/090010cce33dc293e08d11794a759a4c89f2b0c1))
+
 ## [0.22.3](https://github.com/Tim275/drova/compare/v0.22.2...v0.22.3) (2026-06-17)
 
 
