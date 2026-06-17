@@ -184,8 +184,8 @@ func TestTripPreview(t *testing.T) {
 
 	resp := post(t, "/trip/preview", previewBody(userID), authHeader(token))
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("trip preview: want 200, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("trip preview: want 201, got %d", resp.StatusCode)
 	}
 	var out struct {
 		Data struct {
@@ -217,8 +217,8 @@ func TestCreateTrip(t *testing.T) {
 	// Schritt 1: Fare-Optionen holen
 	previewResp := post(t, "/trip/preview", previewBody(userID), authHeader(token))
 	defer previewResp.Body.Close()
-	if previewResp.StatusCode != http.StatusOK {
-		t.Fatalf("preview: want 200, got %d", previewResp.StatusCode)
+	if previewResp.StatusCode != http.StatusCreated {
+		t.Fatalf("preview: want 201, got %d", previewResp.StatusCode)
 	}
 	var preview struct {
 		Data struct {
