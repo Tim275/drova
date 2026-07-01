@@ -15,6 +15,7 @@ drova-gitops/
 .gitlab-ci.yml
 /api-gateway
 /cmd
+/chat-service
 docs/
 /LICENSE
 /SECURITY.md

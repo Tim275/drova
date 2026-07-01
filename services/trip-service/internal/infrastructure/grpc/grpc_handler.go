@@ -7,8 +7,8 @@ import (
 
 	"drova/services/trip-service/internal/domain"
 	"drova/services/trip-service/internal/infrastructure/events"
+	"drova/shared/contracts"
 	pb "drova/shared/proto/trip"
-	"drova/shared/types"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -147,11 +147,11 @@ func (h *gRPCHandler) CancelTrip(ctx context.Context, req *pb.CancelTripRequest)
 }
 
 func (h *gRPCHandler) PreviewTrip(ctx context.Context, req *pb.PreviewTripRequest) (*pb.PreviewTripResponse, error) {
-	pickup := &types.Coordinate{
+	pickup := &contracts.Coordinate{
 		Latitude:  req.GetStartLocation().Latitude,
 		Longitude: req.GetStartLocation().Longitude,
 	}
-	destination := &types.Coordinate{
+	destination := &contracts.Coordinate{
 		Latitude:  req.GetEndLocation().Latitude,
 		Longitude: req.GetEndLocation().Longitude,
 	}

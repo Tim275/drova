@@ -8,7 +8,6 @@ import (
 
 	"drova/services/driver-service/internal/domain"
 	pb "drova/shared/proto/driver"
-	"drova/shared/util"
 
 	"github.com/mmcloughlin/geohash"
 	"github.com/redis/go-redis/v9"
@@ -36,7 +35,7 @@ func hbKey(driverID string) string     { return "drova:driver:hb:" + driverID }
 func (s *Service) RegisterDriver(ctx context.Context, driverID, packageSlug, name string, lat, lng float64) (*pb.Driver, error) {
 	randomIndex := math.IntN(len(PredefinedRoutes)) // #nosec G404 -- route index, not security-sensitive
 	randomPlate := GenerateRandomPlate()
-	randomAvatar := util.GetRandomAvatar(randomIndex)
+	randomAvatar := GetRandomAvatar(randomIndex)
 
 	if name == "" {
 		name = "Driver"
