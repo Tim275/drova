@@ -1,0 +1,26 @@
+# KEDA scales trip-service on Kafka CONSUMER LAG (not CPU). When the lag of
+# consumer-group "trip-service-driver-response" on topic "driver.cmd.trip_response"
+# exceeds lagThreshold, KEDA adds pods (up to maxReplicaCount); when it drains, it
+# scales back down to minReplicaCount.
+#
+# maxReplicaCount == 3 on purpose: the topic has 3 partitions, and a Kafka consumer
+# group can have at most 1 active consumer per partition — a 4th/5th pod would sit idle.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: trip-service
+spec:
+  scaleTargetRef:
+    name: trip-service
+  minReplicaCount: 1
+  maxReplicaCount: 3
+  pollingInterval: 15     # how often KEDA checks the lag (seconds)
+  cooldownPeriod: 60      # wait this long after lag clears before scaling down
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: kafka.drova-local.svc.cluster.local:9092
+        consumerGroup: trip-service-driver-response
+        topic: driver.cmd.trip_response
+        lagThreshold: "20"
+        offsetResetPolicy: latest
