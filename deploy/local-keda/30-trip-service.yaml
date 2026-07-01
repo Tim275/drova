@@ -1,0 +1,67 @@
+# trip-service — the KEDA scale target. replicas:1 is only the seed; KEDA's HPA
+# owns the replica count from here on (min 1 / max 3).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trip-service
+  labels: { app: trip-service }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: trip-service } }
+  template:
+    metadata: { labels: { app: trip-service } }
+    spec:
+      initContainers:
+        # Block until Postgres accepts connections (trip-service runs migrations at startup).
+        - name: wait-postgres
+          image: postgres:17-alpine
+          command: ["sh", "-c", "until pg_isready -h postgres -U drova; do echo waiting-postgres; sleep 2; done"]
+        # Pre-create the TARGET topic with 3 partitions BEFORE trip-service subscribes,
+        # so KEDA can scale up to 3 consumers. (Auto-create would make it 1 partition.)
+        - name: create-topic
+          image: confluentinc/cp-kafka:7.6.0
+          command: ["sh", "-c"]
+          args:
+            - |
+              BS=kafka.drova-local.svc.cluster.local:9092
+              until kafka-broker-api-versions --bootstrap-server $BS >/dev/null 2>&1; do
+                echo waiting-kafka; sleep 3;
+              done
+              # TARGET topic — 3 partitions so KEDA can scale up to 3 consumers.
+              kafka-topics --bootstrap-server $BS --create --if-not-exists \
+                --topic driver.cmd.trip_response --partitions 3 --replication-factor 1
+              # Other topics trip-service consumes (driver/payment/retry) — 1 partition,
+              # pre-created only to silence "topic not found" log noise during the demo.
+              for t in trip.event.completed trip.event.cancelled trip.event.driver_arrived \
+                       trip.event.in_progress payment.event.success \
+                       drova.retry.1 drova.retry.2 drova.retry.3 dead.letter.queue; do
+                kafka-topics --bootstrap-server $BS --create --if-not-exists \
+                  --topic "$t" --partitions 1 --replication-factor 1
+              done
+              kafka-topics --bootstrap-server $BS --describe --topic driver.cmd.trip_response
+      containers:
+        - name: trip-service
+          image: drova/trip-service:local
+          imagePullPolicy: IfNotPresent
+          ports: [{ containerPort: 9093 }]
+          env:
+            - { name: ENVIRONMENT, value: "development" }
+            - { name: GRPC_ADDR, value: ":9093" }
+            - { name: KAFKA_BROKERS, value: "kafka.drova-local.svc.cluster.local:9092" }
+            - { name: KAFKA_REPLICATION_FACTOR, value: "1" }
+            - { name: DB_URL, value: "postgres://drova:drova@postgres.drova-local.svc.cluster.local:5432/drova_trips?sslmode=disable" }
+            - { name: MIGRATIONS_PATH, value: "migrations" }
+            # user-service is not deployed in this demo — trip-service falls back to a noop provider.
+            - { name: USER_SERVICE_GRPC_URL, value: "user-service:9091" }
+            - { name: OTEL_COLLECTOR_ENDPOINT, value: "" }
+          resources:
+            requests: { cpu: "50m", memory: "64Mi" }
+            limits: { memory: "256Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trip-service
+spec:
+  selector: { app: trip-service }
+  ports: [{ port: 9093, targetPort: 9093 }]

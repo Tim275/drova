@@ -72,6 +72,10 @@ jobs:
 
       - name: pre-commit
         uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+        env:
+          # golangci-lint already runs via the dedicated action above — skip the
+          # duplicate hook here in CI (it stays active for local commits).
+          SKIP: golangci-lint
 
       - name: Vulnerability check
         run: |
@@ -128,7 +132,7 @@ jobs:
           # Infra adapters (stores, kafka, http/ws/grpc) are covered by the integration job;
           # generated proto code is excluded.
           grep -E '^mode:' coverage.out > logic.cov
-          grep -E '/internal/(service|domain|sim|middleware|auth)/|/shared/(util|env|retry)/' coverage.out >> logic.cov
+          grep -E '/internal/(service|domain|sim|middleware|auth)/|/shared/env/|/shared/messaging/retry' coverage.out >> logic.cov
           COVERAGE=$(go tool cover -func=logic.cov | grep total | awk '{print $3}' | tr -d '%')
           echo "Business-logic coverage: ${COVERAGE}%"
           if awk "BEGIN {exit !($COVERAGE < 40)}"; then

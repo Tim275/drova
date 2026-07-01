@@ -1,16 +1,16 @@
 package main
 
 import (
+	"drova/shared/contracts"
 	pb "drova/shared/proto/trip"
-	"drova/shared/types"
 )
 
 type previewTripRequest struct {
-	UserID         string           `json:"userID"`
-	Pickup         types.Coordinate `json:"pickup"`
-	Destination    types.Coordinate `json:"destination"`
-	PickupAddress  string           `json:"pickupAddress"`
-	DropoffAddress string           `json:"dropoffAddress"`
+	UserID         string               `json:"userID"`
+	Pickup         contracts.Coordinate `json:"pickup"`
+	Destination    contracts.Coordinate `json:"destination"`
+	PickupAddress  string               `json:"pickupAddress"`
+	DropoffAddress string               `json:"dropoffAddress"`
 }
 
 func (p *previewTripRequest) toProto() *pb.PreviewTripRequest {

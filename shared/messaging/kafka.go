@@ -13,7 +13,6 @@ import (
 	"sync"
 	"time"
 
-	"drova/shared/retry"
 	"drova/shared/schema"
 	"drova/shared/tracing"
 
@@ -90,13 +89,13 @@ func NewKafka(brokers []string) *Kafka {
 }
 
 func (k *Kafka) EnsureTopics(topics ...string) error {
-	cfg := retry.Config{
+	cfg := retryConfig{
 		MaxRetries:  10,
 		InitialWait: 1 * time.Second,
 		MaxWait:     5 * time.Second,
 	}
 
-	return retry.WithBackoff(context.Background(), cfg, func() error {
+	return withBackoff(context.Background(), cfg, func() error {
 		conn, err := k.dialer.Dial("tcp", k.brokers[0])
 		if err != nil {
 			return fmt.Errorf("dial kafka: %w", err)

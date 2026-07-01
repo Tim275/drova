@@ -1,4 +1,4 @@
-package retry
+package messaging
 
 import (
 	"context"
@@ -7,18 +7,11 @@ import (
 	"time"
 )
 
-func TestDefaultConfig(t *testing.T) {
-	c := DefaultConfig()
-	if c.MaxRetries != 3 || c.InitialWait != time.Second || c.MaxWait != 10*time.Second {
-		t.Fatalf("unexpected default config: %+v", c)
-	}
-}
-
-var fastCfg = Config{MaxRetries: 3, InitialWait: time.Millisecond, MaxWait: 2 * time.Millisecond}
+var fastRetryCfg = retryConfig{MaxRetries: 3, InitialWait: time.Millisecond, MaxWait: 2 * time.Millisecond}
 
 func TestWithBackoff_SuccessFirstTry(t *testing.T) {
 	calls := 0
-	err := WithBackoff(context.Background(), fastCfg, func() error {
+	err := withBackoff(context.Background(), fastRetryCfg, func() error {
 		calls++
 		return nil
 	})
@@ -29,7 +22,7 @@ func TestWithBackoff_SuccessFirstTry(t *testing.T) {
 
 func TestWithBackoff_SucceedsAfterRetries(t *testing.T) {
 	calls := 0
-	err := WithBackoff(context.Background(), fastCfg, func() error {
+	err := withBackoff(context.Background(), fastRetryCfg, func() error {
 		calls++
 		if calls < 3 {
 			return errors.New("transient")
@@ -44,7 +37,7 @@ func TestWithBackoff_SucceedsAfterRetries(t *testing.T) {
 func TestWithBackoff_Exhausted(t *testing.T) {
 	want := errors.New("permanent")
 	calls := 0
-	err := WithBackoff(context.Background(), Config{MaxRetries: 2, InitialWait: time.Millisecond, MaxWait: time.Millisecond}, func() error {
+	err := withBackoff(context.Background(), retryConfig{MaxRetries: 2, InitialWait: time.Millisecond, MaxWait: time.Millisecond}, func() error {
 		calls++
 		return want
 	})
@@ -59,7 +52,7 @@ func TestWithBackoff_Exhausted(t *testing.T) {
 func TestWithBackoff_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := WithBackoff(ctx, Config{MaxRetries: 3, InitialWait: time.Hour, MaxWait: time.Hour}, func() error {
+	err := withBackoff(ctx, retryConfig{MaxRetries: 3, InitialWait: time.Hour, MaxWait: time.Hour}, func() error {
 		return errors.New("fail")
 	})
 	if !errors.Is(err, context.Canceled) {

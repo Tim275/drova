@@ -10,7 +10,7 @@ import (
 
 	"drova/services/trip-service/internal/domain"
 	tripTypes "drova/services/trip-service/pkg/types"
-	"drova/shared/types"
+	"drova/shared/contracts"
 )
 
 // ── delegating repo methods ──────────────────────────────────────────────────
@@ -139,8 +139,8 @@ func withHTTPClient(status int, body string) func() {
 	return func() { httpClient = prev }
 }
 
-func coord(latv, lngv float64) *types.Coordinate {
-	return &types.Coordinate{Latitude: latv, Longitude: lngv}
+func coord(latv, lngv float64) *contracts.Coordinate {
+	return &contracts.Coordinate{Latitude: latv, Longitude: lngv}
 }
 
 func TestRouteCacheKey(t *testing.T) {
