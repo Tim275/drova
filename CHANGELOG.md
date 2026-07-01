@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.5](https://github.com/Tim275/drova/compare/v0.22.4...v0.22.5) (2026-07-01)
+
+
+### Bug Fixes
+
+* bump x/net + x/crypto for CVEs ([#268](https://github.com/Tim275/drova/issues/268)) ([e441c10](https://github.com/Tim275/drova/commit/e441c105d6f382bf652b43fc63fbcadf67711023))
+
 ## [0.22.4](https://github.com/Tim275/drova/compare/v0.22.3...v0.22.4) (2026-06-17)
 
 
