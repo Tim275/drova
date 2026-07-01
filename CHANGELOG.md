@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.22.6](https://github.com/Tim275/drova/compare/v0.22.5...v0.22.6) (2026-07-01)
+
+
+### Bug Fixes
+
+* **deps:** update nginxinc/nginx-unprivileged:stable-alpine3.23 docker digest to fd3314e ([#264](https://github.com/Tim275/drova/issues/264)) ([b1b69ae](https://github.com/Tim275/drova/commit/b1b69ae26a55b84b642e975c1b7a5c04ecbc2863))
+
+## [0.22.5](https://github.com/Tim275/drova/compare/v0.22.4...v0.22.5) (2026-07-01)
+
+
+### Bug Fixes
+
+* bump x/net + x/crypto for CVEs ([#268](https://github.com/Tim275/drova/issues/268)) ([e441c10](https://github.com/Tim275/drova/commit/e441c105d6f382bf652b43fc63fbcadf67711023))
+
 ## [0.22.4](https://github.com/Tim275/drova/compare/v0.22.3...v0.22.4) (2026-06-17)
 
 
