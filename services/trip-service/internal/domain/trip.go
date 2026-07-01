@@ -6,8 +6,8 @@ import (
 	"time"
 
 	tripTypes "drova/services/trip-service/pkg/types"
+	"drova/shared/contracts"
 	pbd "drova/shared/proto/driver"
-	"drova/shared/types"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -70,7 +70,7 @@ type RouteCache interface {
 
 type TripService interface {
 	CreateTrip(ctx context.Context, fare *RideFareModel) (*TripModel, error)
-	GetRoute(ctx context.Context, pickup, destination *types.Coordinate) (*tripTypes.MapboxRouteResponse, error)
+	GetRoute(ctx context.Context, pickup, destination *contracts.Coordinate) (*tripTypes.MapboxRouteResponse, error)
 	EstimatePackagesPriceWithRoute(route *tripTypes.MapboxRouteResponse) []*RideFareModel
 	GenerateTripFares(ctx context.Context, fares []*RideFareModel, userID string, route *tripTypes.MapboxRouteResponse) ([]*RideFareModel, error)
 	GetAndValidateFare(ctx context.Context, fareID, userID string) (*RideFareModel, error)

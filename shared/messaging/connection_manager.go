@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"drova/shared/logsafe"
+	"drova/shared/logger"
 
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -56,14 +56,14 @@ func (cm *ConnectionManager) Add(id string, conn *websocket.Conn) {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 	cm.connections[id] = &connWrapper{conn: conn}
-	cm.log.Infow("WS connection added", "id", logsafe.Clean(id), "total", len(cm.connections))
+	cm.log.Infow("WS connection added", "id", logger.Clean(id), "total", len(cm.connections))
 }
 
 func (cm *ConnectionManager) Remove(id string) {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 	delete(cm.connections, id)
-	cm.log.Infow("WS connection removed", "id", logsafe.Clean(id))
+	cm.log.Infow("WS connection removed", "id", logger.Clean(id))
 }
 
 func (cm *ConnectionManager) SendMessage(id string, message any) error {

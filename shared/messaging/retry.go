@@ -1,4 +1,4 @@
-package retry
+package messaging
 
 import (
 	"context"
@@ -6,21 +6,15 @@ import (
 	"time"
 )
 
-type Config struct {
+// retryConfig + withBackoff were shared/retry. The Kafka client was the only
+// consumer, so they now live inside the messaging package (unexported).
+type retryConfig struct {
 	MaxRetries  int
 	InitialWait time.Duration
 	MaxWait     time.Duration
 }
 
-func DefaultConfig() Config {
-	return Config{
-		MaxRetries:  3,
-		InitialWait: 1 * time.Second,
-		MaxWait:     10 * time.Second,
-	}
-}
-
-func WithBackoff(ctx context.Context, cfg Config, operation func() error) error {
+func withBackoff(ctx context.Context, cfg retryConfig, operation func() error) error {
 	var err error
 	wait := cfg.InitialWait
 

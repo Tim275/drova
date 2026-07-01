@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"drova/services/trip-service/internal/domain"
-	"drova/shared/types"
+	"drova/shared/contracts"
 
 	"go.uber.org/zap"
 )
@@ -16,9 +16,9 @@ type HttpHandler struct {
 }
 
 type previewTripRequest struct {
-	UserID      string           `json:"userID"`
-	Pickup      types.Coordinate `json:"pickup"`
-	Destination types.Coordinate `json:"destination"`
+	UserID      string               `json:"userID"`
+	Pickup      contracts.Coordinate `json:"pickup"`
+	Destination contracts.Coordinate `json:"destination"`
 }
 
 func (h *HttpHandler) HandleTripPreview(w http.ResponseWriter, r *http.Request) {

@@ -1,4 +1,4 @@
-package util
+package service
 
 import (
 	"strings"
@@ -16,10 +16,10 @@ func TestGetRandomAvatar(t *testing.T) {
 }
 
 func TestGetRandomAvatar_WrapsModulo(t *testing.T) {
-	if GetRandomAvatar(0) != GetRandomAvatar(len(driverSeeds)) {
+	if GetRandomAvatar(0) != GetRandomAvatar(len(avatarSeeds)) {
 		t.Error("seed should wrap via modulo")
 	}
-	if GetRandomAvatar(1) != GetRandomAvatar(len(driverSeeds)+1) {
+	if GetRandomAvatar(1) != GetRandomAvatar(len(avatarSeeds)+1) {
 		t.Error("seed should wrap via modulo (offset)")
 	}
 }
