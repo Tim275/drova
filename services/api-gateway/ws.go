@@ -11,7 +11,7 @@ import (
 
 	"drova/services/api-gateway/grpc_clients"
 	"drova/shared/contracts"
-	"drova/shared/logsafe"
+	"drova/shared/logger"
 	"drova/shared/messaging"
 	pb "drova/shared/proto/driver"
 
@@ -177,7 +177,7 @@ func handleRidersWebSocket(w http.ResponseWriter, r *http.Request) {
 				appLog.Errorw("publish trip cancel", zap.Error(err))
 				sendWSError(conn, &wmu, "Cancel failed, please retry")
 			}
-			appLog.Infow("trip cancelled", "rider", logsafe.Clean(userID), "trip", logsafe.Clean(cancelData.TripID))
+			appLog.Infow("trip cancelled", "rider", logger.Clean(userID), "trip", logger.Clean(cancelData.TripID))
 		}
 	}
 }
@@ -376,7 +376,7 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 			}
 			lastDriverLat = locData.Lat
 			lastDriverLng = locData.Lng
-			appLog.Debugw("location update", "driver", logsafe.Clean(userID), "lat", locData.Lat, "lng", locData.Lng, "rider", logsafe.Clean(locData.RiderID))
+			appLog.Debugw("location update", "driver", logger.Clean(userID), "lat", locData.Lat, "lng", locData.Lng, "rider", logger.Clean(locData.RiderID))
 			if locationStream != nil {
 				if err := locationStream.Send(&pb.LocationUpdate{
 					DriverId:  userID,
@@ -427,7 +427,7 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 			_, err := grpc_clients.DriverClient.GoOffline(offCtx, &pb.RegisterDriverRequest{DriverID: userID})
 			offCancel()
 			if err != nil {
-				appLog.Warnw("driver go offline", "driver", logsafe.Clean(userID), zap.Error(err))
+				appLog.Warnw("driver go offline", "driver", logger.Clean(userID), zap.Error(err))
 			}
 
 		case contracts.DriverCmdTripAccept, contracts.DriverCmdTripDecline:
@@ -501,7 +501,7 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 				appLog.Errorw("publish driver cancel", zap.Error(err))
 				sendWSError(conn, &wmu, "Cancel failed, please retry")
 			}
-			appLog.Infow("driver cancelled trip", "driver", logsafe.Clean(userID), "trip", logsafe.Clean(cancelData.TripID))
+			appLog.Infow("driver cancelled trip", "driver", logger.Clean(userID), "trip", logger.Clean(cancelData.TripID))
 
 		case contracts.DriverCmdArrived, contracts.DriverCmdTripStart, contracts.DriverCmdTripEnd:
 			var statusData struct {
@@ -553,15 +553,15 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if err := kafkaClient.PublishMessage(r.Context(), kafkaTopic, payload); err != nil {
-				appLog.Errorw("publish driver status", "type", logsafe.Clean(driverMsg.Type), zap.Error(err))
+				appLog.Errorw("publish driver status", "type", logger.Clean(driverMsg.Type), zap.Error(err))
 				sendWSError(conn, &wmu, "Status update failed, please retry")
 			}
-			appLog.Infow("driver status", "driver", logsafe.Clean(userID), "type", logsafe.Clean(driverMsg.Type), "trip", logsafe.Clean(statusData.TripID))
+			appLog.Infow("driver status", "driver", logger.Clean(userID), "type", logger.Clean(driverMsg.Type), "trip", logger.Clean(statusData.TripID))
 
 		case "ping":
 			// client keepalive — ignore
 		default:
-			appLog.Warnw("unknown driver message", "type", logsafe.Clean(driverMsg.Type))
+			appLog.Warnw("unknown driver message", "type", logger.Clean(driverMsg.Type))
 		}
 	}
 }

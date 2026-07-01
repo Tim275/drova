@@ -11,9 +11,9 @@ import (
 
 	"drova/services/trip-service/internal/domain"
 	tripTypes "drova/services/trip-service/pkg/types"
+	"drova/shared/contracts"
 	"drova/shared/env"
 	pbd "drova/shared/proto/driver"
-	"drova/shared/types"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 )
@@ -59,13 +59,13 @@ func (s *service) CreateTrip(ctx context.Context, fare *domain.RideFareModel) (*
 	return s.repo.CreateTrip(ctx, trip)
 }
 
-func routeCacheKey(pickup, dest *types.Coordinate) string {
+func routeCacheKey(pickup, dest *contracts.Coordinate) string {
 	// 4 decimal places ≈ 11m precision — good enough to reuse route responses.
 	return fmt.Sprintf("mapbox:route:%.4f:%.4f:%.4f:%.4f",
 		pickup.Latitude, pickup.Longitude, dest.Latitude, dest.Longitude)
 }
 
-func (s *service) GetRoute(ctx context.Context, pickup, destination *types.Coordinate) (*tripTypes.MapboxRouteResponse, error) {
+func (s *service) GetRoute(ctx context.Context, pickup, destination *contracts.Coordinate) (*tripTypes.MapboxRouteResponse, error) {
 	cacheKey := routeCacheKey(pickup, destination)
 	if s.cache != nil {
 		if cached, ok := s.cache.Get(ctx, cacheKey); ok {
