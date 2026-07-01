@@ -1,0 +1,36 @@
+# Lag generator — blasts a burst of valid "noop" messages onto the target topic
+# so the consumer group's lag spikes and KEDA scales trip-service up. The messages
+# are shaped so trip-service's handler returns success (no retry storm): the outer
+# envelope unmarshals, the type is unknown -> handler logs + returns nil.
+#
+# Not part of the base kustomization — run on demand via `make load`.
+# Bump COUNT if the single seed pod drains too fast to trigger scaling.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: loadgen
+  labels: { app: loadgen }
+spec:
+  backoffLimit: 0
+  template:
+    metadata: { labels: { app: loadgen } }
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: producer
+          image: confluentinc/cp-kafka:7.6.0
+          command: ["sh", "-c"]
+          args:
+            - |
+              COUNT="${COUNT:-1000000}"
+              printf '%s' '{"type":"noop","data":{}}' > /tmp/msg.json
+              echo "blasting $COUNT messages onto driver.cmd.trip_response to build lag..."
+              kafka-producer-perf-test \
+                --topic driver.cmd.trip_response \
+                --num-records "$COUNT" \
+                --throughput -1 \
+                --payload-file /tmp/msg.json \
+                --producer-props bootstrap.servers=kafka.drova-local.svc.cluster.local:9092 acks=1
+              echo "done producing $COUNT messages"
+          env:
+            - { name: COUNT, value: "1000000" }
