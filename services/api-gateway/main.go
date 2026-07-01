@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"drova/services/api-gateway/grpc_clients"
+	"drova/shared/debugserver"
 	"drova/shared/env"
 	"drova/shared/logger"
 	"drova/shared/messaging"
@@ -49,6 +50,14 @@ func main() {
 	}
 
 	appLog.Infow("api-gateway starting")
+
+	// Internal ops server: Prometheus /metrics (always) + pprof (DEBUG_PPROF=true).
+	// Separate port — kept off the public mux so it is not reachable via the ingress.
+	stopOps := debugserver.Start(
+		env.GetString("METRICS_ADDR", ":9464"),
+		env.GetString("DEBUG_PPROF", "") == "true",
+	)
+	defer stopOps()
 
 	kafkaClient = messaging.NewKafka(strings.Split(kafkaBrokers, ","))
 	defer kafkaClient.Close()

@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploghttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	"go.opentelemetry.io/otel/log/global"
 	"go.opentelemetry.io/otel/propagation"
 	sdklog "go.opentelemetry.io/otel/sdk/log"
@@ -25,66 +26,70 @@ type Config struct {
 }
 
 func InitTracer(cfg Config) (func(context.Context), error) {
-	noop := func(context.Context) {}
-	if cfg.OtelCollectorEndpoint == "" {
-		return noop, nil
-	}
-
 	res := resource.NewWithAttributes(
 		semconv.SchemaURL,
 		semconv.ServiceNameKey.String(cfg.ServiceName),
 		semconv.DeploymentEnvironmentKey.String(cfg.Environment),
 	)
 
-	traceExp, err := otlptracehttp.New(context.Background(),
-		otlptracehttp.WithEndpoint(cfg.OtelCollectorEndpoint),
-		otlptracehttp.WithInsecure(),
-	)
-	if err != nil {
-		return noop, err
-	}
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(traceExp),
-		sdktrace.WithResource(res),
-	)
-	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-		propagation.TraceContext{},
-		propagation.Baggage{},
-	))
+	hasOTLP := cfg.OtelCollectorEndpoint != ""
 
-	var mp *metric.MeterProvider
-	metricExp, err := otlpmetrichttp.New(context.Background(),
-		otlpmetrichttp.WithEndpoint(cfg.OtelCollectorEndpoint),
-		otlpmetrichttp.WithInsecure(),
-	)
-	if err == nil {
-		mp = metric.NewMeterProvider(
-			metric.WithReader(metric.NewPeriodicReader(metricExp)),
-			metric.WithResource(res),
-		)
-		otel.SetMeterProvider(mp)
-		_ = runtime.Start(runtime.WithMinimumReadMemStatsInterval(15))
+	// Metrics: expose a Prometheus pull endpoint (/metrics) always; additionally
+	// push to the OTLP collector when one is configured.
+	metricOpts := []metric.Option{metric.WithResource(res)}
+	if promExp, perr := otelprom.New(); perr == nil {
+		metricOpts = append(metricOpts, metric.WithReader(promExp))
 	}
+	if hasOTLP {
+		if metricExp, merr := otlpmetrichttp.New(context.Background(),
+			otlpmetrichttp.WithEndpoint(cfg.OtelCollectorEndpoint),
+			otlpmetrichttp.WithInsecure(),
+		); merr == nil {
+			metricOpts = append(metricOpts, metric.WithReader(metric.NewPeriodicReader(metricExp)))
+		}
+	}
+	mp := metric.NewMeterProvider(metricOpts...)
+	otel.SetMeterProvider(mp)
+	_ = runtime.Start(runtime.WithMinimumReadMemStatsInterval(15))
 
+	// Traces + logs: only when an OTLP collector endpoint is configured.
+	var tp *sdktrace.TracerProvider
 	var lp *sdklog.LoggerProvider
-	logExp, err := otlploghttp.New(context.Background(),
-		otlploghttp.WithEndpoint(cfg.OtelCollectorEndpoint),
-		otlploghttp.WithInsecure(),
-	)
-	if err == nil {
-		lp = sdklog.NewLoggerProvider(
-			sdklog.WithProcessor(sdklog.NewBatchProcessor(logExp)),
-			sdklog.WithResource(res),
+	if hasOTLP {
+		traceExp, err := otlptracehttp.New(context.Background(),
+			otlptracehttp.WithEndpoint(cfg.OtelCollectorEndpoint),
+			otlptracehttp.WithInsecure(),
 		)
-		global.SetLoggerProvider(lp)
+		if err != nil {
+			return func(ctx context.Context) { mp.Shutdown(ctx) }, err
+		}
+		tp = sdktrace.NewTracerProvider(
+			sdktrace.WithBatcher(traceExp),
+			sdktrace.WithResource(res),
+		)
+		otel.SetTracerProvider(tp)
+		otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		))
+
+		if logExp, lerr := otlploghttp.New(context.Background(),
+			otlploghttp.WithEndpoint(cfg.OtelCollectorEndpoint),
+			otlploghttp.WithInsecure(),
+		); lerr == nil {
+			lp = sdklog.NewLoggerProvider(
+				sdklog.WithProcessor(sdklog.NewBatchProcessor(logExp)),
+				sdklog.WithResource(res),
+			)
+			global.SetLoggerProvider(lp)
+		}
 	}
 
 	return func(ctx context.Context) {
-		tp.Shutdown(ctx)
-		if mp != nil {
-			mp.Shutdown(ctx)
+		if tp != nil {
+			tp.Shutdown(ctx)
 		}
+		mp.Shutdown(ctx)
 		if lp != nil {
 			lp.Shutdown(ctx)
 		}
