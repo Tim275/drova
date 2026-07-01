@@ -159,17 +159,18 @@ jobs:
             echo "value=${{ steps.retag.outputs.digest }}" >> $GITHUB_OUTPUT
           fi
 
-      # Scan BEFORE sign: a signature must mean "scanned and passed".
+      # Report-only: findings upload to the Security tab, but a CVE disclosed after merge
+      # must not strand a release tag. Hard blocker is the PR gate; deploy-time gate = Kyverno (todo).
       # Runs on re-tagged images too — CVE databases age, unchanged code does not stay safe.
-      - name: Scan image with Trivy
+      - name: Scan image with Trivy (report-only)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: "${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ steps.tag.outputs.TAG }}"
           format: "sarif"
           output: "trivy-${{ matrix.service }}.sarif"
-          exit-code: "1"
+          exit-code: "0"
           ignore-unfixed: true
-          pkg-types: "os,library"
+          vuln-type: "os,library"
           severity: "CRITICAL,HIGH"
 
       - name: Upload Trivy SARIF
