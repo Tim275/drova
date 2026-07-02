@@ -1072,36 +1072,38 @@
   }
 
   async function logout() {
-    if (_accessToken) {
-      try {
-        await fetch('/v1/auth/logout', {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + _accessToken },
-          credentials: 'include',
-        });
-      } catch (e) {
-        console.warn('logout request failed', e);
-      }
-    }
-    if (ws) { ws.close(); ws = null; }
-    if (_nearbyTimer) { clearInterval(_nearbyTimer); _nearbyTimer = null; }
-    if (_riderHeartbeat) { clearInterval(_riderHeartbeat); _riderHeartbeat = null; }
-    if (_driverHeartbeat) { clearInterval(_driverHeartbeat); _driverHeartbeat = null; }
-    if (riderWsReconnectTimer) { clearTimeout(riderWsReconnectTimer); riderWsReconnectTimer = null; }
-    if (driverReconnectTimer) { clearTimeout(driverReconnectTimer); driverReconnectTimer = null; }
-    if (simulationInterval !== null) { clearInterval(simulationInterval); simulationInterval = null; }
-    if (preTripLocationTimer) { clearInterval(preTripLocationTimer); preTripLocationTimer = null; }
-    if (driverIdleWatchId !== null) { navigator.geolocation.clearWatch(driverIdleWatchId); driverIdleWatchId = null; }
-    driverCurrentGPS = null;
-    if (driverIdleMarker) { driverIdleMarker.remove(); driverIdleMarker = null; }
-    if (driverMap) { driverMap.remove(); driverMap = null; }
-    if (map) { map.remove(); map = null; }
-    document.getElementById('driverscreen').classList.remove('active');
-    document.getElementById('mapscreen').style.display = 'none';
-    document.getElementById('welcome').classList.remove('active');
-    localStorage.clear();
+    const token = _accessToken;
+    // Log out client-side FIRST — instant, and can never be blocked by a slow
+    // request or a teardown error (e.g. Mapbox map.remove() throwing mid-render).
     _accessToken = null;
     currentUser = null;
+    // Server logout (blacklist JTI + clear refresh cookie) — fire without blocking the UI.
+    if (token) {
+      fetch('/v1/auth/logout', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        credentials: 'include',
+        keepalive: true,
+      }).catch((e) => console.warn('logout request failed', e));
+    }
+    // Best-effort teardown, wrapped so any error still lets us reach showAuth().
+    try {
+      if (ws) { ws.close(); ws = null; }
+      if (_nearbyTimer) { clearInterval(_nearbyTimer); _nearbyTimer = null; }
+      if (_riderHeartbeat) { clearInterval(_riderHeartbeat); _riderHeartbeat = null; }
+      if (_driverHeartbeat) { clearInterval(_driverHeartbeat); _driverHeartbeat = null; }
+      if (riderWsReconnectTimer) { clearTimeout(riderWsReconnectTimer); riderWsReconnectTimer = null; }
+      if (driverReconnectTimer) { clearTimeout(driverReconnectTimer); driverReconnectTimer = null; }
+      if (driverPresenceTimer) { clearInterval(driverPresenceTimer); driverPresenceTimer = null; }
+      if (simulationInterval !== null) { clearInterval(simulationInterval); simulationInterval = null; }
+      if (preTripLocationTimer) { clearInterval(preTripLocationTimer); preTripLocationTimer = null; }
+      if (driverIdleWatchId !== null) { navigator.geolocation.clearWatch(driverIdleWatchId); driverIdleWatchId = null; }
+      driverCurrentGPS = null;
+      if (driverIdleMarker) { driverIdleMarker.remove(); driverIdleMarker = null; }
+      if (driverMap) { driverMap.remove(); driverMap = null; }
+      if (map) { map.remove(); map = null; }
+      localStorage.clear();
+    } catch (e) { console.warn('logout cleanup', e); }
     showAuth();
   }
 
