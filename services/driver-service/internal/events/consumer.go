@@ -165,7 +165,7 @@ func (c *TripConsumer) startResponseTimer(ctx context.Context, tripID, driverID 
 	// Use background context: timerCtx (ctx) must not be cancelled before cleanup finishes.
 	// pi.cancel() would cancel ctx, so we call it last.
 	bgCtx := context.Background()
-	c.service.ClearBusy(bgCtx, driverID)
+	c.service.ClearBusy(bgCtx, driverID, tripID)
 	event.ExcludeDriverIDs = append(event.ExcludeDriverIDs, driverID)
 	_ = c.publishRetry(bgCtx, event)
 	pi.cancel() // release context resources after cleanup
@@ -219,7 +219,7 @@ func (c *TripConsumer) handleDriverResponse(ctx context.Context, payload []byte)
 		}
 	}
 	if msg.Type == "driver.cmd.trip_decline" {
-		c.service.ClearBusy(ctx, data.Driver.ID)
+		c.service.ClearBusy(ctx, data.Driver.ID, data.TripID)
 		return nil
 	}
 	if c.sim != nil && c.autoDrive && accepted != nil {
@@ -270,12 +270,12 @@ func (c *TripConsumer) handleTripCancelled(ctx context.Context, payload []byte) 
 			return nil
 		}
 		pi.cancel() // stop the 15s timer goroutine
-		c.service.ClearBusy(ctx, pi.driverID)
+		c.service.ClearBusy(ctx, pi.driverID, data.TripID)
 		c.log.Infow("trip cancelled (pre-accept)", "trip", data.TripID, "driver", pi.driverID)
 		return nil
 	}
 	if data.DriverID != "" {
-		c.service.ClearBusy(ctx, data.DriverID)
+		c.service.ClearBusy(ctx, data.DriverID, data.TripID)
 		c.log.Infow("trip cancelled (post-accept)", "trip", data.TripID, "driver", data.DriverID)
 		go c.tryMatchFreedDriver(context.Background(), data.DriverID) //nolint:gosec
 	}
@@ -294,7 +294,7 @@ func (c *TripConsumer) handleTripCompleted(ctx context.Context, payload []byte) 
 		return nil
 	}
 	if data.DriverID != "" {
-		c.service.ClearBusy(ctx, data.DriverID)
+		c.service.ClearBusy(ctx, data.DriverID, data.TripID)
 		c.log.Infow("trip completed, driver freed", "trip", data.TripID, "driver", data.DriverID)
 		go c.tryMatchFreedDriver(context.Background(), data.DriverID) //nolint:gosec
 	}
