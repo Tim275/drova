@@ -1335,6 +1335,16 @@
   let riderWsBackoff = 500;
 
   let _riderHeartbeat = null;
+  let _driverHeartbeat = null;   // module-scope so logout() can clear it (was a function-local let → ReferenceError aborted cleanup)
+
+  // Only act on a trip.event.* addressed to the trip we are actually tracking.
+  // Drops stale / replayed / cross-trip events AND events with a missing/mismatched trip_id.
+  function eventForTrip(msg, currentId) {
+    if (!currentId) return false;
+    const tid = (msg && msg.data && msg.data.trip_id != null) ? String(msg.data.trip_id) : '';
+    return tid !== '' && tid === String(currentId);
+  }
+
   async function connectRiderWS() {
     if (ws && ws.readyState === WebSocket.OPEN) return;
     const ticket = await getWsTicket();
@@ -1355,6 +1365,7 @@
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data);
       if (msg.type === 'trip.event.driver_assigned') {
+        if (!eventForTrip(msg, activeTripID)) return;
         const d = msg.data;
         stopNearbyDrivers();
         window.lastAssignedDriver = d;
@@ -1393,6 +1404,7 @@
         if (pickupMarker) pickupMarker.setDraggable(true);
         if (destinationMarker) destinationMarker.setDraggable(true);
       } else if (msg.type === 'trip.event.driver_arrived') {
+        if (!eventForTrip(msg, activeTripID)) return;
         currentTripPhase = 'driver_arrived';
         document.getElementById('arrivalinfo').innerHTML = '';
         setTripStatus('Driver has arrived!', 'Please go to the vehicle.', true);
@@ -1400,11 +1412,13 @@
           map.getSource('route').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: plannedRouteCoords } });
         }
       } else if (msg.type === 'trip.event.in_progress') {
+        if (!eventForTrip(msg, activeTripID)) return;
         currentTripPhase = 'in_progress';
         lastRouteUpdateTime = 0;
         if (previousDriverPos) updateLiveRoute(previousDriverPos.lat, previousDriverPos.lng);
         setTripStatus('Trip in progress...', 'Enjoy the ride!', false);
       } else if (msg.type === 'trip.event.completed') {
+        if (!eventForTrip(msg, activeTripID)) return;
         currentTripPhase = null;
         lastRouteUpdateTime = 0;
         if (plannedRouteCoords && map.getSource('route')) {
@@ -1416,7 +1430,7 @@
         document.getElementById('chatBtnRider').style.display = 'none';
         closeChatWs();
       } else if (msg.type === 'trip.event.cancelled') {
-        if (msg.data && msg.data.trip_id && msg.data.trip_id !== activeTripID) return;
+        if (!eventForTrip(msg, activeTripID)) return;
         setTripStatus('Trip was cancelled.', '', false);
         hideDriverInfoCard();
         activeTripID = null; activeTripDriverID = null;
@@ -1425,7 +1439,7 @@
         document.getElementById('chatBtnRider').style.display = 'none';
         closeChatWs();
       } else if (msg.type === 'trip.event.cancelled_by_driver') {
-        if (msg.data && msg.data.trip_id && msg.data.trip_id !== activeTripID) return;
+        if (!eventForTrip(msg, activeTripID)) return;
         setTripStatus('Driver cancelled the trip.', '', false);
         hideDriverInfoCard();
         activeTripID = null; activeTripDriverID = null;
@@ -1434,6 +1448,7 @@
         document.getElementById('chatBtnRider').style.display = 'none';
         closeChatWs();
       } else if (msg.type === 'driver.cmd.location') {
+        if (!activeTripID || !currentTripPhase) return;   // no ghost car after the ride ends
         const d = msg.data;
         if (!riderDriverMarker) {
           riderDriverMarker = new mapboxgl.Marker({ element: createCarMarkerElement(), anchor: 'center' })
@@ -2159,6 +2174,7 @@
         renderTripOnDriverMap(msg.data);
         showTripRequestInfo(msg.data);
       } else if (msg.type === 'trip.event.cancelled') {
+        if (!eventForTrip(msg, currentTripRequest && currentTripRequest.trip_id)) return;
         // Rider cancelled — go back to waiting state
         document.getElementById('tripRequest').style.display = 'none';
         document.getElementById('tripStatusActions').style.display = 'none';
@@ -2192,6 +2208,7 @@
       } else if (msg.type === 'trip.event.in_progress') {
         setStatus('Trip in progress · driving to destination...');
       } else if (msg.type === 'trip.event.completed') {
+        if (!eventForTrip(msg, currentTripRequest && currentTripRequest.trip_id)) return;
         document.getElementById('tripStatusActions').style.display = 'none';
         document.getElementById('chatBtnDriver').style.display = 'none';
         if (tripPickupMarker) { tripPickupMarker.remove(); tripPickupMarker = null; }
@@ -2209,7 +2226,7 @@
       }
     };
 
-    let _driverHeartbeat = null;
+    _driverHeartbeat = null;
     ws.onopen = () => {
       driverWsBackoff = 500;
       if (_driverHeartbeat) clearInterval(_driverHeartbeat);
@@ -2356,7 +2373,7 @@
   }
 
   function acceptTrip() {
-    if (!currentTripRequest || !ws) return;
+    if (!currentTripRequest || !ws || ws.readyState !== WebSocket.OPEN) { setStatus('Reconnecting — please retry'); return; }
     const riderID = currentTripRequest.user_id;
     const pickup  = currentTripRequest.pickup;      // {lat, lng}
     const route   = currentTripRequest.route || []; // [{lat,lng}] pickup → destination
@@ -2394,7 +2411,7 @@
   }
 
   function declineTrip() {
-    if (!currentTripRequest || !ws) return;
+    if (!currentTripRequest || !ws || ws.readyState !== WebSocket.OPEN) { setStatus('Reconnecting — please retry'); return; }
     ws.send(JSON.stringify({
       type: 'driver.cmd.trip_decline',
       data: { trip_id: currentTripRequest.trip_id, rider_id: currentTripRequest.user_id }
@@ -2745,7 +2762,7 @@
   }
 
   function driverCancelTrip() {
-    if (!currentTripRequest || !ws) return;
+    if (!currentTripRequest || !ws || ws.readyState !== WebSocket.OPEN) { setStatus('Reconnecting — please retry'); return; }
     if (!confirm('Cancel this trip?')) return;
     ws.send(JSON.stringify({
       type: 'driver.cmd.trip_cancel',
