@@ -1395,7 +1395,7 @@
       } else if (msg.type === 'trip.event.driver_arrived') {
         currentTripPhase = 'driver_arrived';
         document.getElementById('arrivalinfo').innerHTML = '';
-        setTripStatus('Driver has arrived!', 'Please go to the vehicle.', false);
+        setTripStatus('Driver has arrived!', 'Please go to the vehicle.', true);
         if (plannedRouteCoords && map.getSource('route')) {
           map.getSource('route').setData({ type: 'Feature', geometry: { type: 'LineString', coordinates: plannedRouteCoords } });
         }
@@ -1416,6 +1416,7 @@
         document.getElementById('chatBtnRider').style.display = 'none';
         closeChatWs();
       } else if (msg.type === 'trip.event.cancelled') {
+        if (msg.data && msg.data.trip_id && msg.data.trip_id !== activeTripID) return;
         setTripStatus('Trip was cancelled.', '', false);
         hideDriverInfoCard();
         activeTripID = null; activeTripDriverID = null;
@@ -1424,6 +1425,7 @@
         document.getElementById('chatBtnRider').style.display = 'none';
         closeChatWs();
       } else if (msg.type === 'trip.event.cancelled_by_driver') {
+        if (msg.data && msg.data.trip_id && msg.data.trip_id !== activeTripID) return;
         setTripStatus('Driver cancelled the trip.', '', false);
         hideDriverInfoCard();
         activeTripID = null; activeTripDriverID = null;
@@ -2439,6 +2441,11 @@
 
   function cancelTrip() {
     if (!activeTripID || !ws || ws.readyState !== WebSocket.OPEN) return;
+    // Bolt-style: once a driver is committed, warn about a possible cancellation fee before cancelling.
+    const feeWarn = currentTripPhase === 'driver_arrived'
+      ? '\n\nThe driver has already arrived — a cancellation fee may apply.'
+      : (activeTripDriverID ? '\n\nA driver is on the way — a cancellation fee may apply.' : '');
+    if (!confirm('Cancel this ride?' + feeWarn)) return;
     ws.send(JSON.stringify({
       type: 'trip.cmd.cancel',
       data: { trip_id: activeTripID, driver_id: activeTripDriverID || '' }
