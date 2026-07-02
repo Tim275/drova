@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"drova/shared/contracts"
 	"drova/shared/messaging"
@@ -28,6 +29,31 @@ func handleNotification(ctx context.Context, payload []byte) error {
 	}
 
 	appLog.Infow("notification", "type", msg.Type, "owner", msg.OwnerID)
+
+	// Record chat participants (rider + driver) so the chat-service can enforce a
+	// trip-participation check on connect. driver_assigned carries both IDs.
+	if msg.Type == messaging.TopicTripDriverAssigned && gatewayRdb != nil {
+		var d struct {
+			ID     string `json:"id"` // driver
+			TripID string `json:"trip_id"`
+		}
+		if json.Unmarshal(msg.Data, &d) == nil && d.TripID != "" {
+			key := "chat:participants:" + d.TripID
+			var members []interface{}
+			if msg.OwnerID != "" {
+				members = append(members, msg.OwnerID) // rider
+			}
+			if d.ID != "" {
+				members = append(members, d.ID) // driver
+			}
+			if len(members) > 0 {
+				if err := gatewayRdb.SAdd(ctx, key, members...).Err(); err != nil {
+					appLog.Warnw("chat participants sadd", "trip", d.TripID, "error", err)
+				}
+				gatewayRdb.Expire(ctx, key, 24*time.Hour)
+			}
+		}
+	}
 
 	wsMsg, err := json.Marshal(contracts.WSMessage{
 		Type: msg.Type,

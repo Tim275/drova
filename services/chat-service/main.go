@@ -188,6 +188,21 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 	senderName = strings.ReplaceAll(strings.ReplaceAll(senderName, "\n", " "), "\r", " ")
 	role = strings.ReplaceAll(strings.ReplaceAll(role, "\n", " "), "\r", " ")
 
+	// IDOR guard: only the trip's rider or driver may open its chat. The gateway records
+	// both participants in Redis on driver_assigned; anyone else is rejected pre-upgrade.
+	if chatRdb != nil {
+		member, err := chatRdb.SIsMember(r.Context(), "chat:participants:"+tripID, userID).Result()
+		if err != nil {
+			appLog.Warnw("chat participant check", "trip", logger.Clean(tripID), zap.Error(err))
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		if !member {
+			http.Error(w, "forbidden: not a trip participant", http.StatusForbidden)
+			return
+		}
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		appLog.Warnw("ws upgrade failed", zap.Error(err))
