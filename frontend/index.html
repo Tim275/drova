@@ -1670,12 +1670,23 @@
     document.getElementById('dsOffline').style.display = 'none';
     document.getElementById('dsOnline').style.display = 'flex';
     connectDriverWS(selectedPkg, name);
+    // watchPosition only fires on movement — a stationary driver would stop sending
+    // pings and let the 30s presence heartbeat expire. Re-send the last known GPS
+    // every 15s so the driver stays matchable. Survives WS reconnects; stopped on offline.
+    if (driverPresenceTimer) clearInterval(driverPresenceTimer);
+    driverPresenceTimer = setInterval(() => {
+      if (ws && ws.readyState === WebSocket.OPEN && driverCurrentGPS) {
+        ws.send(JSON.stringify({ type: 'driver.cmd.location',
+          data: { lat: driverCurrentGPS.latitude, lng: driverCurrentGPS.longitude, rider_id: '' } }));
+      }
+    }, 15000);
   }
 
   function goOfflineDriver() {
     if (locationWatchId !== null) { navigator.geolocation.clearWatch(locationWatchId); locationWatchId = null; }
     if (simulationInterval !== null) { clearInterval(simulationInterval); simulationInterval = null; }
     stopPreTripTracking();
+    if (driverPresenceTimer) { clearInterval(driverPresenceTimer); driverPresenceTimer = null; }
     if (driverReconnectTimer) { clearTimeout(driverReconnectTimer); driverReconnectTimer = null; }
     tripEndPending = false;
     driverReconnectPkg = null;
@@ -1905,6 +1916,7 @@
   let drLastPos = null;   // last real position received from Kafka
   let drLastTime = null;  // timestamp of last real position
   let preTripLocationTimer = null;
+  let driverPresenceTimer = null;
 
   function createFlagMarkerEl(type) {
     const el = document.createElement('div');
