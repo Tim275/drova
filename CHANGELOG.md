@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.7](https://github.com/Tim275/drova/compare/v0.22.6...v0.22.7) (2026-07-02)
+
+
+### Bug Fixes
+
+* driver presence heartbeat ([#273](https://github.com/Tim275/drova/issues/273)) ([9aff1a4](https://github.com/Tim275/drova/commit/9aff1a41d9bfbc18be98df5042d9ba5a9c88bedf))
+
 ## [0.22.6](https://github.com/Tim275/drova/compare/v0.22.5...v0.22.6) (2026-07-01)
 
 
