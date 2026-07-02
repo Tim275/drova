@@ -358,10 +358,18 @@ func (r *pgRepository) GetTripsByDriver(ctx context.Context, driverID string) ([
 	return trips, nil
 }
 
-func (r *pgRepository) RateTrip(ctx context.Context, tripID string, rating int) error {
+func (r *pgRepository) RateTrip(ctx context.Context, tripID, userID string, rating int) error {
 	if rating < 1 || rating > 5 {
 		return fmt.Errorf("invalid rating %d: must be 1–5", rating)
 	}
-	_, err := r.db.Exec(ctx, `UPDATE trips SET rating=$1 WHERE id=$2`, rating, tripID)
-	return err
+	tag, err := r.db.Exec(ctx,
+		`UPDATE trips SET rating=$1 WHERE id=$2 AND user_id=$3 AND status IN ('completed','paid')`,
+		rating, tripID, userID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return fmt.Errorf("trip not found, not owned, or not completed")
+	}
+	return nil
 }

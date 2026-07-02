@@ -126,7 +126,7 @@ func TestRateTrip_StoresRating(t *testing.T) {
 	fare := &domain.RideFareModel{UserID: "u1"}
 	trip, _ := svc.CreateTrip(context.Background(), fare)
 
-	if err := svc.RateTrip(context.Background(), trip.ID, 5); err != nil {
+	if err := svc.RateTrip(context.Background(), trip.ID, "u1", 5); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -138,7 +138,7 @@ func TestRateTrip_StoresRating(t *testing.T) {
 
 func TestRateTrip_NotFound(t *testing.T) {
 	svc := NewService(newFakeRepo(), &noopUsers{}, nil, nil)
-	if err := svc.RateTrip(context.Background(), "bad-id", 3); err == nil {
+	if err := svc.RateTrip(context.Background(), "bad-id", "u1", 3); err == nil {
 		t.Fatal("expected error for unknown trip")
 	}
 }

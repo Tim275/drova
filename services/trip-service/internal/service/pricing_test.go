@@ -126,9 +126,9 @@ func (f *fakeRepo) GetTripsByDriver(_ context.Context, driverID string) ([]*doma
 	}
 	return out, nil
 }
-func (f *fakeRepo) RateTrip(_ context.Context, tripID string, rating int) error {
+func (f *fakeRepo) RateTrip(_ context.Context, tripID, userID string, rating int) error {
 	t, ok := f.trips[tripID]
-	if !ok {
+	if !ok || t.UserID != userID {
 		return errNotFound
 	}
 	t.Rating = rating

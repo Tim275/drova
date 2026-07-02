@@ -55,7 +55,7 @@ type TripRepository interface {
 	ExpireStaleSearching(ctx context.Context, olderThan time.Duration) (int64, error)
 	GetTripsByUser(ctx context.Context, userID string) ([]*TripModel, error)
 	GetTripsByDriver(ctx context.Context, driverID string) ([]*TripModel, error)
-	RateTrip(ctx context.Context, tripID string, rating int) error
+	RateTrip(ctx context.Context, tripID, userID string, rating int) error
 }
 
 type UserInfoProvider interface {
@@ -82,5 +82,5 @@ type TripService interface {
 	ExpireStaleSearching(ctx context.Context, olderThan time.Duration) (int64, error)
 	GetTripsByUser(ctx context.Context, userID string) ([]*TripModel, error)
 	GetTripsByDriver(ctx context.Context, driverID string) ([]*TripModel, error)
-	RateTrip(ctx context.Context, tripID string, rating int) error
+	RateTrip(ctx context.Context, tripID, userID string, rating int) error
 }
