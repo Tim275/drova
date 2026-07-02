@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.8](https://github.com/Tim275/drova/compare/v0.22.7...v0.22.8) (2026-07-02)
+
+
+### Bug Fixes
+
+* logout instant view switch ([#275](https://github.com/Tim275/drova/issues/275)) ([968396e](https://github.com/Tim275/drova/commit/968396ecdc67c37889c9b6d5a13dd9f871d41ee3))
+
 ## [0.22.7](https://github.com/Tim275/drova/compare/v0.22.6...v0.22.7) (2026-07-02)
 
 
