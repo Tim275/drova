@@ -206,8 +206,8 @@ func (s *service) GetTripsByDriver(ctx context.Context, driverID string) ([]*dom
 	return s.repo.GetTripsByDriver(ctx, driverID)
 }
 
-func (s *service) RateTrip(ctx context.Context, tripID string, rating int) error {
-	return s.repo.RateTrip(ctx, tripID, rating)
+func (s *service) RateTrip(ctx context.Context, tripID, userID string, rating int) error {
+	return s.repo.RateTrip(ctx, tripID, userID, rating)
 }
 
 func (s *service) GetAndValidateFare(ctx context.Context, fareID, userID string) (*domain.RideFareModel, error) {

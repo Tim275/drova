@@ -30,6 +30,7 @@ import (
 	"github.com/stripe/stripe-go/v81/webhook"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -373,10 +374,16 @@ func handleTripRate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
+	claims := claimsFromContext(r.Context())
+	if claims == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
 
 	_, err := grpc_clients.TripBreaker.Execute(func() (interface{}, error) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
+		ctx = metadata.AppendToOutgoingContext(ctx, "user-id", fmt.Sprintf("%d", claims.UserID))
 		_, err := grpc_clients.TripClient.RateTrip(ctx, &pbt.RateTripRequest{TripID: req.TripID, Rating: req.Rating})
 		return nil, err
 	})

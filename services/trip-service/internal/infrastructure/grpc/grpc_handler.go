@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -133,7 +134,13 @@ func (h *gRPCHandler) GetTripsByDriver(ctx context.Context, req *pb.GetTripsRequ
 }
 
 func (h *gRPCHandler) RateTrip(ctx context.Context, req *pb.RateTripRequest) (*pb.RateTripResponse, error) {
-	if err := h.service.RateTrip(ctx, req.GetTripID(), int(req.GetRating())); err != nil {
+	userID := ""
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if v := md.Get("user-id"); len(v) > 0 {
+			userID = v[0]
+		}
+	}
+	if err := h.service.RateTrip(ctx, req.GetTripID(), userID, int(req.GetRating())); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "rate trip: %v", err)
 	}
 	return &pb.RateTripResponse{}, nil

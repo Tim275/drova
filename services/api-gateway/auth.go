@@ -14,6 +14,10 @@ import (
 
 var jwtSecret = []byte(env.GetString("JWT_SECRET", ""))
 
+// In production a WS upgrade must use the single-use ticket. The raw ?token= JWT
+// fallback is reusable until expiry and leaks into URL/access logs, so it is dev/e2e-only.
+var wsRequireTicket = env.GetString("ENVIRONMENT", "development") != "development"
+
 type ctxKey int
 
 const claimsKey ctxKey = 0
@@ -117,6 +121,9 @@ func resolveWSAuth(r *http.Request) (*gatewayClaims, error) {
 			return nil, errors.New("token revoked")
 		}
 		return claims, nil
+	}
+	if wsRequireTicket {
+		return nil, errors.New("ticket required")
 	}
 	tokenStr := r.URL.Query().Get("token")
 	if tokenStr == "" {

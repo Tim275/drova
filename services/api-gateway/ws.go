@@ -193,6 +193,12 @@ func handleDriversWebSocket(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "userID mismatch", http.StatusUnauthorized)
 		return
 	}
+	// Only driver accounts may register into the dispatch pool — a rider opening the
+	// driver channel would otherwise receive and accept trip requests (broken access control).
+	if claims.Role != "driver" {
+		http.Error(w, "forbidden: driver role required", http.StatusForbidden)
+		return
+	}
 	userID := fmt.Sprintf("%d", claims.UserID)
 	if !numericIDRe.MatchString(userID) {
 		http.Error(w, "invalid userID", http.StatusInternalServerError)
