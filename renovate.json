@@ -59,6 +59,18 @@
     "custom.regex"
   ],
 
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "KEDA CRD version pinned in the e2e workflow (keep in sync with deployed KEDA)",
+      "fileMatch": ["^\\.github/workflows/e2e-tests\\.yaml$"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z-]+) depName=(?<depName>\\S+)\\s+KEDA_VERSION=(?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "github-releases"
+    }
+  ],
+
   "postUpdateOptions": [
     "gomodTidy",
     "gomodUpdateImportPaths"
