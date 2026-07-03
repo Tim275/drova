@@ -21,7 +21,7 @@ func (m *mockDriverSvc) FindAvailableDrivers(_ context.Context, _ string, _, _ f
 	return nil
 }
 func (m *mockDriverSvc) SetBusy(_ context.Context, _, _ string) {}
-func (m *mockDriverSvc) ClearBusy(_ context.Context, driverID string) {
+func (m *mockDriverSvc) ClearBusy(_ context.Context, driverID, _ string) {
 	m.clearBusyCalled = true
 	m.clearBusyID = driverID
 }

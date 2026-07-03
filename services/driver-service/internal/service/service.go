@@ -221,9 +221,23 @@ func (s *Service) SetBusy(ctx context.Context, driverID, tripID string) {
 	}
 }
 
-func (s *Service) ClearBusy(ctx context.Context, driverID string) {
-	if err := s.rdb.HSet(ctx, driverKey(driverID), "busy", "").Err(); err != nil {
-		s.log.Warnw("ClearBusy failed", "driver", driverID, zap.Error(err))
+// clearBusyScript atomically frees a driver only if they are still marked busy with the
+// given trip. A stale/duplicate terminal event for an old trip must not free a driver who
+// has since been assigned a new one (double-booking guard).
+var clearBusyScript = redis.NewScript(`
+if redis.call('HGET', KEYS[1], 'busy') == ARGV[1] then
+	redis.call('HSET', KEYS[1], 'busy', '')
+	return 1
+end
+return 0
+`)
+
+func (s *Service) ClearBusy(ctx context.Context, driverID, tripID string) {
+	if tripID == "" {
+		return
+	}
+	if err := clearBusyScript.Run(ctx, s.rdb, []string{driverKey(driverID)}, tripID).Err(); err != nil && err != redis.Nil {
+		s.log.Warnw("ClearBusy failed", "driver", driverID, "trip", tripID, zap.Error(err))
 	}
 }
 

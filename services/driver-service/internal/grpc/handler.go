@@ -38,7 +38,7 @@ func (h *driverGrpcHandler) RegisterDriver(ctx context.Context, req *pb.Register
 		if !h.consumer.ExtendTimerForDriver(ctx, busyTripID, req.GetDriverID()) {
 			// No pending timer — service restarted or trip already resolved.
 			// Clear stale busy state so the driver is immediately available.
-			h.service.ClearBusy(ctx, req.GetDriverID())
+			h.service.ClearBusy(ctx, req.GetDriverID(), busyTripID)
 			busyTripID = ""
 		}
 	}

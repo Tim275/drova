@@ -134,7 +134,7 @@ func TestBusyLifecycle(t *testing.T) {
 	if got := svc.GetBusyTripID(ctx, "d1"); got != "trip-7" {
 		t.Errorf("want trip-7, got %q", got)
 	}
-	svc.ClearBusy(ctx, "d1")
+	svc.ClearBusy(ctx, "d1", "trip-7")
 	if got := svc.GetBusyTripID(ctx, "d1"); got != "" {
 		t.Errorf("want empty after clear, got %q", got)
 	}

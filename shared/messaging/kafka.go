@@ -308,10 +308,23 @@ func (k *Kafka) consumeLoop(ctx context.Context, topic, groupID string, handler 
 
 		if handlerErr != nil {
 			log.Printf("handler failed for topic %s: %v — routing to retry-1", topic, handlerErr)
-			if retryErr := k.publishToRetry(ctx, msg, groupID, 1, handlerErr); retryErr != nil {
-				// publishToRetry can fail if the payload is not valid JSON (e.g. a completely
-				// malformed message). Commit and skip rather than looping forever.
-				log.Printf("failed to publish to retry-1 for topic %s: %v — committing to avoid infinite redelivery", topic, retryErr)
+			// The retry envelope wraps the raw payload, so a failure here is a transient Kafka
+			// write error (not a malformed message). Retry a few times before committing so a
+			// brief broker blip does not silently drop the message.
+			var retryErr error
+			for attempt := 0; attempt < 3; attempt++ {
+				if retryErr = k.publishToRetry(ctx, msg, groupID, 1, handlerErr); retryErr == nil {
+					break
+				}
+				log.Printf("retry-publish attempt %d failed for topic %s: %v", attempt+1, topic, retryErr)
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(time.Duration(attempt+1) * 200 * time.Millisecond):
+				}
+			}
+			if retryErr != nil {
+				log.Printf("retry-publish gave up for topic %s: %v — committing to avoid consumer stall", topic, retryErr)
 			}
 		}
 

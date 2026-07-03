@@ -14,5 +14,5 @@ type DriverStore interface {
 type DriverServicer interface {
 	FindAvailableDrivers(ctx context.Context, packageSlug string, lat, lng float64, exclude []string) []*pb.Driver
 	SetBusy(ctx context.Context, driverID, tripID string)
-	ClearBusy(ctx context.Context, driverID string)
+	ClearBusy(ctx context.Context, driverID, tripID string)
 }
