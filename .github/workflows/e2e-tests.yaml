@@ -8,6 +8,11 @@ on:
         type: string
         default: ""
         description: "Image tag aus GHCR (leer = lokal bauen für PR)"
+      run_full_scan:
+        required: false
+        type: boolean
+        default: false
+        description: "true = zusätzlich ZAP Active/Full Scan (langsam, greift an) — nur manuell/geplant, nicht im PR-Gate"
     secrets:
       GITOPS_PAT:
         required: true
@@ -239,6 +244,20 @@ jobs:
             -r zap-report.html \
             -J zap-report.json \
             -I
+
+      - name: OWASP ZAP Active/Full Scan (nur bei run_full_scan)
+        if: ${{ inputs.run_full_scan }}
+        run: |
+          # Aktiver Angriff (SQL-Injection, XSS, Path-Traversal) gegen den
+          # wegwerfbaren k3d. -I + || true → informierend, blockt nie.
+          docker run --network host \
+            -v "$(pwd)/zap-report:/zap/wrk/:rw" \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-full-scan.py \
+            -t http://localhost:8081 \
+            -r zap-full-report.html \
+            -J zap-full-report.json \
+            -I || true
 
       - name: Upload ZAP report
         if: always()
