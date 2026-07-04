@@ -1,0 +1,22 @@
+# ZAP Rules-File — Severity-Schwellen für den Baseline-Scan.
+# Format (Tab-getrennt):  <ruleId>	<WARN|FAIL|IGNORE>	<Kommentar>
+#
+# Aktivieren im ZAP-Step (e2e-tests.yaml), sobald die Report-IDs gegen einen
+# echten Lauf bestätigt sind:
+#   -v "$(pwd)/.zap:/zap/wrk/.zap:ro"   (Rules mounten)
+#   zap-baseline.py -t http://localhost:8081 ... -c /zap/wrk/.zap/rules.tsv
+# Die IDs sind die Standard-ZAP-Passive-Scan-Regeln — gegen die erste
+# zap-report.json abgleichen, IDs können je nach ZAP-Version variieren.
+
+10038	FAIL	# Content-Security-Policy Header fehlt — muss gesetzt sein
+10011	FAIL	# Cookie ohne Secure-Flag
+10010	FAIL	# Cookie ohne HttpOnly-Flag
+10054	FAIL	# Cookie ohne SameSite-Attribut
+10035	WARN	# Strict-Transport-Security (HSTS) Header fehlt
+10020	WARN	# X-Frame-Options Header fehlt
+10021	WARN	# X-Content-Type-Options Header fehlt
+10015	WARN	# fehlende/unvollständige Cache-Control auf sensiblen Antworten
+90022	WARN	# Application Error Disclosure
+10096	IGNORE	# Timestamp Disclosure — zu viele False-Positives
+10027	IGNORE	# Information Disclosure: Suspicious Comments — rauschig
+10109	IGNORE	# Modern Web Application — informativ, kein Finding

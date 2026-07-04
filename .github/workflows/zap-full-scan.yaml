@@ -1,0 +1,24 @@
+name: ZAP Full Scan (Active DAST)
+
+# Aktiver Sicherheits-Scan (Active Scan) — greift die App aktiv an: SQL-Injection,
+# XSS, Path-Traversal etc. gegen den wegwerfbaren k3d-Cluster. Bewusst NICHT im
+# PR-Gate (zu langsam), sondern on-demand + wöchentlich. Ruft dieselbe e2e-Pipeline
+# mit run_full_scan=true auf (kein dupliziertes Setup).
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 3 * * 1"   # jeden Montag 03:00 UTC
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  full-scan:
+    uses: ./.github/workflows/e2e-tests.yaml
+    with:
+      run_full_scan: true
+    secrets:
+      GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
+      MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
