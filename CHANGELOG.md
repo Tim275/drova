@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.22.10](https://github.com/Tim275/drova/compare/v0.22.9...v0.22.10) (2026-07-03)
+
+
+### Bug Fixes
+
+* authz hardening ([#281](https://github.com/Tim275/drova/issues/281)) ([b530b4e](https://github.com/Tim275/drova/commit/b530b4e899a46f94efda5e2eb1b6abee03bfe749))
+* backend idempotency ([#282](https://github.com/Tim275/drova/issues/282)) ([62ee710](https://github.com/Tim275/drova/commit/62ee7109c6a9bcc6b6a7c077007ab507776a8a2d))
+* consistent trip-event guards ([#279](https://github.com/Tim275/drova/issues/279)) ([7bb0f10](https://github.com/Tim275/drova/commit/7bb0f10f6ebba93e2bac3b42002b839a73b44aa6))
+
 ## [0.22.9](https://github.com/Tim275/drova/compare/v0.22.8...v0.22.9) (2026-07-02)
 
 
