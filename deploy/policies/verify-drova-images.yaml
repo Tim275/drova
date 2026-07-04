@@ -1,0 +1,52 @@
+# Deploy-Zeit-Gate: nur von der Drova-Release-Pipeline keyless signierte Images
+# dürfen im Cluster laufen. Schließt die Lücke "Image liegt in GHCR" → "Image läuft im Pod".
+# Ergänzt das Signieren aus docker-build-push.yaml (Cosign keyless) um die Durchsetzung.
+#
+# DIESE DATEI GEHÖRT NACH drova-gitops (Cluster-Admission), nicht in dieses App-Repo —
+# hier nur als Referenz-Artefakt. Vor dem Aktivieren:
+#   1. Kyverno muss im Cluster installiert sein (CRDs + Controller). Ohne Controller
+#      bricht ein ArgoCD-Sync an dieser unbekannten Kind.
+#   2. validationFailureAction bleibt AUDIT, bis die PolicyReports sauber sind. Erst
+#      dann auf Enforce — sonst blockt eine Fehlkonfig ALLE drova-Pods (fail-closed).
+#   3. Der Cluster braucht Egress zu Rekor/Fulcio (sigstore.dev) für die Verifikation.
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-drova-images
+  annotations:
+    policies.kyverno.io/title: Verify Drova Image Signatures
+    policies.kyverno.io/category: Supply Chain Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/description: >-
+      Erzwingt Cosign-keyless-Signaturen (GitHub OIDC) für alle
+      ghcr.io/tim275/drova/*-Images im drova-Namespace.
+spec:
+  validationFailureAction: Audit      # ZUERST Audit. Erst nach sauberen Reports auf Enforce.
+  webhookTimeoutSeconds: 30
+  failurePolicy: Fail
+  background: false                    # verifyImages braucht den Admission-Kontext
+  rules:
+    - name: verify-cosign-keyless
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+              namespaces:
+                - drova
+      verifyImages:
+        - imageReferences:
+            - "ghcr.io/tim275/drova/*"
+          mutateDigest: true          # Tag → unveränderlichen Digest festschreiben
+          verifyDigest: true
+          required: true
+          attestors:
+            - count: 1
+              entries:
+                - keyless:
+                    # Identität aus dem Signier-Schritt in docker-build-push.yaml
+                    # (getriggert on: push tags v* → Subject = Workflow-Ref @ refs/tags/*)
+                    subject: "https://github.com/Tim275/drova/.github/workflows/docker-build-push.yaml@refs/tags/*"
+                    issuer: "https://token.actions.githubusercontent.com"
+                    rekor:
+                      url: https://rekor.sigstore.dev
