@@ -1,4 +1,4 @@
-FROM golang:1.26-alpine@sha256:103c743516b0d9dd69c203ed64f730eb342cae4b85d3f6c5cb376d91abbc6bcb AS builder
+FROM golang:1.26-alpine@sha256:111d79159b2326f7e80c4a4706e1ba166acb0e2611df853955f3621828cd49e8 AS builder
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
