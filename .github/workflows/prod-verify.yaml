@@ -9,11 +9,12 @@ on:
         description: "Tag that was deployed (e.g. v0.16.0) — used for rollback if needed"
   repository_dispatch:
     types: [production-deployed]
-    # Payload: { "tag": "v0.16.0" }
+    # Kein Tag im Payload noetig: der Rollback-Schritt liest den deployten Tag
+    # direkt aus dem gitops-Manifest, das er ohnehin auscheckt.
     # Trigger from drova-gitops PostSync hook:
     #   curl -X POST https://api.github.com/repos/Tim275/drova/dispatches \
     #     -H "Authorization: Bearer $DROVA_PAT" \
-    #     -d '{"event_type":"production-deployed","client_payload":{"tag":"v0.16.0"}}'
+    #     -d '{"event_type":"production-deployed","client_payload":{"deployed_at":"..."}}'
 
 permissions:
   contents: write
@@ -26,7 +27,10 @@ jobs:
     name: Smoke + Rollback if unhealthy
     runs-on: ubuntu-latest
     env:
-      DEPLOY_TAG: ${{ github.event.inputs.tag || github.event.client_payload.tag }}
+      # Manueller Lauf (workflow_dispatch): Tag aus dem Input.
+      # Auto-Lauf (repository_dispatch): leer → wird im Rollback-Schritt direkt
+      # aus dem deployten gitops-Manifest gelesen. Kein Payload-Tag noetig.
+      DEPLOY_TAG: ${{ github.event.inputs.tag }}
 
     steps:
       - name: Poll production health
@@ -109,28 +113,31 @@ jobs:
           git config user.name "GitOps Bot"
           git config user.email "gitops-bot@github.com"
 
-          # Target the exact deploy commit for THIS tag — not blind HEAD.
-          # A parallel commit (e.g. a staging bump from the next release) could
-          # otherwise sit on top, and `git revert HEAD` would undo the wrong thing.
+          # Tag des laufenden Deploys ermitteln: bei manuellem Lauf aus dem Input,
+          # sonst direkt aus dem gerade ausgecheckten Prod-Manifest lesen.
+          # Single source of truth = was in Git steht; kein Dispatch-Payload noetig.
+          if [ -z "$DEPLOY_TAG" ]; then
+            DEPLOY_TAG=$(grep -m1 'newTag:' overlays/production/kustomization.yaml | awk '{print $2}')
+            echo "Tag aus overlays/production/kustomization.yaml gelesen: ${DEPLOY_TAG:-<leer>}"
+          fi
+          if [ -z "$DEPLOY_TAG" ]; then
+            echo "❌ Deploy-Tag nicht ermittelbar (weder Input noch Manifest) — Rollback ABGEBROCHEN."
+            exit 1
+          fi
+
+          # Exakten Deploy-Commit fuer DIESEN Tag treffen — nicht blind HEAD.
+          # Ein paralleler Commit (z.B. Staging-Bump des naechsten Release) koennte
+          # sonst obendrauf sitzen und `git revert HEAD` das Falsche zuruecknehmen.
           TARGET=$(git log --format="%H %s" -30 \
             | grep -iE "update drova images to ${DEPLOY_TAG}([^0-9]|$)|deploy ${DEPLOY_TAG} to production" \
             | head -1 | awk '{print $1}')
-
-          if [ -z "$DEPLOY_TAG" ]; then
-            echo "❌ DEPLOY_TAG ist leer — der PostSync-Hook sendet kein 'tag' im client_payload."
-            echo "   Ohne Tag ist der richtige Deploy-Commit nicht bestimmbar; ein blindes"
-            echo "   'revert HEAD' würde womöglich den falschen Commit zurücknehmen."
-            echo "   → Rollback ABGEBROCHEN. Manueller Eingriff nötig."
-            exit 1
-          fi
 
           if [ -z "$TARGET" ]; then
             echo "❌ Kein Deploy-Commit für ${DEPLOY_TAG} in den letzten 30 Commits gefunden."
             echo "   → Rollback ABGEBROCHEN (kein blindes HEAD-Revert)."
             exit 1
-          else
-            echo "Reverting deploy commit ${TARGET} for ${DEPLOY_TAG}"
           fi
+          echo "Reverting deploy commit ${TARGET} for ${DEPLOY_TAG}"
 
           if ! git revert --no-edit "$TARGET"; then
             echo "❌ Revert conflicted — manual rollback required for ${DEPLOY_TAG}"
@@ -143,7 +150,7 @@ jobs:
       - name: Write job summary
         if: always()
         run: |
-          echo "## Production Verify — ${DEPLOY_TAG:-⚠ kein Tag im Dispatch-Payload}" >> $GITHUB_STEP_SUMMARY
+          echo "## Production Verify" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Schritt | Ergebnis |" >> $GITHUB_STEP_SUMMARY
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
