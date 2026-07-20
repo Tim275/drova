@@ -78,6 +78,10 @@
     "gomodUpdateImportPaths"
   ],
 
+  "constraints": {
+    "go": "1.25"
+  },
+
   "ignorePaths": [
     "**/vendor/**",
     "**/node_modules/**",
