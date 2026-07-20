@@ -1,0 +1,13 @@
+# Prod/E2E-Parity: der Homelab-Cluster liefert PriorityClasses über die
+# Platform-Schicht, der ephemere k3d nicht. Ohne sie lehnt der API-Server
+# JEDE Pod-Erstellung mit priorityClassName ab
+# ("no PriorityClass with name app-standard was found") — das ReplicaSet
+# erzeugt dann 0 Pods (kein Pod-Objekt, keine Events auf Pod-Ebene) und
+# `kubectl rollout status` läuft stumm in den Timeout.
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: app-standard
+value: 1000
+globalDefault: false
+description: "Standard priority for Drova app workloads (e2e parity with homelab)"
