@@ -272,6 +272,16 @@ jobs:
         run: |
           echo "=== all pods ==="
           kubectl get pods -n drova-e2e || true
+          # Erzeugt ein Deployment NULL Pods (nicht mal Pending), sind sämtliche Pod-Logs
+          # und -describes leer — die Ursache steht dann nur auf Workload-/Event-Ebene.
+          echo "=== workloads (deploy/rs/sts) ==="
+          kubectl get deploy,rs,statefulset -n drova-e2e -o wide || true
+          echo "=== events ==="
+          kubectl get events -n drova-e2e --sort-by=.lastTimestamp 2>/dev/null | tail -40 || true
+          echo "=== deployments describe ==="
+          kubectl describe deploy -n drova-e2e 2>/dev/null | tail -60 || true
+          echo "=== replicasets describe (FailedCreate steht hier) ==="
+          kubectl describe rs -n drova-e2e 2>/dev/null | tail -40 || true
           echo "=== argo-rollouts controller logs ==="
           kubectl logs -n argo-rollouts -l app.kubernetes.io/name=argo-rollouts --tail=30 || true
           echo "=== api-gateway rollout ==="
