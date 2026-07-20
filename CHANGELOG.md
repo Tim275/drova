@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.13](https://github.com/Tim275/drova/compare/v0.22.12...v0.22.13) (2026-07-20)
+
+
+### Bug Fixes
+
+* migration retry on db blip ([#288](https://github.com/Tim275/drova/issues/288)) ([5ddc270](https://github.com/Tim275/drova/commit/5ddc2703ceb9a4045c1ef8a129db4fd4892b1e51))
+
 ## [0.22.12](https://github.com/Tim275/drova/compare/v0.22.11...v0.22.12) (2026-07-20)
 
 
