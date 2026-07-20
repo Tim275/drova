@@ -272,6 +272,16 @@ jobs:
         run: |
           echo "=== all pods ==="
           kubectl get pods -n drova-e2e || true
+          # Workload-Ebene ZUERST: darf ein ReplicaSet gar keinen Pod erzeugen
+          # (Admission, fehlende PriorityClass, Quota), bleiben alle Pod-Diagnosen
+          # unten leer ("No resources found") — der Grund steht dann ausschliesslich
+          # in den ReplicaSet-Events.
+          echo "=== deployments + replicasets (desired vs current) ==="
+          kubectl get deploy,rs -n drova-e2e -o wide || true
+          echo "=== events (Admission-/Scheduling-Fehler landen HIER) ==="
+          kubectl get events -n drova-e2e --sort-by=.lastTimestamp | tail -40 || true
+          echo "=== replicaset describe (warum entstehen keine Pods?) ==="
+          kubectl describe rs -n drova-e2e | tail -60 || true
           echo "=== argo-rollouts controller logs ==="
           kubectl logs -n argo-rollouts -l app.kubernetes.io/name=argo-rollouts --tail=30 || true
           echo "=== api-gateway rollout ==="
