@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.12](https://github.com/Tim275/drova/compare/v0.22.11...v0.22.12) (2026-07-20)
+
+
+### Bug Fixes
+
+* bump go 1.25.12 ([#293](https://github.com/Tim275/drova/issues/293)) ([1f4a7f3](https://github.com/Tim275/drova/commit/1f4a7f3e92f7c409f54adf32d4fe68878299f28e))
+
 ## [0.22.11](https://github.com/Tim275/drova/compare/v0.22.10...v0.22.11) (2026-07-15)
 
 
