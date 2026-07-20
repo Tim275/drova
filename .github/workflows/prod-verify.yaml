@@ -66,45 +66,8 @@ jobs:
           echo "❌ Production not healthy after ${MAX}s"
           exit 1
 
-      - name: Checkout GitOps repository
-        if: failure() && steps.prod_health.conclusion == 'failure'
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          repository: Tim275/drova-gitops
-          token: ${{ secrets.GITOPS_PAT }}
-          ref: main
-          path: drova-gitops
-
-      - name: Rollback production
-        if: failure() && steps.prod_health.conclusion == 'failure'
-        run: |
-          cd drova-gitops
-          git config user.name "GitOps Bot"
-          git config user.email "gitops-bot@github.com"
-
-          # Target the exact deploy commit for THIS tag — not blind HEAD.
-          # A parallel commit (e.g. a staging bump from the next release) could
-          # otherwise sit on top, and `git revert HEAD` would undo the wrong thing.
-          TARGET=$(git log --format="%H %s" -30 \
-            | grep -iE "update drova images to ${DEPLOY_TAG}([^0-9]|$)|deploy ${DEPLOY_TAG} to production" \
-            | head -1 | awk '{print $1}')
-
-          if [ -z "$TARGET" ]; then
-            echo "⚠ No deploy commit found for ${DEPLOY_TAG} — falling back to HEAD"
-            TARGET=HEAD
-          else
-            echo "Reverting deploy commit ${TARGET} for ${DEPLOY_TAG}"
-          fi
-
-          if ! git revert --no-edit "$TARGET"; then
-            echo "❌ Revert conflicted — manual rollback required for ${DEPLOY_TAG}"
-            git revert --abort || true
-            exit 1
-          fi
-          git push
-          echo "❌ Production rolled back — reverted ${TARGET} (${DEPLOY_TAG}) in drova-gitops"
-
       - name: Integration smoke tests
+        id: smoke
         env:
           # Seeded smoke user — strong password from a Sealed Secret, never in git.
           # The public "Test1234!" no longer works against prod.
@@ -130,13 +93,65 @@ jobs:
 
           echo "All production smoke tests passed ✓"
 
+      - name: Checkout GitOps repository
+        if: failure() && (steps.prod_health.conclusion == 'failure' || steps.smoke.conclusion == 'failure')
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: Tim275/drova-gitops
+          token: ${{ secrets.GITOPS_PAT }}
+          ref: main
+          path: drova-gitops
+
+      - name: Rollback production
+        if: failure() && (steps.prod_health.conclusion == 'failure' || steps.smoke.conclusion == 'failure')
+        run: |
+          cd drova-gitops
+          git config user.name "GitOps Bot"
+          git config user.email "gitops-bot@github.com"
+
+          # Target the exact deploy commit for THIS tag — not blind HEAD.
+          # A parallel commit (e.g. a staging bump from the next release) could
+          # otherwise sit on top, and `git revert HEAD` would undo the wrong thing.
+          TARGET=$(git log --format="%H %s" -30 \
+            | grep -iE "update drova images to ${DEPLOY_TAG}([^0-9]|$)|deploy ${DEPLOY_TAG} to production" \
+            | head -1 | awk '{print $1}')
+
+          if [ -z "$DEPLOY_TAG" ]; then
+            echo "❌ DEPLOY_TAG ist leer — der PostSync-Hook sendet kein 'tag' im client_payload."
+            echo "   Ohne Tag ist der richtige Deploy-Commit nicht bestimmbar; ein blindes"
+            echo "   'revert HEAD' würde womöglich den falschen Commit zurücknehmen."
+            echo "   → Rollback ABGEBROCHEN. Manueller Eingriff nötig."
+            exit 1
+          fi
+
+          if [ -z "$TARGET" ]; then
+            echo "❌ Kein Deploy-Commit für ${DEPLOY_TAG} in den letzten 30 Commits gefunden."
+            echo "   → Rollback ABGEBROCHEN (kein blindes HEAD-Revert)."
+            exit 1
+          else
+            echo "Reverting deploy commit ${TARGET} for ${DEPLOY_TAG}"
+          fi
+
+          if ! git revert --no-edit "$TARGET"; then
+            echo "❌ Revert conflicted — manual rollback required for ${DEPLOY_TAG}"
+            git revert --abort || true
+            exit 1
+          fi
+          git push
+          echo "❌ Production rolled back — reverted ${TARGET} (${DEPLOY_TAG}) in drova-gitops"
+
       - name: Write job summary
         if: always()
         run: |
-          echo "## Production Verify — ${DEPLOY_TAG}" >> $GITHUB_STEP_SUMMARY
+          echo "## Production Verify — ${DEPLOY_TAG:-⚠ kein Tag im Dispatch-Payload}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.prod_health.conclusion }}" = "success" ]; then
-            echo "✅ Production healthy — smoke tests passed" >> $GITHUB_STEP_SUMMARY
+          echo "| Schritt | Ergebnis |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| Health-Poll | ${{ steps.prod_health.conclusion }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Smoke-Tests | ${{ steps.smoke.conclusion }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ Production gesund — Health-Poll UND Smoke-Tests bestanden" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ Production unhealthy — rollback triggered" >> $GITHUB_STEP_SUMMARY
+            echo "❌ Production NICHT gesund — siehe Tabelle oben" >> $GITHUB_STEP_SUMMARY
           fi
