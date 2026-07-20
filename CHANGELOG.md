@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.22.11](https://github.com/Tim275/drova/compare/v0.22.10...v0.22.11) (2026-07-15)
+
+
+### Bug Fixes
+
+* **deps:** update golang:1.26-alpine docker digest to 111d791 ([#217](https://github.com/Tim275/drova/issues/217)) ([67e54de](https://github.com/Tim275/drova/commit/67e54de0c4b97d31c26672b78ca0172ef1829eed))
+* **deps:** update module golang.org/x/crypto to v0.53.0 ([#270](https://github.com/Tim275/drova/issues/270)) ([61f1baa](https://github.com/Tim275/drova/commit/61f1baa7cdd10583f61dd56f751e64c677c1011d))
+
 ## [0.22.10](https://github.com/Tim275/drova/compare/v0.22.9...v0.22.10) (2026-07-03)
 
 
