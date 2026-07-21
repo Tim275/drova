@@ -59,6 +59,19 @@ jobs:
         with:
           recursive: true
 
+      # Workflows selbst linten: fängt Referenzen auf nicht existierende Steps,
+      # kaputte Expressions und shellcheck-Fehler in run-Blöcken — genau die
+      # Bug-Klasse, die in prod-verify 2 Monate unentdeckt blieb (falsche
+      # steps.*-Referenz meldete jeden Failure als Erfolg).
+      # :info:/:style: = shellcheck-Stilhinweise (25 Bestandsfälle), bewusst
+      # nicht blockend. Warnings, Errors und alle actionlint-nativen Checks
+      # (Step-Referenzen, Expressions, Syntax) blocken hart.
+      # docker://-Pin statt curl|bash: Renovate bumpt den Tag wie jede Action.
+      - name: Lint workflows (actionlint)
+        uses: docker://rhysd/actionlint:1.7.7
+        with:
+          args: -color -ignore ':info:' -ignore ':style:'
+
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
