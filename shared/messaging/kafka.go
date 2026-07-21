@@ -74,6 +74,7 @@ func NewKafka(brokers []string) *Kafka {
 	writer := &kafka.Writer{
 		Addr:                   kafka.TCP(brokers...),
 		Balancer:               &kafka.Murmur2Balancer{},
+		RequiredAcks:           kafka.RequireAll,
 		AllowAutoTopicCreation: false,
 		Transport:              transport,
 	}
