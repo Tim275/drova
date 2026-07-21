@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.14](https://github.com/Tim275/drova/compare/v0.22.13...v0.22.14) (2026-07-21)
+
+
+### Bug Fixes
+
+* cosign legacy signature format ([#289](https://github.com/Tim275/drova/issues/289)) ([dd4a727](https://github.com/Tim275/drova/commit/dd4a727352f5f0fd335ba8a88909210dddc1a0c1))
+
 ## [0.22.13](https://github.com/Tim275/drova/compare/v0.22.12...v0.22.13) (2026-07-20)
 
 
