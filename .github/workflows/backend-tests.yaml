@@ -72,7 +72,7 @@ jobs:
         with:
           # KEINE Quotes: docker://-Actions haben keine Shell — Quotes würden
           # wörtlich Teil der Regex und der Ignore-Filter griffe nie.
-          args: -color -ignore :info: -ignore :style:
+          args: "-color -ignore :info: -ignore :style:"
 
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
