@@ -1,12 +1,19 @@
 package mailer
 
 import (
+	"context"
+	"sync"
+
 	"crypto/tls"
 	"fmt"
 	"net"
 	"net/smtp"
 	"os"
 	"strings"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 type Mailer struct {
@@ -51,7 +58,35 @@ func (a *loginAuth) Next(fromServer []byte, more bool) ([]byte, error) {
 	}
 }
 
+// Mail metrics — same lazy-init pattern as shared/tracing kafka metrics.
+// Prometheus sees: mail_send_total{status="ok|error"}. Der Tiago-Incident
+// (Mail-Fehler nur als warn-Log, 3 gestapelte Ursachen unbemerkt) ist der
+// Grund: Fehler muessen zaehlbar + alarmierbar sein.
+var (
+	mailMetricsOnce sync.Once
+	mailSends       metric.Int64Counter
+)
+
+func recordMailSend(err error) {
+	mailMetricsOnce.Do(func() {
+		meter := otel.Meter("drova/mailer")
+		mailSends, _ = meter.Int64Counter("mail.send.total",
+			metric.WithDescription("Activation emails attempted (status=ok|error)"))
+	})
+	status := "ok"
+	if err != nil {
+		status = "error"
+	}
+	mailSends.Add(context.Background(), 1, metric.WithAttributes(attribute.String("status", status)))
+}
+
 func (m *Mailer) SendActivation(toEmail, token string) error {
+	err := m.sendActivation(toEmail, token)
+	recordMailSend(err)
+	return err
+}
+
+func (m *Mailer) sendActivation(toEmail, token string) error {
 	toEmail = strings.ReplaceAll(strings.ReplaceAll(toEmail, "\r", ""), "\n", "")
 	link := fmt.Sprintf("%s/v1/users/activate/%s", m.baseURL, token)
 
