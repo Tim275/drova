@@ -210,7 +210,7 @@ jobs:
 
       - name: Attest build provenance (SLSA L3)
         if: steps.changed.outputs.changed == 'true'
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4
         with:
           subject-name: ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}
           subject-digest: ${{ steps.digest.outputs.value }}
