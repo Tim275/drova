@@ -10,6 +10,10 @@ import (
 	"net/smtp"
 	"os"
 	"strings"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 type Mailer struct {
