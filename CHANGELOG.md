@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.0](https://github.com/Tim275/drova/compare/v0.22.15...v0.23.0) (2026-07-22)
+
+
+### Features
+
+* mail send metric ([#310](https://github.com/Tim275/drova/issues/310)) ([b17be45](https://github.com/Tim275/drova/commit/b17be45faf738c56b0ae15055c7a0b8d7039a3b5))
+
 ## [0.22.15](https://github.com/Tim275/drova/compare/v0.22.14...v0.22.15) (2026-07-22)
 
 
