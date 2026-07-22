@@ -3,19 +3,6 @@ import { check } from 'k6';
 import { Rate, Trend } from 'k6/metrics';
 import { b64encode } from 'k6/encoding';
 
-// ── Enterprise-Lastmodell ──────────────────────────────────────────────────
-// 1.000.000 Nutzer/Tag ÷ 86.400 s ≈ 12 Nutzer/s (Schnitt)
-//   × ~7 Requests/Reise           ≈ 80 req/s (Schnitt)
-//   × 4 (Abend-Peak Ridesharing)  ≈ 320 req/s (Peak)
-//
-// Modelliert wird die ANKUNFTSRATE (req/s), nicht eine fixe VU-Zahl — das ist
-// der Unterschied zwischen Smoke und echtem Last-Test. ramping-arrival-rate
-// hält die Rate konstant und zieht VUs bei Bedarf aus dem Pool nach.
-// Ziel per TARGET_RPS dialbar (Default 300 = ~1 Mio Nutzer/Tag im Peak).
-//
-// ENABLE_BOOKING=1 schaltet den Schreib-Pfad zu (Preview → CreateTrip). Bewusst
-// AUS by default: erzeugt echte Trips in der DB und braucht MAPBOX_TOKEN server-
-// seitig — nur gegen eine Dev-/Wegwerf-DB laufen lassen.
 
 const TARGET_RPS = Number(__ENV.TARGET_RPS || 300);
 const BASE_URL   = __ENV.BASE_URL   || 'http://localhost:8081';

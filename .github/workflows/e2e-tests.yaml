@@ -236,27 +236,38 @@ jobs:
         run: |
           mkdir -p zap-report
           chmod 777 zap-report
+          # rules.tsv = kuratierte False-Positive-Suppression (IGNORE/WARN je Regel).
+          # Muss unter /zap/wrk liegen, daher der cp ins gemountete Verzeichnis.
+          cp tests/security/rules.tsv zap-report/rules.tsv
           docker run --network host \
             -v "$(pwd)/zap-report:/zap/wrk/:rw" \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
             -t http://localhost:8081 \
+            -c rules.tsv \
             -r zap-report.html \
             -J zap-report.json \
             -I
 
-      - name: OWASP ZAP Active/Full Scan (nur bei run_full_scan)
+      - name: OWASP ZAP Active/Full Scan (authenticated, nur bei run_full_scan)
         if: ${{ inputs.run_full_scan }}
         run: |
-          # Aktiver Angriff (SQL-Injection, XSS, Path-Traversal) gegen den
-          # wegwerfbaren k3d. -I + || true → informierend, blockt nie.
+          # Authenticated Active Scan: als rider einloggen, Bearer-Token via Hook
+          # in JEDEN Request injizieren → scannt auch die Wege HINTER dem Login.
+          # Aktiver Angriff (SQLi/XSS/Path-Traversal) gegen den wegwerfbaren k3d.
+          # -I + || true → informierend, blockt nie.
+          TOKEN=$(curl -sf -u "rider@drova.local:Test1234!" \
+            -X POST http://localhost:8081/v1/auth/token | jq -r '.data.token // .token // empty')
+          cp tests/security/auth_hook.py zap-report/auth_hook.py
           docker run --network host \
+            -e ZAP_AUTH_TOKEN="$TOKEN" \
             -v "$(pwd)/zap-report:/zap/wrk/:rw" \
             ghcr.io/zaproxy/zaproxy:stable \
             zap-full-scan.py \
             -t http://localhost:8081 \
             -r zap-full-report.html \
             -J zap-full-report.json \
+            --hook=/zap/wrk/auth_hook.py \
             -I || true
 
       - name: Upload ZAP report
