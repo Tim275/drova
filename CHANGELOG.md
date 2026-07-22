@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.22.15](https://github.com/Tim275/drova/compare/v0.22.14...v0.22.15) (2026-07-22)
+
+
+### Bug Fixes
+
+* **deps:** update nginxinc/nginx-unprivileged:stable-alpine3.23 docker digest to b3f2436 ([#286](https://github.com/Tim275/drova/issues/286)) ([47fd4ba](https://github.com/Tim275/drova/commit/47fd4ba3b4e7c77acbffbe71964499f0216e7d49))
+* english activation mail ([#308](https://github.com/Tim275/drova/issues/308)) ([f179fba](https://github.com/Tim275/drova/commit/f179fbab949dc00805bd4959f273fa9fb02d6379))
+* kafka producer acks=all ([#290](https://github.com/Tim275/drova/issues/290)) ([0c0b10e](https://github.com/Tim275/drova/commit/0c0b10eb088f7b48896d7a1521e708e92a8193b3))
+* security bumps ([#309](https://github.com/Tim275/drova/issues/309)) ([a137b93](https://github.com/Tim275/drova/commit/a137b9370163c8a7c4c2b5e663d6018eb6f6dd2f))
+
 ## [0.22.14](https://github.com/Tim275/drova/compare/v0.22.13...v0.22.14) (2026-07-21)
 
 
