@@ -146,7 +146,7 @@ services:
     restart: unless-stopped
 
   loki:
-    image: grafana/loki:3.0.0@sha256:757b5fadf816a1396f1fea598152947421fa49cb8b2db1ddd2a6e30fae003253
+    image: grafana/loki:3.7.3@sha256:70b9f699fc9bb868b62f1cfd4f787dfa50242f1fd92e6089787d5d7daea75fe8
     ports:
       - "127.0.0.1:3100:3100"
     command: -config.file=/etc/loki/local-config.yaml
