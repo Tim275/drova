@@ -56,28 +56,28 @@ func (m *Mailer) SendActivation(toEmail, token string) error {
 	link := fmt.Sprintf("%s/v1/users/activate/%s", m.baseURL, token)
 
 	html := fmt.Sprintf(`<!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head><meta charset="UTF-8"></head>
 <body style="font-family:system-ui,sans-serif;max-width:480px;margin:40px auto;padding:0 16px;color:#111827;background:#fff;">
   <div style="border:1px solid #e5e7eb;border-radius:12px;padding:32px;">
-    <h2 style="margin:0 0 8px;font-size:22px;">Willkommen bei Drova</h2>
+    <h2 style="margin:0 0 8px;font-size:22px;">Welcome to Drova</h2>
     <p style="color:#6b7280;margin:0 0 28px;font-size:15px;">
-      Bestätige deine E-Mail-Adresse, um dein Konto zu aktivieren.
+      Confirm your email address to activate your account.
     </p>
     <a href="%s"
        style="display:inline-block;background:#111827;color:#fff;padding:13px 28px;
               border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;">
-      E-Mail bestätigen
+      Confirm email
     </a>
     <p style="margin:28px 0 0;color:#9ca3af;font-size:12px;line-height:1.6;">
-      Dieser Link ist 72 Stunden gültig.<br>
-      Falls du dich nicht registriert hast, kannst du diese E-Mail ignorieren.
+      This link is valid for 72 hours.<br>
+      If you didn't sign up, you can safely ignore this email.
     </p>
   </div>
 </body>
 </html>`, link)
 
-	subject := "Drova – E-Mail-Adresse bestätigen"
+	subject := "Drova – Confirm your email address"
 	msg := fmt.Sprintf(
 		"From: %s\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\n\r\n%s",
 		m.from, toEmail, subject, html,

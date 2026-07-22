@@ -73,7 +73,7 @@ jobs:
           echo "✓ Redis ready"
 
           echo "Waiting for Kafka..."
-          for i in {1..40}; do
+          for _ in {1..40}; do
             if docker exec kafka kafka-broker-api-versions \
                  --bootstrap-server 127.0.0.1:9092 2>/dev/null; then
               echo "✓ Kafka ready"
