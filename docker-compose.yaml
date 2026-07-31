@@ -118,7 +118,7 @@ services:
     restart: unless-stopped
 
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.150.1@sha256:a516c26968aa1feb5e5fc0562e3338ea13755cb4f373603226bcc4e276374ad0
+    image: otel/opentelemetry-collector-contrib:0.157.0@sha256:f2f01157055a9b2aab9df7118e1f1c9abf345e99b23bc7a2bc791db374a7d0f6
     ports:
       - "127.0.0.1:4318:4318"   # OTLP HTTP — services connect here
       - "127.0.0.1:8889:8889"   # Prometheus scrape endpoint
