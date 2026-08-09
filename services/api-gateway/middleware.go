@@ -8,6 +8,7 @@ import (
 	"drova/shared/env"
 
 	"github.com/google/uuid"
+	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -69,6 +70,9 @@ func newRedisClient(addr, password string) *redis.Client {
 		Addr:     addr,
 		Password: password,
 	})
+	if err := redisotel.InstrumentTracing(rdb, redisotel.WithDBStatement(false)); err != nil {
+		appLog.Warnw("redis tracing instrumentation failed", "err", err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	if err := rdb.Ping(ctx).Err(); err != nil {

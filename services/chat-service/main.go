@@ -17,6 +17,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
+	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
@@ -76,6 +77,9 @@ func main() {
 		Addr:     env.GetString("REDIS_URL", "redis:6379"),
 		Password: env.GetString("REDIS_PASSWORD", ""),
 	})
+	if err := redisotel.InstrumentTracing(rdb, redisotel.WithDBStatement(false)); err != nil {
+		appLog.Warnw("redis tracing instrumentation failed", zap.Error(err))
+	}
 	if err = rdb.Ping(ctx).Err(); err != nil {
 		appLog.Fatalw("redis connect failed", zap.Error(err))
 	}

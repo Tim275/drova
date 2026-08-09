@@ -21,8 +21,10 @@ import (
 	pb "drova/shared/proto/user"
 	"drova/shared/tracing"
 
+	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
@@ -79,6 +81,7 @@ func main() {
 	poolCfg.MinConns = 5
 	poolCfg.MaxConnIdleTime = 15 * time.Minute
 	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+	poolCfg.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	db, err := pgxpool.NewWithConfig(context.Background(), poolCfg)
 	if err != nil {
@@ -90,6 +93,9 @@ func main() {
 		Addr:     env.GetString("REDIS_URL", "localhost:6379"),
 		Password: env.GetString("REDIS_PASSWORD", ""),
 	})
+	if err := redisotel.InstrumentTracing(rdb, redisotel.WithDBStatement(false)); err != nil {
+		log.Warnw("redis tracing instrumentation failed", zap.Error(err))
+	}
 	defer rdb.Close()
 	if err := rdb.Ping(context.Background()).Err(); err != nil {
 		log.Fatalw("redis ping failed", zap.Error(err))

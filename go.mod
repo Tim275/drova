@@ -4,6 +4,7 @@ go 1.25.12
 
 require (
 	github.com/alicebob/miniredis/v2 v2.38.0
+	github.com/exaring/otelpgx v0.11.1
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang-migrate/migrate/v4 v4.19.1
@@ -12,6 +13,7 @@ require (
 	github.com/hamba/avro/v2 v2.31.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/mmcloughlin/geohash v0.10.0
+	github.com/redis/go-redis/extra/redisotel/v9 v9.19.0
 	github.com/redis/go-redis/v9 v9.19.0
 	github.com/segmentio/kafka-go v0.4.51
 	github.com/sony/gobreaker v1.0.0
@@ -62,6 +64,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.16 // indirect
+	github.com/redis/go-redis/extra/rediscmd/v9 v9.19.0 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.2 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
