@@ -56,6 +56,7 @@ func main() {
 
 	appLog = logger.New(envStr, "chat-service")
 	defer appLog.Sync()
+	tracing.StartPprofServer(appLog, ":6060")
 
 	if tracerErr != nil {
 		appLog.Warnw("tracing init failed", zap.Error(tracerErr))

@@ -39,6 +39,7 @@ func main() {
 
 	log := logger.New(envStr, "payment-service")
 	defer log.Sync()
+	tracing.StartPprofServer(log, ":6060")
 
 	if tracerErr != nil {
 		log.Warnw("tracing init failed", zap.Error(tracerErr))
