@@ -20,6 +20,7 @@ import (
 	"drova/shared/messaging"
 	"drova/shared/tracing"
 
+	"github.com/exaring/otelpgx"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "go.uber.org/automaxprocs"
@@ -79,6 +80,7 @@ func main() {
 	poolCfg.MinConns = 2
 	poolCfg.MaxConnIdleTime = 15 * time.Minute
 	poolCfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
+	poolCfg.ConnConfig.Tracer = otelpgx.NewTracer()
 
 	db, err := pgxpool.NewWithConfig(ctx, poolCfg)
 	if err != nil {
