@@ -95,7 +95,31 @@ jobs:
       - name: Vulnerability check
         run: |
           go install golang.org/x/vuln/cmd/govulncheck@v1.1.4
-          govulncheck ./...
+          set +e
+          govulncheck -json ./... > govulncheck.json
+          set -e
+
+          # An OSV entry can list multiple affected packages with different fix
+          # status (e.g. a vuln fixed in a fork but not in the module we use) —
+          # match fix-availability per (osv, module) pair, not per OSV ID alone.
+          jq -r 'select(.osv != null) | .osv.id as $id |
+                 .osv.affected[]? | select([.ranges[]?.events[]? | select(.fixed != null)] | length > 0) |
+                 "\($id)\t\(.package.name)"' govulncheck.json | sort -u > fixed_pairs.tsv
+          jq -r 'select(.finding != null) | "\(.finding.osv)\t\(.finding.trace[0].module)"' govulncheck.json \
+            | sort -u > finding_pairs.tsv
+
+          blocking=$(comm -12 finding_pairs.tsv fixed_pairs.tsv)
+          unfixed=$(comm -23 finding_pairs.tsv fixed_pairs.tsv)
+
+          if [ -n "$unfixed" ]; then
+            echo "::warning::Reachable vulnerabilities with no upstream fix yet (not blocking):"
+            echo "$unfixed"
+          fi
+          if [ -n "$blocking" ]; then
+            echo "Reachable vulnerabilities with a fix available:"
+            echo "$blocking"
+            exit 1
+          fi
 
   test:
     name: Unit & Integration Tests
