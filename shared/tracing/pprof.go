@@ -3,6 +3,7 @@ package tracing
 import (
 	"net/http"
 	"net/http/pprof"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -19,8 +20,19 @@ func StartPprofServer(log *zap.SugaredLogger, addr string) {
 	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
 	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
 
+	// WriteTimeout has headroom for CPU-profile captures (client-controlled
+	// via ?seconds=N, default 30s) — too tight here cuts profiling off.
+	srv := &http.Server{
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+
 	go func() {
-		if err := http.ListenAndServe(addr, mux); err != nil {
+		if err := srv.ListenAndServe(); err != nil {
 			log.Warnw("pprof server error", zap.Error(err))
 		}
 	}()
