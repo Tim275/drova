@@ -43,6 +43,7 @@ func main() {
 
 	appLog = logger.New(envStr, "api-gateway")
 	defer appLog.Sync()
+	tracing.StartPprofServer(appLog, ":6060")
 
 	if err != nil {
 		appLog.Warnw("tracing init failed", zap.Error(err))

@@ -54,6 +54,7 @@ func main() {
 
 	log := logger.New(envStr, "user-service")
 	defer log.Sync()
+	tracing.StartPprofServer(log, ":6060")
 
 	if err != nil {
 		log.Warnw("tracing init failed", zap.Error(err))
