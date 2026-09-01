@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.24.0](https://github.com/Tim275/drova/compare/v0.23.0...v0.24.0) (2026-09-01)
+
+
+### Features
+
+* add db and cache tracing ([#318](https://github.com/Tim275/drova/issues/318)) ([afd5a45](https://github.com/Tim275/drova/commit/afd5a451371462f54a480d922e1a2238255abb8a))
+* add pprof profiling endpoint ([#317](https://github.com/Tim275/drova/issues/317)) ([a094fc6](https://github.com/Tim275/drova/commit/a094fc6bdbd21fbfcc622ef63e8dd5e2f08bf768))
+
+
+### Bug Fixes
+
+* govulncheck only blocks fixable vulns ([#319](https://github.com/Tim275/drova/issues/319)) ([c904c15](https://github.com/Tim275/drova/commit/c904c1533d8cc1f5a72315bc13c0a4eeff463bdb))
+* user-service proxy visibility ([#330](https://github.com/Tim275/drova/issues/330)) ([4ccc281](https://github.com/Tim275/drova/commit/4ccc281ff706e4d27dc8eb82014d0ba61bfbbde4))
+
 ## [0.23.0](https://github.com/Tim275/drova/compare/v0.22.15...v0.23.0) (2026-07-22)
 
 
