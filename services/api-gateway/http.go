@@ -47,7 +47,7 @@ var userServiceProxy = func() *httputil.ReverseProxy {
 		DialContext: (&net.Dialer{
 			Timeout: 3 * time.Second,
 		}).DialContext,
-		ResponseHeaderTimeout: 8 * time.Second,
+		ResponseHeaderTimeout: 15 * time.Second,
 	}
 	p.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		appLog.Warnw("user-service proxy error", "err", err)
