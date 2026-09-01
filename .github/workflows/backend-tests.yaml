@@ -68,7 +68,7 @@ jobs:
       # (Step-Referenzen, Expressions, Syntax) blocken hart.
       # docker://-Pin statt curl|bash: Renovate bumpt den Tag wie jede Action.
       - name: Lint workflows (actionlint)
-        uses: docker://rhysd/actionlint:1.7.7
+        uses: docker://rhysd/actionlint:1.7.7@sha256:887a259a5a534f3c4f36cb02dca341673c6089431057242cdc931e9f133147e9
         with:
           # KEINE Quotes: docker://-Actions haben keine Shell — Quotes würden
           # wörtlich Teil der Regex und der Ignore-Filter griffe nie.
@@ -144,7 +144,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       redis:
-        image: redis:7-alpine
+        image: redis:7-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
         ports:
           - 6379:6379
         options: >-
