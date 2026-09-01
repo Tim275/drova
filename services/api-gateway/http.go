@@ -43,9 +43,21 @@ var userServiceProxy = func() *httputil.ReverseProxy {
 		panic("invalid USER_SERVICE_HTTP_URL: " + err.Error())
 	}
 	p := httputil.NewSingleHostReverseProxy(target)
+	p.Transport = &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout: 3 * time.Second,
+		}).DialContext,
+		ResponseHeaderTimeout: 15 * time.Second,
+	}
 	p.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
 		appLog.Warnw("user-service proxy error", "err", err)
 		http.Error(w, "user service unavailable", http.StatusBadGateway)
+	}
+	p.ModifyResponse = func(res *http.Response) error {
+		if res.StatusCode >= 500 {
+			appLog.Warnw("user-service proxy upstream error", "status", res.StatusCode)
+		}
+		return nil
 	}
 	return p
 }()
