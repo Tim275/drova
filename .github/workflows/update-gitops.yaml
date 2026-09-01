@@ -26,12 +26,12 @@ jobs:
 
     steps:
       - name: Checkout Actions Repo
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           path: actions-repo
 
       - name: Checkout GitOps repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: Tim275/drova-gitops
           token: ${{ secrets.GITOPS_PAT }}
