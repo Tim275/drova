@@ -175,7 +175,7 @@ jobs:
 
       - name: Upload Trivy SARIF
         if: ${{ !cancelled() }}
-        uses: github/codeql-action/upload-sarif@68bde559dea0fdcac2102bfdf6230c5f70eb485e # v4
+        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4
         with:
           sarif_file: "trivy-${{ matrix.service }}.sarif"
           category: "trivy-${{ matrix.service }}"
