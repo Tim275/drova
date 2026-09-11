@@ -1,9 +1,14 @@
 package grpc_clients
 
 import (
+	"context"
+	"sync"
 	"time"
 
 	"github.com/sony/gobreaker"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -37,6 +42,28 @@ func InitBreakers(log *zap.SugaredLogger) {
 	TripBreaker = newBreaker("trip-service", log)
 	DriverBreaker = newBreaker("driver-service", log)
 	UserBreaker = newBreaker("user-service", log)
+	breakerMetricOnce.Do(registerBreakerMetric)
+}
+
+var breakerMetricOnce sync.Once
+
+// Observable statt Counter beim Zustandswechsel: ein offener Breaker meldet sich
+// so bei jedem Scrape, nicht nur im Moment des Umschaltens.
+// Prometheus sieht: circuitbreaker_state (0=closed, 1=half-open, 2=open).
+func registerBreakerMetric() {
+	meter := otel.Meter("drova/circuitbreaker")
+	_, err := meter.Int64ObservableGauge("circuitbreaker.state",
+		metric.WithDescription("0=closed, 1=half-open, 2=open"),
+		metric.WithInt64Callback(func(_ context.Context, o metric.Int64Observer) error {
+			for _, cb := range []*gobreaker.CircuitBreaker{TripBreaker, DriverBreaker, UserBreaker} {
+				if cb == nil {
+					continue
+				}
+				o.Observe(int64(cb.State()), metric.WithAttributes(attribute.String("target", cb.Name())))
+			}
+			return nil
+		}))
+	_ = err
 }
 
 func newBreaker(name string, log *zap.SugaredLogger) *gobreaker.CircuitBreaker {
