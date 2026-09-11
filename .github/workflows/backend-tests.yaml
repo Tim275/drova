@@ -59,8 +59,7 @@ jobs:
         with:
           recursive: true
 
-      # go.mod 1.26 gegen golang:1.25 im Build = "go mod download" scheitert erst
-      # beim Docker-Job, nach 5 Minuten Buildzeit.
+      # Ohne den Check scheitert ein Versions-Widerspruch erst nach 5 Minuten im Docker-Build.
       - name: Go-Version gegen Dockerfiles pruefen
         run: |
           GOMOD=$(grep -E '^go [0-9]' go.mod | awk '{print $2}' | cut -d. -f1,2)
