@@ -59,6 +59,22 @@ jobs:
         with:
           recursive: true
 
+      # go.mod 1.26 gegen golang:1.25 im Build = "go mod download" scheitert erst
+      # beim Docker-Job, nach 5 Minuten Buildzeit.
+      - name: Go-Version gegen Dockerfiles pruefen
+        run: |
+          GOMOD=$(grep -E '^go [0-9]' go.mod | awk '{print $2}' | cut -d. -f1,2)
+          fail=0
+          for df in services/*/Dockerfile; do
+            IMG=$(grep -m1 -oE 'FROM golang:[0-9]+\.[0-9]+' "$df" | cut -d: -f2)
+            if [ "$IMG" != "$GOMOD" ]; then
+              echo "::error file=$df::go.mod verlangt go $GOMOD, Dockerfile nutzt golang:$IMG"
+              fail=1
+            fi
+          done
+          [ "$fail" = 0 ] && echo "go $GOMOD stimmt mit allen Dockerfiles ueberein"
+          exit $fail
+
       # Workflows selbst linten: fängt Referenzen auf nicht existierende Steps,
       # kaputte Expressions und shellcheck-Fehler in run-Blöcken — genau die
       # Bug-Klasse, die in prod-verify 2 Monate unentdeckt blieb (falsche
