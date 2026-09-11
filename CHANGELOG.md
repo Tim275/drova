@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.24.1](https://github.com/Tim275/drova/compare/v0.24.0...v0.24.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* bump go toolchain and x/crypto ([#336](https://github.com/Tim275/drova/issues/336)) ([5f54f7b](https://github.com/Tim275/drova/commit/5f54f7b99d29c7b3198a93332deb9f574832f1b0))
+* set kafka span kinds ([#335](https://github.com/Tim275/drova/issues/335)) ([c993a33](https://github.com/Tim275/drova/commit/c993a33098cda42b15c508c990adb925769d60a5))
+
 ## [0.24.0](https://github.com/Tim275/drova/compare/v0.23.0...v0.24.0) (2026-09-01)
 
 
