@@ -8,6 +8,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type KafkaHeadersCarrier map[string][]byte
@@ -41,7 +42,7 @@ func ExtractKafkaHeaders(ctx context.Context, headers map[string][]byte) context
 
 func StartKafkaProducerSpan(ctx context.Context, topic, ownerID string) (context.Context, func()) {
 	tracer := otel.Tracer("kafka.producer")
-	ctx, span := tracer.Start(ctx, "kafka.publish")
+	ctx, span := tracer.Start(ctx, "kafka.publish", trace.WithSpanKind(trace.SpanKindProducer))
 	span.SetAttributes(
 		attribute.String("messaging.destination", topic),
 		attribute.String("messaging.system", "kafka"),
@@ -52,7 +53,7 @@ func StartKafkaProducerSpan(ctx context.Context, topic, ownerID string) (context
 
 func StartKafkaConsumerSpan(ctx context.Context, topic, groupID string) (context.Context, func()) {
 	tracer := otel.Tracer("kafka.consumer")
-	ctx, span := tracer.Start(ctx, "kafka.consume")
+	ctx, span := tracer.Start(ctx, "kafka.consume", trace.WithSpanKind(trace.SpanKindConsumer))
 	span.SetAttributes(
 		attribute.String("messaging.source", topic),
 		attribute.String("messaging.consumer_group", groupID),
@@ -63,8 +64,9 @@ func StartKafkaConsumerSpan(ctx context.Context, topic, groupID string) (context
 
 // Kafka metrics. The global MeterProvider is wired in InitTracer; instruments are
 // created lazily on first record so the provider is guaranteed to be set (records
-// only happen at runtime). Prometheus sees: messaging_publish_messages_total,
-// messaging_consume_messages_total, messaging_process_duration_seconds.
+// only happen at runtime). Prometheus sees: messaging_publish_messages,
+// messaging_consume_messages, messaging_process_duration_seconds — ohne _total,
+// weil die Instrumentennamen nicht auf .total enden.
 var (
 	kafkaMetricsOnce sync.Once
 	kafkaPublished   metric.Int64Counter
