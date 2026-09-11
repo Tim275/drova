@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.0](https://github.com/Tim275/drova/compare/v0.24.1...v0.25.0) (2026-09-11)
+
+
+### Features
+
+* expose circuit breaker state ([#342](https://github.com/Tim275/drova/issues/342)) ([df4e5cd](https://github.com/Tim275/drova/commit/df4e5cdcfe23c148f24f1d30ef5696a2ef793aa3))
+* trace all gateway endpoints ([#340](https://github.com/Tim275/drova/issues/340)) ([3be5895](https://github.com/Tim275/drova/commit/3be589534c3608b5eb536d8ffd327efdb6c69d4b))
+
 ## [0.24.1](https://github.com/Tim275/drova/compare/v0.24.0...v0.24.1) (2026-09-11)
 
 
