@@ -146,7 +146,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17-alpine@sha256:c7526c0f6c3f30260a563d7bcf8ad778effac59a44f8ffa86678c35418338609
+        image: postgres:17-alpine@sha256:eee6c6e1b0894fa4fe0075eb054af9fd1cf39a35321c2d4110626cfe506411fb
         env:
           POSTGRES_USER: drova
           POSTGRES_PASSWORD: drova
