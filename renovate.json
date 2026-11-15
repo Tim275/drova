@@ -42,10 +42,12 @@
   "prHourlyLimit": 4,
   "branchConcurrentLimit": 25,
 
-  "dependencyDashboard": true,
+  "dependencyDashboard": {
+    "enabled": true,
+    "title": "🔄 Drova Renovate Dashboard",
+    "osvVulnerabilitySummary": "all"
+  },
   "dependencyDashboardApproval": false,
-  "dependencyDashboardTitle": "🔄 Drova Renovate Dashboard",
-  "dependencyDashboardOSVVulnerabilitySummary": "all",
   "osvVulnerabilityAlerts": true,
 
   "labels": ["renovate"],
