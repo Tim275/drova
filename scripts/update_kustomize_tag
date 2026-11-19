@@ -19,7 +19,7 @@ if [ ! -f "$KUSTOMIZATION_FILE" ]; then
   exit 1
 fi
 
-COUNT_BEFORE=$(yq '[.images[] | select(.name | test("ghcr.io/tim275/drova/"))] | length' "$KUSTOMIZATION_FILE")
+COUNT_BEFORE=$(yq '[.images[] | select(.name | test("harbor.timourhomelab.org/drova/"))] | length' "$KUSTOMIZATION_FILE")
 
 if [ "$COUNT_BEFORE" -eq 0 ]; then
   echo "::error::No drova images found in $KUSTOMIZATION_FILE — check 'images:' section"
@@ -30,11 +30,11 @@ echo "::group::Updating $COUNT_BEFORE drova image(s) to tag: $INPUT_TAG"
 echo "File: $KUSTOMIZATION_FILE"
 echo
 echo "--- BEFORE ---"
-yq '.images[] | select(.name | test("ghcr.io/tim275/drova/")) | .name + "  →  " + .newTag' "$KUSTOMIZATION_FILE"
+yq '.images[] | select(.name | test("harbor.timourhomelab.org/drova/")) | .name + "  →  " + .newTag' "$KUSTOMIZATION_FILE"
 
-yq e -i '(.images[] | select(.name | test("ghcr.io/tim275/drova/"))).newTag = "'"$INPUT_TAG"'"' "$KUSTOMIZATION_FILE"
+yq e -i '(.images[] | select(.name | test("harbor.timourhomelab.org/drova/"))).newTag = "'"$INPUT_TAG"'"' "$KUSTOMIZATION_FILE"
 
-COUNT_AFTER=$(yq '[.images[] | select(.name | test("ghcr.io/tim275/drova/")) | select(.newTag == "'"$INPUT_TAG"'")] | length' "$KUSTOMIZATION_FILE")
+COUNT_AFTER=$(yq '[.images[] | select(.name | test("harbor.timourhomelab.org/drova/")) | select(.newTag == "'"$INPUT_TAG"'")] | length' "$KUSTOMIZATION_FILE")
 
 if [ "$COUNT_AFTER" -ne "$COUNT_BEFORE" ]; then
   echo "::error::Update verification failed — expected $COUNT_BEFORE updates with tag $INPUT_TAG, got $COUNT_AFTER"
@@ -46,13 +46,13 @@ fi
 if command -v crane &>/dev/null; then
   echo
   echo "--- DIGEST PINNING ---"
-  for name in $(yq '.images[] | select(.name | test("ghcr.io/tim275/drova/")) | .name' "$KUSTOMIZATION_FILE"); do
+  for name in $(yq '.images[] | select(.name | test("harbor.timourhomelab.org/drova/")) | .name' "$KUSTOMIZATION_FILE"); do
     DIGEST=$(crane digest "${name}:${INPUT_TAG}")
     yq e -i '(.images[] | select(.name == "'"$name"'")).digest = "'"$DIGEST"'"' "$KUSTOMIZATION_FILE"
     echo "${name}:${INPUT_TAG}@${DIGEST}"
   done
 
-  DIGEST_COUNT=$(yq '[.images[] | select(.name | test("ghcr.io/tim275/drova/")) | select(.digest | test("^sha256:"))] | length' "$KUSTOMIZATION_FILE")
+  DIGEST_COUNT=$(yq '[.images[] | select(.name | test("harbor.timourhomelab.org/drova/")) | select(.digest | test("^sha256:"))] | length' "$KUSTOMIZATION_FILE")
   if [ "$DIGEST_COUNT" -ne "$COUNT_BEFORE" ]; then
     echo "::error::Digest pinning failed — expected $COUNT_BEFORE digests, got $DIGEST_COUNT"
     exit 1
@@ -63,7 +63,7 @@ fi
 
 echo
 echo "--- AFTER ---"
-yq '.images[] | select(.name | test("ghcr.io/tim275/drova/")) | .name + "  →  " + .newTag + "@" + (.digest // "no-digest")' "$KUSTOMIZATION_FILE"
+yq '.images[] | select(.name | test("harbor.timourhomelab.org/drova/")) | .name + "  →  " + .newTag + "@" + (.digest // "no-digest")' "$KUSTOMIZATION_FILE"
 echo
 echo "✓ Successfully updated $COUNT_AFTER image(s) in $KUSTOMIZATION_FILE to $INPUT_TAG"
 echo "::endgroup::"

@@ -22,3 +22,5 @@ jobs:
     secrets:
       GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
       MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
+      HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+      HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}
