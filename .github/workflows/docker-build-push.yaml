@@ -20,11 +20,15 @@ permissions:
   pull-requests: write
   id-token: write
   attestations: write
+  # packages: write
   security-events: write
 
 env:
   REGISTRY: harbor.timourhomelab.org
   IMAGE_PREFIX: harbor.timourhomelab.org/drova
+  # ghcr (public):
+  # REGISTRY: ghcr.io
+  # IMAGE_PREFIX: ghcr.io/tim275/drova
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -82,6 +86,7 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ secrets.HARBOR_USERNAME }}
           password: ${{ secrets.HARBOR_PASSWORD }}
+          # ghcr: username: ${{ github.actor }} / password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract tag
         id: tag
