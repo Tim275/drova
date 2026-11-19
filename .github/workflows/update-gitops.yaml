@@ -11,6 +11,12 @@ on:
       GITOPS_PAT:
         required: true
         description: "PAT for drova-gitops repository"
+      HARBOR_USERNAME:
+        required: true
+        description: "Harbor robot account for crane digest lookups"
+      HARBOR_PASSWORD:
+        required: true
+        description: "Harbor robot token"
   workflow_dispatch:
     inputs:
       tag:
@@ -48,6 +54,14 @@ jobs:
 
       - name: Setup crane
         uses: imjasonh/setup-crane@31b88efe9de28ae0ffa220711af4b60be9435f6e # v0.4
+
+      # crane digest braucht Credentials: Harbor-Projekt ist privat
+      - name: Login to Harbor
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: harbor.timourhomelab.org
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
 
       - name: Update staging image tags
         run: |

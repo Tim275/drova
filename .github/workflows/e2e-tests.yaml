@@ -7,7 +7,7 @@ on:
         required: false
         type: string
         default: ""
-        description: "Image tag aus GHCR (leer = lokal bauen für PR)"
+        description: "Image tag aus Harbor (leer = lokal bauen für PR)"
       run_full_scan:
         required: false
         type: boolean
@@ -17,6 +17,10 @@ on:
       GITOPS_PAT:
         required: true
       MAPBOX_TOKEN:
+        required: false
+      HARBOR_USERNAME:
+        required: false
+      HARBOR_PASSWORD:
         required: false
 
 env:
@@ -136,38 +140,38 @@ jobs:
           kubectl apply --server-side -f "https://github.com/kedacore/keda/releases/download/${KEDA_VERSION}/keda-${KEDA_VERSION#v}-crds.yaml"
           echo "✓ KEDA CRDs ${KEDA_VERSION} registered"
 
-      - name: Login to GHCR
+      - name: Login to Harbor
         if: inputs.tag != ''
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: harbor.timourhomelab.org
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
 
       - name: Build images locally (PR mode)
         if: inputs.tag == ''
         run: |
           for svc in api-gateway user-service trip-service driver-service payment-service chat-service; do
             echo "Building $svc..."
-            docker build -t ghcr.io/tim275/drova/$svc:latest \
+            docker build -t harbor.timourhomelab.org/drova/$svc:latest \
               -f services/$svc/Dockerfile . -q
           done
-          docker build -t ghcr.io/tim275/drova/frontend:latest \
+          docker build -t harbor.timourhomelab.org/drova/frontend:latest \
             -f frontend/Dockerfile frontend/ -q
 
-      - name: Pull images from GHCR (release mode)
+      - name: Pull images from Harbor (release mode)
         if: inputs.tag != ''
         run: |
           for svc in api-gateway user-service trip-service driver-service payment-service chat-service frontend; do
-            docker pull ghcr.io/tim275/drova/$svc:${{ inputs.tag }}
-            docker tag ghcr.io/tim275/drova/$svc:${{ inputs.tag }} \
-                       ghcr.io/tim275/drova/$svc:latest
+            docker pull harbor.timourhomelab.org/drova/$svc:${{ inputs.tag }}
+            docker tag harbor.timourhomelab.org/drova/$svc:${{ inputs.tag }} \
+                       harbor.timourhomelab.org/drova/$svc:latest
           done
 
       - name: Load images into k3d
         run: |
           for svc in api-gateway user-service trip-service driver-service payment-service chat-service frontend; do
-            k3d image import ghcr.io/tim275/drova/$svc:latest -c drova-e2e
+            k3d image import harbor.timourhomelab.org/drova/$svc:latest -c drova-e2e
           done
 
       - name: Create namespace + deploy

@@ -17,15 +17,18 @@ concurrency:
 
 permissions:
   contents: write
-  packages: write
   pull-requests: write
   id-token: write
   attestations: write
+  # packages: write
   security-events: write
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_PREFIX: ghcr.io/tim275/drova
+  REGISTRY: harbor.timourhomelab.org
+  IMAGE_PREFIX: harbor.timourhomelab.org/drova
+  # ghcr (public):
+  # REGISTRY: ghcr.io
+  # IMAGE_PREFIX: ghcr.io/tim275/drova
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
@@ -81,8 +84,9 @@ jobs:
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.HARBOR_USERNAME }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
+          # ghcr: username: ${{ github.actor }} / password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract tag
         id: tag
@@ -225,3 +229,5 @@ jobs:
       tag: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
     secrets:
       GITOPS_PAT: ${{ secrets.GITOPS_PAT }}
+      HARBOR_USERNAME: ${{ secrets.HARBOR_USERNAME }}
+      HARBOR_PASSWORD: ${{ secrets.HARBOR_PASSWORD }}

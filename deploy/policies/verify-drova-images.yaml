@@ -1,5 +1,5 @@
 # Deploy-Zeit-Gate: nur von der Drova-Release-Pipeline keyless signierte Images
-# dürfen im Cluster laufen. Schließt die Lücke "Image liegt in GHCR" → "Image läuft im Pod".
+# dürfen im Cluster laufen. Schließt die Lücke "Image liegt in Harbor" → "Image läuft im Pod".
 # Ergänzt das Signieren aus docker-build-push.yaml (Cosign keyless) um die Durchsetzung.
 #
 # DIESE DATEI GEHÖRT NACH drova-gitops (Cluster-Admission), nicht in dieses App-Repo —
@@ -9,6 +9,8 @@
 #   2. validationFailureAction bleibt AUDIT, bis die PolicyReports sauber sind. Erst
 #      dann auf Enforce — sonst blockt eine Fehlkonfig ALLE drova-Pods (fail-closed).
 #   3. Der Cluster braucht Egress zu Rekor/Fulcio (sigstore.dev) für die Verifikation.
+#   4. Harbor-Projekt ist privat — Kyverno braucht Pull-Credentials, sonst kommt es
+#      nicht an die Signatur-Artefakte.
 apiVersion: kyverno.io/v1
 kind: ClusterPolicy
 metadata:
@@ -19,7 +21,7 @@ metadata:
     policies.kyverno.io/severity: high
     policies.kyverno.io/description: >-
       Erzwingt Cosign-keyless-Signaturen (GitHub OIDC) für alle
-      ghcr.io/tim275/drova/*-Images im drova-Namespace.
+      harbor.timourhomelab.org/drova/*-Images im drova-Namespace.
 spec:
   validationFailureAction: Audit      # ZUERST Audit. Erst nach sauberen Reports auf Enforce.
   webhookTimeoutSeconds: 30
@@ -36,7 +38,7 @@ spec:
                 - drova
       verifyImages:
         - imageReferences:
-            - "ghcr.io/tim275/drova/*"
+            - "harbor.timourhomelab.org/drova/*"
           mutateDigest: true          # Tag → unveränderlichen Digest festschreiben
           verifyDigest: true
           required: true
