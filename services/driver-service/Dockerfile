@@ -8,7 +8,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-w -s" \
     -o /out/driver-service ./services/driver-service/cmd
 
-FROM gcr.io/distroless/static-debian12:nonroot@sha256:a9329520abc449e3b14d5bc3a6ffae065bdde0f02667fa10880c49b35c109fd1
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 WORKDIR /app
 COPY --from=builder --chown=nonroot:nonroot /out/driver-service /app/driver-service
 COPY --from=builder --chown=nonroot:nonroot /app/services/driver-service/migrations /app/migrations
