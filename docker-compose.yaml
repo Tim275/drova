@@ -34,7 +34,7 @@ services:
     restart: unless-stopped
 
   mongodb:
-    image: mongo:7@sha256:32979a1189dfdc44da3f5ed40d910495f5ad8f6f7f77556646f890a30b2d3f56
+    image: mongo:7@sha256:41e8195b2791692695e1dc9bd21cd51d0a3af05fff8ace9304a5c1acf94f1ae1
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
